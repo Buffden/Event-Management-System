@@ -10,7 +10,7 @@
 ## 📌 Executive Summary  
 The **Event Management System (EMS)** is a comprehensive web-based platform developed as part of **CSE 5325 – Software Engineering II: Management, Maintenance, and Quality Assurance (Fall 2025, Team 2)**.  
 
-Our solution is designed to streamline the **end-to-end event lifecycle** — from planning and promotion to registration, ticketing, real-time attendee tracking, and post-event analysis. The system aims to deliver a **robust Minimum Viable Product (MVP) within two months**, enabling administrators, speakers, and attendees to collaborate seamlessly through a centralized platform.  
+Our solution is designed to streamline the **end-to-end event lifecycle** — from planning and promotion to registration, ticketing, real-time attendee tracking, and post-event analysis. The system aims to deliver a **robust Minimum Viable Product (MVP) in a short timeframe (see Project Phases below)**, enabling administrators, speakers, and attendees to collaborate seamlessly through a centralized platform.  
 
 ---
 
