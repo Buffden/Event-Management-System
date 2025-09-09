@@ -66,6 +66,6 @@ The EMS follows a **3-tier architecture** for scalability and maintainability:
 ## 📚 References  
 - *Software Engineering: Principles and Practice* – Hans van Vliet (2008)  
 - *Practical Software Maintenance: Best Practices for Managing Your Software Investment* – Thomas M. Pigoski (1996)  
-- *Effective Project Management: Traditional, Agile, Extreme* – Robert K. Wysocki  
+- *Effective Project Management: Traditional, Agile, Extreme* – Robert K. Wysocki (2013)  
 
 ---
