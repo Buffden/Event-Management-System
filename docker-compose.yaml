@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  ems-client:
+    image: ems-client:latest
+    build:
+      context: ./ems-client
+      dockerfile: Dockerfile
+    container_name: ems-client
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+
+networks:
+  ems-network:
+    driver: bridge
