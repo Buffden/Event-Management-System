@@ -1,7 +1,9 @@
-version: '3.8'
+# This section defines all the containers (services) that make up your application.
 services:
+  #########################################
+  #   APPLICATION SERVICES
+  #########################################
   ems-client:
-    image: ems-client:latest
     build:
       context: ./ems-client
       dockerfile: Dockerfile
@@ -11,7 +13,149 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+    networks:
+      - event-net
+    depends_on:
+      - ems-gateway
 
+  ems-gateway:
+    image: nginx:stable-alpine
+    container_name: ems-gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./ems-gateway/nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - event-net
+    depends_on:
+      - auth-service
+      - event-service
+      - registration-service
+      - ticketing-service
+      - speaker-service
+      - feedback-service
+      - reporting-analytics-service
+      - notification-service
+
+  #########################################
+  #   BACKEND MICROSERVICES
+  #########################################
+  auth-service: &base-service
+    build:
+      context: ./ems-services/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/ems_db
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    networks:
+      - event-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
+  event-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/event-service
+      dockerfile: Dockerfile
+    container_name: event-service
+
+  registration-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/registration-service
+      dockerfile: Dockerfile
+    container_name: registration-service
+
+  ticketing-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/ticketing-service
+      dockerfile: Dockerfile
+    container_name: ticketing-service
+
+  speaker-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/speaker-service
+      dockerfile: Dockerfile
+    container_name: speaker-service
+
+  feedback-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/feedback-service
+      dockerfile: Dockerfile
+    container_name: feedback-service
+
+  reporting-analytics-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/reporting-analytics-service
+      dockerfile: Dockerfile
+    container_name: reporting-analytics-service
+
+  notification-service:
+    build:
+      context: ./ems-services/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    networks:
+      - event-net
+    depends_on:
+      - rabbitmq
+
+  #########################################
+  #   INFRASTRUCTURE SERVICES
+  #########################################
+  rabbitmq:
+    image: rabbitmq:3.9-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    networks:
+      - event-net
+    healthcheck:
+      test: [ "CMD", "rabbitmqctl", "status" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      # All services will now connect to this single database.
+      - POSTGRES_DB=ems_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - event-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin -d ems_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# This section defines the custom network for our services to communicate.
 networks:
-  ems-network:
+  event-net:
     driver: bridge
+
+# This section defines a volume for persisting data.
+volumes:
+  postgres-data:
+    driver: local
