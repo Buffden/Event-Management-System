@@ -1,5 +1,5 @@
 # Stage 1: Production dependencies
-FROM node:20-alpine3.22 AS builder
+FROM node:lts-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 
@@ -15,7 +15,7 @@ COPY . .
 # Build the application in production mode
 RUN npm run build
 
-FROM node:20-alpine3.22 AS runner
+FROM node:lts-alpine AS runner
 WORKDIR /app
 
 # Set production environment
