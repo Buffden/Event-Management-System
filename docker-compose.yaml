@@ -15,11 +15,11 @@ services:
       - PORT=3000
     networks:
       - event-net
-    depends_on:
-      - ems-gateway
 
   ems-gateway:
-    image: nginx:stable-alpine
+    build:
+        context: ./ems-gateway
+        dockerfile: Dockerfile
     container_name: ems-gateway
     ports:
       - "80:80"
@@ -28,6 +28,7 @@ services:
     networks:
       - event-net
     depends_on:
+      - ems-client
       - auth-service
       - event-service
       - registration-service
@@ -55,6 +56,13 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_started
+
+  user-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
 
   event-service:
     <<: *base-service
