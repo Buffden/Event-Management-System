@@ -18,8 +18,8 @@ services:
 
   ems-gateway:
     build:
-        context: ./ems-gateway
-        dockerfile: Dockerfile
+      context: ./ems-gateway
+      dockerfile: Dockerfile
     container_name: ems-gateway
     ports:
       - "80:80"
@@ -31,12 +31,6 @@ services:
       - ems-client
       - auth-service
       - event-service
-      - registration-service
-      - ticketing-service
-      - speaker-service
-      - feedback-service
-      - reporting-analytics-service
-      - notification-service
 
   #########################################
   #   BACKEND MICROSERVICES
@@ -45,78 +39,63 @@ services:
     build:
       context: ./ems-services/auth-service
       dockerfile: Dockerfile
+      args:
+        - DATABASE_URL=postgresql://admin:password@auth-service-db:5432/auth_db
     container_name: auth-service
+    restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql://admin:password@postgres:5432/ems_db
+      - PORT=3000
+      - DATABASE_URL=postgresql://admin:password@auth-service-db:5432/auth_db
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=secretkey
     networks:
       - event-net
     depends_on:
-      postgres:
+      auth-service-db:
         condition: service_healthy
       rabbitmq:
         condition: service_started
+#    command: ["sh", "-c", "if [ -d ./prisma ]; then npx prisma migrate dev --name $(date +%Y%m%d%H%M%S) && node dist/server.js; fi"]
 
-  user-service:
-    <<: *base-service
-    build:
-      context: ./ems-services/user-service
-      dockerfile: Dockerfile
-    container_name: user-service
+  auth-service-db: &base-service-db
+    image: postgres:14-alpine
+    container_name: auth-service-db
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=auth_db
+    volumes:
+      - auth-service-data:/var/lib/postgresql/data
+    networks:
+      - event-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   event-service:
     <<: *base-service
     build:
       context: ./ems-services/event-service
       dockerfile: Dockerfile
+      args:
+        - DATABASE_URL=postgresql://admin:password@auth-service-db:5432/auth_db
     container_name: event-service
-
-  registration-service:
-    <<: *base-service
-    build:
-      context: ./ems-services/registration-service
-      dockerfile: Dockerfile
-    container_name: registration-service
-
-  ticketing-service:
-    <<: *base-service
-    build:
-      context: ./ems-services/ticketing-service
-      dockerfile: Dockerfile
-    container_name: ticketing-service
-
-  speaker-service:
-    <<: *base-service
-    build:
-      context: ./ems-services/speaker-service
-      dockerfile: Dockerfile
-    container_name: speaker-service
-
-  feedback-service:
-    <<: *base-service
-    build:
-      context: ./ems-services/feedback-service
-      dockerfile: Dockerfile
-    container_name: feedback-service
-
-  reporting-analytics-service:
-    <<: *base-service
-    build:
-      context: ./ems-services/reporting-analytics-service
-      dockerfile: Dockerfile
-    container_name: reporting-analytics-service
-
-  notification-service:
-    build:
-      context: ./ems-services/notification-service
-      dockerfile: Dockerfile
-    container_name: notification-service
     environment:
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-    networks:
-      - event-net
+      - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
     depends_on:
-      - rabbitmq
+      event-service-db:
+        condition: service_healthy
+
+  event-service-db:
+    <<: *base-service-db
+    container_name: event-service-db
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - event-service-data:/var/lib/postgresql/data
 
   #########################################
   #   INFRASTRUCTURE SERVICES
@@ -138,26 +117,6 @@ services:
       timeout: 5s
       retries: 5
 
-  postgres:
-    image: postgres:14-alpine
-    container_name: postgres
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password
-      # All services will now connect to this single database.
-      - POSTGRES_DB=ems_db
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - event-net
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U admin -d ems_db" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
 # This section defines the custom network for our services to communicate.
 networks:
   event-net:
@@ -165,5 +124,5 @@ networks:
 
 # This section defines a volume for persisting data.
 volumes:
-  postgres-data:
-    driver: local
+  auth-service-data:
+  event-service-data:

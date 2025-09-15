@@ -1,22 +1,46 @@
-# ---- Dependencies Stage ----
-FROM node:lts-alpine AS deps
-WORKDIR /usr/src/app
+# Stage 1: Production dependencies
+FROM node:lts-alpine AS builder
+WORKDIR /app
 COPY package.json package-lock.json ./
+
+# Install only production dependencies
 RUN npm ci
 
-# ---- Build Stage ----
-FROM node:lts-alpine AS builder
-WORKDIR /usr/src/app
-COPY --from=deps /usr/src/app/node_modules ./node_modules
+# Copy Prisma schema and generate client
+COPY prisma ./prisma
+COPY prisma/schema.prisma ./prisma/schema.prisma
+COPY entrypoint.sh ./entrypoint.sh
+
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Copy only necessary files for building
 COPY . .
+
+# Build the application in production mode
 RUN npm run build
 
-# ---- Production Stage ----
-FROM node:lts-alpine AS production
-WORKDIR /usr/src/app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-COPY --from=builder /usr/src/app/dist ./dist
+FROM node:lts-alpine AS runner
+WORKDIR /app
+
+# Set production environment
 ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Copy built application with proper ownership
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/generated ./generated
+COPY --from=builder /app/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 EXPOSE 3000
-CMD ["node", "dist/main"]
+
+CMD ["sh", "-c", "if [ -d ./prisma ]; then npx prisma migrate dev --name $(date +%Y%m%d%H%M%S) && node dist/server.js; fi"]
