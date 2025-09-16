@@ -55,7 +55,24 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_started
-#    command: ["sh", "-c", "if [ -d ./prisma ]; then npx prisma migrate dev --name $(date +%Y%m%d%H%M%S) && node dist/server.js; fi"]
+
+  event-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/event-service
+      dockerfile: Dockerfile
+      args:
+        - DATABASE_URL=postgresql://admin:password@auth-service-db:5432/event_db
+    container_name: event-service
+    environment:
+      - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
+    depends_on:
+      event-service-db:
+        condition: service_healthy
+
+  #########################################
+  #   DATABASES FOR MICROSERVICES
+  #########################################
 
   auth-service-db: &base-service-db
     image: postgres:14-alpine
@@ -73,20 +90,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  event-service:
-    <<: *base-service
-    build:
-      context: ./ems-services/event-service
-      dockerfile: Dockerfile
-      args:
-        - DATABASE_URL=postgresql://admin:password@auth-service-db:5432/auth_db
-    container_name: event-service
-    environment:
-      - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
-    depends_on:
-      event-service-db:
-        condition: service_healthy
 
   event-service-db:
     <<: *base-service-db
