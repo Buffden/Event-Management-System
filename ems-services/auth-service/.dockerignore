@@ -21,3 +21,7 @@ coverage
 .env
 .DS_Store
 .vscode
+
+# Documentation
+docs
+*.md

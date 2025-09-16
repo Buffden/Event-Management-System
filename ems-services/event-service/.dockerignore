@@ -15,9 +15,13 @@ Dockerfile
 coverage
 *.spec.js
 *.tsbuildinfo
- 
+
 # Hidden files and folders
 .git
 .env
 .DS_Store
 .vscode
+
+# Documentation
+docs
+*.md
