@@ -7,80 +7,80 @@ exports.AuthService = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const database_1 = require("./database");
+// A reusable Prisma select object to consistently fetch the fields for our User type.
+// This avoids repetition and ensures all methods return the same user shape.
+const userSelect = {
+    id: true,
+    email: true,
+    name: true,
+    image: true,
+    role: true,
+    isActive: true,
+    emailVerified: true,
+};
 class AuthService {
     constructor() {
         this.JWT_SECRET = process.env.JWT_SECRET;
     }
     async register(data) {
-        // Check if user exists
         const existingUser = await database_1.prisma.user.findUnique({
-            where: { email: data.email }
+            where: { email: data.email },
         });
         if (existingUser) {
-            throw new Error('User already exists');
+            throw new Error('User with this email already exists.');
         }
-        // Hash password
         const hashedPassword = await bcryptjs_1.default.hash(data.password, 12);
-        // Create user
+        // The 'role' and 'isActive' fields will be set to their default values by the database.
         const user = await database_1.prisma.user.create({
             data: {
                 email: data.email,
                 password: hashedPassword,
-                name: data.name ?? ''
+                name: data.name,
             },
-            select: {
-                id: true,
-                email: true,
-                name: true
-            }
+            select: userSelect, // Use the consistent select object
         });
-        // Generate token
-        const token = jsonwebtoken_1.default.sign({ userId: user.id, email: user.email }, this.JWT_SECRET, { expiresIn: '30d' });
-        return {
-            token, user: {
-                id: user.id,
-                email: user.email,
-                name: user.name ?? undefined
-            }
-        };
+        // Include user's role in the JWT payload for role-based access control.
+        const token = jsonwebtoken_1.default.sign({ userId: user.id, email: user.email, role: user.role }, this.JWT_SECRET, { expiresIn: '30d' });
+        return { token, user };
     }
     async login(data) {
-        // Find user
         const user = await database_1.prisma.user.findUnique({
-            where: { email: data.email }
+            where: { email: data.email },
         });
-        if (!user) {
-            throw new Error('Invalid credentials');
+        // Critical check: Ensure the user exists AND has a password set.
+        // This prevents users who signed up via OAuth from logging in with a password.
+        if (!user || !user.password) {
+            throw new Error('Invalid email or password.');
         }
-        // Check password
-        const validPassword = await bcryptjs_1.default.compare(data.password, user.password);
-        if (!validPassword) {
-            throw new Error('Invalid credentials');
+        const isPasswordValid = await bcryptjs_1.default.compare(data.password, user.password);
+        if (!isPasswordValid) {
+            throw new Error('Invalid email or password.');
         }
-        // Generate token
-        const token = jsonwebtoken_1.default.sign({ userId: user.id, email: user.email }, this.JWT_SECRET, { expiresIn: '30d' });
-        return {
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name ?? undefined
-            }
+        const token = jsonwebtoken_1.default.sign({ userId: user.id, email: user.email, role: user.role }, this.JWT_SECRET, { expiresIn: '30d' });
+        // Construct the user object to return, ensuring it matches the User interface.
+        const userResponse = {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+            role: user.role,
+            isActive: user.isActive,
+            emailVerified: user.emailVerified,
         };
+        return { token, user: userResponse };
     }
     async checkUserExists(email) {
-        const user = await database_1.prisma.user.findUnique({
+        const userCount = await database_1.prisma.user.count({
             where: { email },
-            select: { id: true }
         });
-        return { exists: !!user };
+        return { exists: userCount > 0 };
     }
     async verifyToken(token) {
         try {
             const decoded = jsonwebtoken_1.default.verify(token, this.JWT_SECRET);
             const user = await database_1.prisma.user.findUnique({
                 where: { id: decoded.userId },
-                select: { id: true, email: true, name: true }
+                select: userSelect,
             });
             if (!user) {
                 return { valid: false };
@@ -94,7 +94,7 @@ class AuthService {
     async getProfile(userId) {
         const user = await database_1.prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, email: true, name: true, createdAt: true }
+            select: userSelect,
         });
         if (!user) {
             throw new Error('User not found');

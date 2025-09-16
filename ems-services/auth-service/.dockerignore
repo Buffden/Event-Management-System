@@ -3,6 +3,7 @@ node_modules
 tests
 dist
 __tests__
+generated
 
 # Docker related
 Dockerfile

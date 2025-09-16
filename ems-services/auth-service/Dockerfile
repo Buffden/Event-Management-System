@@ -17,6 +17,8 @@ RUN npm run build
 FROM node:lts-slim AS runner
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y openssl
+
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
@@ -28,9 +30,8 @@ RUN npm ci --omit=dev --omit=optional --ignore-scripts && npm cache clean --forc
 # Copy only what's needed
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/entrypoint.sh ./entrypoint.sh
+COPY --from=builder /app/generated ./generated
 
-RUN chmod +x ./entrypoint.sh
 
 EXPOSE 3000
 
