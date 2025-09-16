@@ -44,11 +44,11 @@
 **/.vscode
 
 # Environment Files
-*/.env
-*/.env.local
-*/.env.development.local
-*/.env.test.local
-*/.env.production.local
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
 
 # Other potential ignores (depending on your setup)
 **/*.log
