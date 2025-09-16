@@ -15,7 +15,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Updated model for the auth service
+// TODO: Replace with models of event-service
 model User {
   id        String   @id @default(cuid())
   email     String   @unique

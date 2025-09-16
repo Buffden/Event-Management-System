@@ -62,10 +62,13 @@ services:
       context: ./ems-services/event-service
       dockerfile: Dockerfile
       args:
-        - DATABASE_URL=postgresql://admin:password@auth-service-db:5432/event_db
+        - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
     container_name: event-service
     environment:
+      - PORT=3000
       - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=secretkey
     depends_on:
       event-service-db:
         condition: service_healthy
@@ -97,6 +100,7 @@ services:
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=event_db
     volumes:
       - event-service-data:/var/lib/postgresql/data
 
