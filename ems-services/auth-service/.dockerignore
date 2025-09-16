@@ -1,16 +1,23 @@
+# Directories
 node_modules
+tests
 dist
+__tests__
+
+# Docker related
+Dockerfile
+
+# Logs
 *.log
-.env
-.DS_Store
-.vscode
-.idea
-*.iml
+
 *.swp
 *.swo
 coverage
-*.test.js
 *.spec.js
-tests
-__tests__
 *.tsbuildinfo
+
+# Hidden files and folders
+.git
+.env
+.DS_Store
+.vscode
