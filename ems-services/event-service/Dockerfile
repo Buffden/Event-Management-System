@@ -1,22 +1,38 @@
-# ---- Dependencies Stage ----
-FROM node:lts-alpine AS deps
-WORKDIR /usr/src/app
+# Stage 1: Build
+FROM node:lts-slim AS builder
+WORKDIR /app
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# ---- Build Stage ----
-FROM node:lts-alpine AS builder
-WORKDIR /usr/src/app
-COPY --from=deps /usr/src/app/node_modules ./node_modules
+COPY prisma ./prisma
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
+RUN npx prisma generate
+
 COPY . .
 RUN npm run build
 
-# ---- Production Stage ----
-FROM node:lts-alpine AS production
-WORKDIR /usr/src/app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-COPY --from=builder /usr/src/app/dist ./dist
+# Stage 2: Runner
+FROM node:lts-slim AS runner
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y openssl
+
 ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Install only prod deps in final image
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --omit=optional --ignore-scripts && npm cache clean --force
+
+# Copy only what's needed
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/generated ./generated
+
+
 EXPOSE 3000
-CMD ["node", "dist/main"]
+
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]

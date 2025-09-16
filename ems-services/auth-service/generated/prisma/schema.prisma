@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enum to define the different user roles in your application.
+// This ensures type safety and restricts the role field to these specific values.
+enum Role {
+  ADMIN
+  USER
+  SPEAKER
+}
+
+// Updated model for the auth service
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  // Password is now optional to allow for users who sign up via OAuth providers (e.g., Google)
+  // and may not have a traditional password.
+  password      String?
+  image         String? // For profile pictures, often from OAuth providers.
+  emailVerified DateTime? // Tracks when a user's email has been verified.
+
+  // The 'role' field uses the Role enum and defaults to USER for new sign-ups.
+  role Role @default(USER)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation to the Account model to support multiple login methods per user.
+  accounts Account[]
+
+  @@map("users")
+}
+
+// This model is essential for supporting multiple authentication methods (OAuth).
+// Each entry links a user's profile to a specific provider account (e.g., their Google account).
+model Account {
+  id                String @id @default(cuid())
+  userId            String
+  type              String // The type of account, e.g., "oauth"
+  provider          String // The provider name, e.g., "google", "github"
+  providerAccountId String // The user's unique ID on the provider's platform.
+
+  // OAuth tokens
+  refresh_token String? @db.Text
+  access_token  String? @db.Text
+  expires_at    Int?
+  token_type    String?
+  scope         String?
+  id_token      String? @db.Text
+  session_state String?
+
+  // Defines the many-to-one relationship with the User model.
+  // onDelete: Cascade ensures that if a user is deleted, their linked accounts are also deleted.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Ensures that each user can only have one account per provider.
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
