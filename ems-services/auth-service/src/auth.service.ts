@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { prisma } from './database';
-import { RegisterRequest, LoginRequest, AuthResponse, User, Role } from './types/types';
-import { Profile } from 'passport-google-oauth20';
+import {prisma} from './database';
+import {RegisterRequest, LoginRequest, AuthResponse, User, Role} from './types/types';
+import {Profile} from 'passport-google-oauth20';
 
 const userSelect = {
     id: true,
@@ -17,11 +17,16 @@ const userSelect = {
 export class AuthService {
     private JWT_SECRET = process.env.JWT_SECRET!;
 
+    /**
+     * Private method to generate a JWT for a given user.
+     * @param user The user object.
+     * @returns A JWT string.
+     */
     private _generateToken(user: User): string {
         return jwt.sign(
-            { userId: user.id, email: user.email, role: user.role },
+            {userId: user.id, email: user.email, role: user.role},
             this.JWT_SECRET,
-            { expiresIn: '30d' }
+            {expiresIn: '30d'}
         );
     }
 
@@ -35,9 +40,14 @@ export class AuthService {
         return this._generateToken(user);
     }
 
+    /**
+     * Public method to register a user.
+     * @param data The registeration request object.
+     * @returns An object {token: string, user: User}.
+     */
     async register(data: RegisterRequest): Promise<AuthResponse> {
         const existingUser = await prisma.user.findUnique({
-            where: { email: data.email },
+            where: {email: data.email},
         });
 
         if (existingUser) {
@@ -57,27 +67,43 @@ export class AuthService {
 
         const token = this._generateToken(user);
 
-        return { token, user };
+        return {token, user: user as User};
     }
 
+    /**
+     * Public method to log a user in.
+     * @param data The login request object.
+     * @returns An object {token: string, user: User}.
+     */
     async login(data: LoginRequest): Promise<AuthResponse> {
-        const user = await prisma.user.findUnique({
-            where: { email: data.email },
+        const userWithPassword = await prisma.user.findUnique({
+            where: {email: data.email},
         });
 
-        if (!user || !user.password) {
+        if (!userWithPassword || !userWithPassword.password) {
             throw new Error('Invalid email or password.');
         }
 
-        const isPasswordValid = await bcrypt.compare(data.password, user.password);
+        const isPasswordValid = await bcrypt.compare(data.password, userWithPassword.password);
         if (!isPasswordValid) {
             throw new Error('Invalid email or password.');
         }
 
+        // Fetch only safe fields
+        const user = await prisma.user.findUnique({
+            where: {email: data.email},
+            select: userSelect,
+        });
+
+        if (!user) {
+            throw new Error('User not found after login.');
+        }
+
         const token = this._generateToken(user as User);
 
-        return { token, user: user as User };
+        return {token, user: user as User};
     }
+
 
     async findOrCreateGoogleUser(profile: Profile): Promise<User> {
         const email = profile.emails?.[0].value;
@@ -92,7 +118,7 @@ export class AuthService {
                     providerAccountId: profile.id,
                 },
             },
-            select: { user: { select: userSelect } },
+            select: {user: {select: userSelect}},
         });
 
         if (account) {
@@ -100,7 +126,7 @@ export class AuthService {
         }
 
         const existingUser = await prisma.user.findUnique({
-            where: { email },
+            where: {email},
             select: userSelect,
         });
 
@@ -138,28 +164,28 @@ export class AuthService {
 
     async checkUserExists(email: string): Promise<{ exists: boolean }> {
         const userCount = await prisma.user.count({
-            where: { email },
+            where: {email},
         });
-        return { exists: userCount > 0 };
+        return {exists: userCount > 0};
     }
 
     async verifyToken(token: string): Promise<{ valid: boolean; user?: User }> {
         try {
             const decoded = jwt.verify(token, this.JWT_SECRET) as { userId: string };
             const user = await prisma.user.findUnique({
-                where: { id: decoded.userId },
+                where: {id: decoded.userId},
                 select: userSelect,
             });
-            if (!user) return { valid: false };
-            return { valid: true, user };
+            if (!user) return {valid: false};
+            return {valid: true, user};
         } catch (error) {
-            return { valid: false };
+            return {valid: false};
         }
     }
 
     async getProfile(userId: string): Promise<User> {
         const user = await prisma.user.findUnique({
-            where: { id: userId },
+            where: {id: userId},
             select: userSelect,
         });
         if (!user) throw new Error('User not found');

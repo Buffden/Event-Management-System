@@ -4,7 +4,10 @@ import {authMiddleware} from '../middleware';
 import {Request, Response} from 'express';
 
 export function registerRoutes(app: Express, authService: AuthService) {
-    // Routes
+    /**
+     * @route   GET http://localhost/api/auth/register
+     * @desc    Registers a new user.
+     */
     app.post('/register', async (req, res) => {
         try {
             const result = await authService.register(req.body);
@@ -14,6 +17,10 @@ export function registerRoutes(app: Express, authService: AuthService) {
         }
     });
 
+    /**
+     * @route   GET http://localhost/api/auth/login
+     * @desc    Logs in an existing user.
+     */
     app.post('/login', async (req, res) => {
         try {
             const result = await authService.login(req.body);
@@ -23,6 +30,10 @@ export function registerRoutes(app: Express, authService: AuthService) {
         }
     });
 
+    /**
+     * @route   GET http://localhost/api/auth/check-user
+     * @desc    Checks if a user exists by email.
+     */
     app.get('/check-user', async (req, res) => {
         try {
             const {email} = req.query;
@@ -37,6 +48,10 @@ export function registerRoutes(app: Express, authService: AuthService) {
         }
     });
 
+    /**
+     * @route   POST http://localhost/api/auth/verify-token
+     * @desc    Verifies the validity of a JWT token.
+     */
     app.post('/verify-token', async (req, res) => {
         try {
             const {token} = req.body;
@@ -51,6 +66,11 @@ export function registerRoutes(app: Express, authService: AuthService) {
         }
     });
 
+    /**
+     * @route   GET http://localhost/api/auth/profile
+     * @desc    Retrieves the profile of the authenticated user.
+     * @access  Protected
+     */
     app.get('/profile', authMiddleware, async (req: Request, res) => {
         try {
             const result = await authService.getProfile(req.userid || '');
@@ -60,6 +80,10 @@ export function registerRoutes(app: Express, authService: AuthService) {
         }
     });
 
+    /**
+     * @route   GET http://localhost/api/auth/health
+     * @desc    Health check endpoint to verify the service is running.
+     */
     app.get('/health', (req, res) => {
         res.json({
             status: 'ok',

@@ -5,7 +5,7 @@ import { User } from '../types/types';
 
 export function registerOAuthRoutes(app: Express, authService: AuthService) {
     /**
-     * @route   GET /auth/google
+     * @route   GET http://localhost/api/auth/google
      * @desc    Initiates the Google OAuth2 authentication flow.
      */
     app.get(
@@ -17,7 +17,7 @@ export function registerOAuthRoutes(app: Express, authService: AuthService) {
     );
 
     /**
-     * @route   GET /auth/google/callback
+     * @route   GET http://localhost/api/auth/google/callback
      * @desc    Handles the callback from Google after authentication.
      */
     app.get(
