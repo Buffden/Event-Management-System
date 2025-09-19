@@ -73,7 +73,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
      */
     app.get('/profile', authMiddleware, async (req: Request, res) => {
         try {
-            const result = await authService.getProfile(req.userid || '');
+            const result = await authService.getProfile(req.userid);
             res.json(result);
         } catch (error: any) {
             res.status(400).json({error: error.message});
