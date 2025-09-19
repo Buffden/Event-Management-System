@@ -1,0 +1,81 @@
+<!--
+  Planora logo SVG
+  - Transparent background
+  - Centered horizontally & vertically in viewBox
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" role="img" aria-label="Planora logo">
+    <defs>
+        <!-- Icon gradient -->
+        <linearGradient id="gradIcon" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stop-color="#0D47A1"/>
+            <stop offset="70%" stop-color="#00C853"/>
+        </linearGradient>
+
+        <!-- Slight inner highlight gradient for the calendar face -->
+        <linearGradient id="gradFace" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.18)"/>
+            <stop offset="100%" stop-color="rgba(255,255,255,0.02)"/>
+        </linearGradient>
+
+        <!-- Glow filter for icon -->
+        <filter id="iconGlow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur"/>
+            <feColorMatrix in="blur" type="matrix"
+                           values="0 0 0 0 0.0
+                0 0 0 0 0.48
+                0 0 0 0 0.35
+                0 0 0 0.5 0" result="colblur"/>
+            <feMerge>
+                <feMergeNode in="colblur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+
+        <!-- Soft drop shadow for text -->
+        <filter id="textShadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+            <feOffset dx="0" dy="3" result="off"/>
+            <feMerge>
+                <feMergeNode in="off"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+
+        <!-- Calendar face shadow -->
+        <linearGradient id="faceShadow" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="60%" stop-color="rgba(0,0,0,0)" />
+            <stop offset="100%" stop-color="rgba(0,0,0,0.06)" />
+        </linearGradient>
+
+        <style>
+            .brand-text{
+            font-family: "Montserrat", "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            }
+        </style>
+    </defs>
+
+    <!-- Center group -->
+    <g transform="translate(400,150)">
+        <!-- Icon group (shift left for spacing with text) -->
+        <g transform="translate(-180,-85)">
+            <g filter="url(#iconGlow)">
+                <rect x="0" y="0" width="170" height="170" rx="22" ry="22" fill="url(#gradIcon)"/>
+                <rect x="22" y="-12" width="26" height="24" rx="8" ry="8" fill="url(#gradIcon)"/>
+                <rect x="122" y="-12" width="26" height="24" rx="8" ry="8" fill="url(#gradIcon)"/>
+                <rect x="14" y="28" width="142" height="124" rx="12" ry="12" fill="url(#gradFace)"/>
+            </g>
+            <rect x="0.5" y="0.5" width="169" height="169" rx="22" ry="22" fill="none" stroke="rgba(0,0,0,0.06)"/>
+            <path d="M46 96 L74 122 L126 68" fill="none" stroke="white" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.98"/>
+            <rect x="14" y="28" width="142" height="124" rx="12" ry="12" fill="url(#faceShadow)"/>
+        </g>
+
+        <!-- Brand text (to the right of icon) -->
+        <text class="brand-text" x="50" y="55" font-size="96" fill="#062A5B" filter="url(#textShadow)">
+            Planora
+        </text>
+    </g>
+
+    <title>Planora — Event Management logo</title>
+</svg>

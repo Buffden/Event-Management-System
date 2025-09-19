@@ -49,7 +49,14 @@
 **/.env.development.local
 **/.env.test.local
 **/.env.production.local
+**/.env.production
 
 # Other potential ignores (depending on your setup)
 **/*.log
 **/*.tmp
+
+**/dist
+
+# Credentials
+**/EventManangementSystem_GoogleCreds.json
+**/*-service/generated

@@ -1,80 +1,27 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import passport from 'passport';
 import { AuthService } from './auth.service';
-import { authMiddleware, AuthRequest } from './middleware';
 import { prisma } from './database';
+import { registerRoutes } from './routes/routes';
+import {registerOAuthRoutes} from "./routes/oauth.routes";
+import {configurePassport} from "./config/passport";
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 const authService = new AuthService();
 
-// Middleware
+// --- Middleware ---
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(passport.initialize());
+configurePassport(authService);
 
-// Routes
-app.post('/register', async (req, res) => {
-    try {
-        const result = await authService.register(req.body);
-        res.status(201).json(result);
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
-    }
-});
+// Register routes
+registerRoutes(app, authService);
+registerOAuthRoutes(app, authService);
 
-app.post('/login', async (req, res) => {
-    try {
-        const result = await authService.login(req.body);
-        res.json(result);
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
-    }
-});
-
-app.get('/check-user', async (req, res) => {
-    try {
-        const { email } = req.query;
-        if (!email || typeof email !== 'string') {
-            return res.status(400).json({ error: 'Email is required' });
-        }
-
-        const result = await authService.checkUserExists(email);
-        res.json(result);
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
-    }
-});
-
-app.post('/verify-token', async (req, res) => {
-    try {
-        const { token } = req.body;
-        if (!token) {
-            return res.status(400).json({ error: 'Token is required' });
-        }
-
-        const result = await authService.verifyToken(token);
-        res.json(result);
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
-    }
-});
-
-app.get('/profile', authMiddleware, async (req: AuthRequest, res) => {
-    try {
-        const result = await authService.getProfile(req.user!.id);
-        res.json(result);
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
-    }
-});
-
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString()
-    });
-});
 
 // Start server
 const PORT = process.env.PORT || 3000;
