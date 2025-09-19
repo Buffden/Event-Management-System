@@ -43,11 +43,8 @@ services:
         - DATABASE_URL=postgresql://admin:password@auth-service-db:5432/auth_db
     container_name: auth-service
     restart: unless-stopped
-    environment:
-      - PORT=3000
-      - DATABASE_URL=postgresql://admin:password@auth-service-db:5432/auth_db
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - JWT_SECRET=secretkey
+    env_file:
+      ./ems-services/auth-service/.env.production
     networks:
       - event-net
     depends_on:

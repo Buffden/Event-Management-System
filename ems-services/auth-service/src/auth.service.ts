@@ -1,10 +1,9 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from './database';
-import { RegisterRequest, LoginRequest, AuthResponse, User, Role } from './types';
+import { RegisterRequest, LoginRequest, AuthResponse, User, Role } from './types/types';
+import { Profile } from 'passport-google-oauth20';
 
-// A reusable Prisma select object to consistently fetch the fields for our User type.
-// This avoids repetition and ensures all methods return the same user shape.
 const userSelect = {
     id: true,
     email: true,
@@ -18,6 +17,24 @@ const userSelect = {
 export class AuthService {
     private JWT_SECRET = process.env.JWT_SECRET!;
 
+    private _generateToken(user: User): string {
+        return jwt.sign(
+            { userId: user.id, email: user.email, role: user.role },
+            this.JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+    }
+
+    /**
+     * Public method to generate a JWT for a given user.
+     * This will be called by our OAuth callback.
+     * @param user The user object.
+     * @returns A JWT string.
+     */
+    public generateJwtForUser(user: User): string {
+        return this._generateToken(user);
+    }
+
     async register(data: RegisterRequest): Promise<AuthResponse> {
         const existingUser = await prisma.user.findUnique({
             where: { email: data.email },
@@ -29,22 +46,16 @@ export class AuthService {
 
         const hashedPassword = await bcrypt.hash(data.password, 12);
 
-        // The 'role' and 'isActive' fields will be set to their default values by the database.
         const user = await prisma.user.create({
             data: {
                 email: data.email,
                 password: hashedPassword,
                 name: data.name,
             },
-            select: userSelect, // Use the consistent select object
+            select: userSelect,
         });
 
-        // Include user's role in the JWT payload for role-based access control.
-        const token = jwt.sign(
-            { userId: user.id, email: user.email, role: user.role },
-            this.JWT_SECRET,
-            { expiresIn: '30d' }
-        );
+        const token = this._generateToken(user);
 
         return { token, user };
     }
@@ -54,8 +65,6 @@ export class AuthService {
             where: { email: data.email },
         });
 
-        // Critical check: Ensure the user exists AND has a password set.
-        // This prevents users who signed up via OAuth from logging in with a password.
         if (!user || !user.password) {
             throw new Error('Invalid email or password.');
         }
@@ -65,24 +74,66 @@ export class AuthService {
             throw new Error('Invalid email or password.');
         }
 
-        const token = jwt.sign(
-            { userId: user.id, email: user.email, role: user.role },
-            this.JWT_SECRET,
-            { expiresIn: '30d' }
-        );
+        const token = this._generateToken(user as User);
 
-        // Construct the user object to return, ensuring it matches the User interface.
-        const userResponse: User = {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            image: user.image,
-            role: user.role,
-            isActive: user.isActive,
-            emailVerified: user.emailVerified,
-        };
+        return { token, user: user as User };
+    }
 
-        return { token, user: userResponse };
+    async findOrCreateGoogleUser(profile: Profile): Promise<User> {
+        const email = profile.emails?.[0].value;
+        if (!email) {
+            throw new Error('Google profile is missing an email address.');
+        }
+
+        const account = await prisma.account.findUnique({
+            where: {
+                provider_providerAccountId: {
+                    provider: 'google',
+                    providerAccountId: profile.id,
+                },
+            },
+            select: { user: { select: userSelect } },
+        });
+
+        if (account) {
+            return account.user;
+        }
+
+        const existingUser = await prisma.user.findUnique({
+            where: { email },
+            select: userSelect,
+        });
+
+        if (existingUser) {
+            await prisma.account.create({
+                data: {
+                    userId: existingUser.id,
+                    type: 'oauth',
+                    provider: 'google',
+                    providerAccountId: profile.id,
+                },
+            });
+            return existingUser;
+        }
+
+        const newUser = await prisma.user.create({
+            data: {
+                email: email,
+                name: profile.displayName,
+                image: profile.photos?.[0].value,
+                emailVerified: new Date(),
+                accounts: {
+                    create: {
+                        type: 'oauth',
+                        provider: 'google',
+                        providerAccountId: profile.id,
+                    },
+                },
+            },
+            select: userSelect,
+        });
+
+        return newUser;
     }
 
     async checkUserExists(email: string): Promise<{ exists: boolean }> {
@@ -95,16 +146,11 @@ export class AuthService {
     async verifyToken(token: string): Promise<{ valid: boolean; user?: User }> {
         try {
             const decoded = jwt.verify(token, this.JWT_SECRET) as { userId: string };
-
             const user = await prisma.user.findUnique({
                 where: { id: decoded.userId },
                 select: userSelect,
             });
-
-            if (!user) {
-                return { valid: false };
-            }
-
+            if (!user) return { valid: false };
             return { valid: true, user };
         } catch (error) {
             return { valid: false };
@@ -116,11 +162,7 @@ export class AuthService {
             where: { id: userId },
             select: userSelect,
         });
-
-        if (!user) {
-            throw new Error('User not found');
-        }
-
+        if (!user) throw new Error('User not found');
         return user;
     }
 }

@@ -13,7 +13,6 @@ datasource db {
 }
 
 // Enum to define the different user roles in your application.
-// This ensures type safety and restricts the role field to these specific values.
 enum Role {
   ADMIN
   USER
