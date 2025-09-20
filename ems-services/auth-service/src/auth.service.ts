@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import {prisma} from './database';
 import {RegisterRequest, LoginRequest, AuthResponse, User, Role} from './types/types';
 import {Profile} from 'passport-google-oauth20';
+import { ALLOWED_REGISTRATION_ROLES, DEFAULT_ROLE } from './constants/roles';
 
 const userSelect = {
     id: true,
@@ -16,6 +17,27 @@ const userSelect = {
 
 export class AuthService {
     private JWT_SECRET = process.env.JWT_SECRET!;
+
+    /**
+     * Validates if the provided role is allowed for registration.
+     * Only USER and SPEAKER roles are allowed for registration.
+     * ADMIN roles must be created manually.
+     * @param role The role to validate
+     * @returns true if the role is valid for registration
+     */
+    private isValidRegistrationRole(role: Role | undefined): boolean {
+        if (!role) return true; // If no role provided, it will default to USER
+        return ALLOWED_REGISTRATION_ROLES.includes(role);
+    }
+    /**
+     * Gets the default role for registration if none provided.
+     * @param providedRole The role provided in the request
+     * @returns The role to use (defaults to USER)
+     */
+    private getRegistrationRole(providedRole: Role | undefined): Role {
+        return providedRole || DEFAULT_ROLE;
+    }
+
 
     /**
      * Private method to generate a JWT for a given user.
@@ -46,6 +68,12 @@ export class AuthService {
      * @returns An object {token: string, user: User}.
      */
     async register(data: RegisterRequest): Promise<AuthResponse> {
+        // Validate the provided role
+        // ToDo: Printing the allowed roles needs to be refactored
+        if (!this.isValidRegistrationRole(data.role)) {
+            throw new Error(`Only ${ALLOWED_REGISTRATION_ROLES.join(' and ')} roles are allowed for registration. ADMIN roles must be created manually.`);
+        }
+
         const existingUser = await prisma.user.findUnique({
             where: {email: data.email},
         });
@@ -55,12 +83,16 @@ export class AuthService {
         }
 
         const hashedPassword = await bcrypt.hash(data.password, 12);
+        
+        // Get the role to use. Defaults to USER if not provided
+        const userRole = this.getRegistrationRole(data.role);
 
         const user = await prisma.user.create({
             data: {
                 email: data.email,
                 password: hashedPassword,
                 name: data.name,
+                role: userRole, // Use the validated role
             },
             select: userSelect,
         });
