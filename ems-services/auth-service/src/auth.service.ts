@@ -38,14 +38,6 @@ export class AuthService {
         return providedRole || DEFAULT_ROLE;
     }
 
-    /**
-     * Gets the list of allowed roles for registration.
-     * This method makes the role validation more extensible.
-     * @returns Array of roles allowed for registration
-     */
-    private getAllowedRegistrationRoles(): Role[] {
-        return ALLOWED_REGISTRATION_ROLES;
-    }
 
     /**
      * Private method to generate a JWT for a given user.
