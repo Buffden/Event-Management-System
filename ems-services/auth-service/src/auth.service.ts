@@ -77,7 +77,7 @@ export class AuthService {
      */
     async register(data: RegisterRequest): Promise<AuthResponse> {
         // Validate the provided role
-        // ToDo: Priting the allowed roles needs to be refactored
+        // ToDo: Printing the allowed roles needs to be refactored
         if (!this.isValidRegistrationRole(data.role)) {
             throw new Error(`Only ${ALLOWED_REGISTRATION_ROLES.join(' and ')} roles are allowed for registration. ADMIN roles must be created manually.`);
         }
