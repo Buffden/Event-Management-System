@@ -31,6 +31,7 @@ services:
       - ems-client
       - auth-service
       - event-service
+      - notification-service
 
   #########################################
   #   BACKEND MICROSERVICES
@@ -66,9 +67,26 @@ services:
       - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
       - JWT_SECRET=secretkey
+    networks:
+      - event-net
     depends_on:
       event-service-db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
+  notification-service:
+    build:
+      context: ./ems-services/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    env_file:
+      ./ems-services/notification-service/.env.production
+    networks:
+      - event-net
+    depends_on:
+      rabbitmq:
+        condition: service_started
 
   #########################################
   #   DATABASES FOR MICROSERVICES
@@ -113,13 +131,17 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq/ # Persistent storage for RabbitMQ data
+      - rabbitmq_log:/var/log/rabbitmq/  # Persistent storage for RabbitMQ
     networks:
       - event-net
     healthcheck:
-      test: [ "CMD", "rabbitmqctl", "status" ]
-      interval: 10s
-      timeout: 5s
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 10s
       retries: 5
+      start_period: 20s # Give RabbitMQ time to start up before checking
 
 # This section defines the custom network for our services to communicate.
 networks:
@@ -130,3 +152,5 @@ networks:
 volumes:
   auth-service-data:
   event-service-data:
+  rabbitmq_data:
+  rabbitmq_log:
