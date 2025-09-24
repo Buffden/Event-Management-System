@@ -1,5 +1,5 @@
 import {Express} from 'express';
-import {AuthService} from '../auth.service';
+import {AuthService} from '../services/auth.service';
 import {authMiddleware} from '../middleware';
 import {Request, Response} from 'express';
 
@@ -74,6 +74,20 @@ export function registerRoutes(app: Express, authService: AuthService) {
     app.get('/profile', authMiddleware, async (req: Request, res) => {
         try {
             const result = await authService.getProfile(req.userid);
+            res.json(result);
+        } catch (error: any) {
+            res.status(400).json({error: error.message});
+        }
+    });
+
+    app.get('/verify-email', async (req: Request, res: Response) => {
+        try {
+            const {token} = req.query;
+            if (!token || typeof token !== 'string') {
+                return res.status(400).json({error: 'Verification token is required'});
+            }
+
+            const result = await authService.verifyEmail(token);
             res.json(result);
         } catch (error: any) {
             res.status(400).json({error: error.message});
