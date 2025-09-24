@@ -1,11 +1,12 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import passport from 'passport';
-import { AuthService } from './auth.service';
 import { prisma } from './database';
 import { registerRoutes } from './routes/routes';
-import {registerOAuthRoutes} from "./routes/oauth.routes";
 import {configurePassport} from "./config/passport";
+import { AuthService } from './services/auth.service';
+import {registerOAuthRoutes} from "./routes/oauth.routes";
+import { rabbitMQService } from './services/rabbitmq.service';
 
 dotenv.config();
 
@@ -14,7 +15,7 @@ const authService = new AuthService();
 
 // --- Middleware ---
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({extended: true}));
 app.use(passport.initialize());
 configurePassport(authService);
 
@@ -26,32 +27,36 @@ registerOAuthRoutes(app, authService);
 // Start server
 const PORT = process.env.PORT || 3000;
 
-const startServer = async () => {
-    try {
-        // Connect to database
-        await prisma.$connect();
-        console.log('✅ Database connected');
 
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running on http://localhost:${PORT}`);
+const startServer = async () => {
+    // Connect to database
+    await prisma.$connect();
+    console.log('✅ Database connected');
+
+    // Connect to RabbitMQ
+    await rabbitMQService.connect();
+    console.log('✅ RabbitMQ connected');
+
+    const server = app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+
+    // Handle graceful shutdown
+    const gracefulShutdown = async (signal: string) => {
+        console.log(`Received ${signal}. Shutting down gracefully...`);
+        server.close(async () => {
+            console.log('HTTP server closed.');
+            await prisma.$disconnect();
+            await rabbitMQService.close();
+            process.exit(0);
         });
-    } catch (error) {
-        console.error('❌ Failed to start server:', error);
-        process.exit(1);
-    }
+    };
+
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 };
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-    console.log('\n🛑 Shutting down server...');
-    await prisma.$disconnect();
-    process.exit(0);
+startServer().catch(error => {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
 });
-
-process.on('SIGTERM', async () => {
-    console.log('\n🛑 Shutting down server...');
-    await prisma.$disconnect();
-    process.exit(0);
-});
-
-startServer();

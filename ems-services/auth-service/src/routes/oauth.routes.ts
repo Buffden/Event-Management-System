@@ -1,6 +1,6 @@
 import { Express, Request, Response } from 'express';
 import passport from 'passport';
-import { AuthService } from '../auth.service';
+import { AuthService } from '../services/auth.service';
 import { User } from '../types/types';
 
 export function registerOAuthRoutes(app: Express, authService: AuthService) {

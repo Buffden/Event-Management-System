@@ -1,10 +1,9 @@
 // 1. IMPORT the 'Role' enum directly from the generated Prisma client.
 //    (Adjust the import path if your file structure is different)
-import type { Role } from '../../generated/prisma/index';
+import type {Role} from '../../generated/prisma/index';
 
 // 2. RE-EXPORT the Role enum so other files can import it from this file.
-export { Role };
-
+export {Role};
 
 /**
  * Represents the complete User object, reflecting the User model in Prisma.
@@ -46,3 +45,25 @@ export interface AuthResponse {
     token: string;
     user: User;
 }
+
+export enum MESSAGE_TYPE {
+    EMAIL = 'EMAIL',
+}
+
+export interface EmailPayload {
+    to: string;
+    subject: string;
+    body: string;
+}
+
+export interface Notification {
+    type: MESSAGE_TYPE;
+    message: unknown;
+}
+
+export interface EmailNotification extends Notification {
+    type: MESSAGE_TYPE.EMAIL;
+    message: EmailPayload; // Use the new type here
+}
+
+export type AnyNotification = EmailNotification;
