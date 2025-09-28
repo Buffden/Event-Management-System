@@ -39,7 +39,9 @@ export class AuthService {
      * @returns true if the role is valid for registration
      */
     private isValidRegistrationRole(role: Role | undefined): boolean {
+        logger.info("isValidRegistrationRole(): Validating registration role", {role});
         if (!role) return true; // If no role provided, it will default to USER
+        logger.info("isValidRegistrationRole(): Invalid role", {role});
         return ALLOWED_REGISTRATION_ROLES.includes(role);
     }
 
@@ -441,41 +443,46 @@ export class AuthService {
      * @returns The updated User object.
      */
     async updateProfile(userId: string, data: UpdateProfileRequest): Promise<User> {
-        const user = await prisma.user.findUnique({where: {id: userId}});
-        if (!user) {
-            throw new Error('User not found');
-        }
-
-        const updateData: { name?: string | null; image?: string | null; password?: string } = {};
-
-        if (typeof data.name !== 'undefined') {
-            updateData.name = data.name;
-        }
-        if (typeof data.image !== 'undefined') {
-            updateData.image = data.image;
-        }
-
-        // Handle password change if both fields provided
-        if (data.newPassword) {
-            if (!user.password) {
-                throw new Error('Password change not available for OAuth accounts.');
+        try {
+            const user = await prisma.user.findUnique({where: {id: userId}});
+            if (!user) {
+                throw new Error('User not found');
             }
-            if (!data.currentPassword) {
-                throw new Error('Current password is required to set a new password.');
-            }
-            const isCurrentValid = await bcrypt.compare(data.currentPassword, user.password);
-            if (!isCurrentValid) {
-                throw new Error('Current password is incorrect.');
-            }
-            const hashed = await bcrypt.hash(data.newPassword, 12);
-            updateData.password = hashed;
-        }
 
-        const updated = await prisma.user.update({
-            where: {id: userId},
-            data: updateData,
-            select: userSelect,
-        });
-        return updated as User;
+            const updateData: { name?: string | null; image?: string | null; password?: string } = {};
+
+            if (typeof data.name !== 'undefined') {
+                updateData.name = data.name;
+            }
+            if (typeof data.image !== 'undefined') {
+                updateData.image = data.image;
+            }
+
+            // Handle password change if both fields provided
+            if (data.newPassword) {
+                if (!user.password) {
+                    throw new Error('Password change not available for OAuth accounts.');
+                }
+                if (!data.currentPassword) {
+                    throw new Error('Current password is required to set a new password.');
+                }
+                const isCurrentValid = await bcrypt.compare(data.currentPassword, user.password);
+                if (!isCurrentValid) {
+                    throw new Error('Current password is incorrect.');
+                }
+                const hashed = await bcrypt.hash(data.newPassword, 12);
+                updateData.password = hashed;
+            }
+
+            const updated = await prisma.user.update({
+                where: {id: userId},
+                data: updateData,
+                select: userSelect,
+            });
+            return updated as User;
+        } catch (error) {
+            logger.error("updateProfile(): Profile update failed", error as Error, {userId});
+            throw new Error("Profile update failed: " + (error as Error).message);
+        }
     }
 }
