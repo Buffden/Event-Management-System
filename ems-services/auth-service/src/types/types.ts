@@ -67,3 +67,11 @@ export interface EmailNotification extends Notification {
 }
 
 export type AnyNotification = EmailNotification;
+
+// Request body for updating user profile
+export interface UpdateProfileRequest {
+    name?: string | null;
+    image?: string | null;
+    currentPassword?: string;
+    newPassword?: string;
+}
