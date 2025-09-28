@@ -2,6 +2,7 @@ import { Express, Request, Response } from 'express';
 import passport from 'passport';
 import { AuthService } from '../services/auth.service';
 import { User } from '../types/types';
+import { logger } from '../utils/logger';
 
 export function registerOAuthRoutes(app: Express, authService: AuthService) {
     /**
@@ -54,7 +55,7 @@ export function registerOAuthRoutes(app: Express, authService: AuthService) {
                     },
                 });
             } catch (error: any) {
-                console.error('Error in Google callback:', error);
+                logger.error('Error in Google callback', error, { userId: (req.user as User)?.id });
                 res.status(500).json({ error: 'An internal error occurred during authentication.' });
             }
         }
