@@ -11,6 +11,14 @@ class RabbitMQService {
         this.rabbitmqUrl = rabbitmqUrl;
     }
 
+    public getConnection(): ChannelModel | undefined {
+        return this.connection;
+    }
+
+    public getChannel(): Channel | undefined {
+        return this.channel;
+    }
+
     public async connect(): Promise<void> {
         try {
             logger.info('Connecting to RabbitMQ...');
@@ -38,6 +46,7 @@ class RabbitMQService {
             logger.info(`Message sent to queue "${queue}"`, { queue });
         } catch (error) {
             logger.error(`Error sending message to queue "${queue}"`, error as Error, { queue });
+            throw error;
         }
     }
 

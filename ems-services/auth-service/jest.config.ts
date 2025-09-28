@@ -21,6 +21,7 @@ const config: Config = {
     moduleDirectories: ["node_modules", "src"],
     setupFiles: ["<rootDir>/src/test/env-setup.ts"],
     setupFilesAfterEnv: ["<rootDir>/src/test/setup.ts"],
+    testEnvironment: "node",
 };
 
 export default config;

@@ -1,31 +1,27 @@
 // src/test/setup.ts
 import 'jest';
-import {prisma} from '../database';
+import { setupAllMocks, resetAllMocks } from './mocks';
 
-let rmq: { connect: () => Promise<void>; close: () => Promise<void> } | null = null;
+// Setup all common mocks before any tests run
+setupAllMocks();
 
 // Common Jest setup hooks shared across tests
 beforeAll(async () => {
-    // Verify database connectivity
-    await prisma.$connect();
-    // Verify RabbitMQ connectivity (dynamic import after env is loaded)
-    const mod = await import('../services/rabbitmq.service');
-    rmq = mod.rabbitMQService;
-    await rmq.connect();
+    // Note: For unit tests, we don't need real database connections
+    // The mocks will handle all database interactions
 });
 
 afterAll(async () => {
     // Global cleanup
-    await prisma.$disconnect();
-    if (rmq) {
-        await rmq.close();
-    }
+    resetAllMocks();
 });
 
 // Reduce noise from console.error in test output; override per-test if needed
 const originalConsoleError = console.error;
 beforeEach(() => {
     console.error = jest.fn();
+    // Reset all mocks before each test
+    resetAllMocks();
 });
 
 afterEach(() => {
