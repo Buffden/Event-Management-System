@@ -26,7 +26,8 @@ export interface RegisterRequest {
     email: string;
     password: string;
     name?: string;
-    role?: Role; // Optional role field, defaults to USER if not provided
+    role?: Role;
+    image?: string;
 }
 
 /**

@@ -1,110 +1,154 @@
+// src/routes/routes.ts - UPDATED VERSION
 import {Express} from 'express';
 import {AuthService} from '../services/auth.service';
-import {authMiddleware} from '../middleware';
+import {authMiddleware, contextMiddleware} from '../middleware/context.middleware';
 import {Request, Response} from 'express';
 import {UpdateProfileRequest} from "../types/types";
+import {contextService} from '../services/context.service';
+import {logger} from '../utils/logger';
 
 export function registerRoutes(app: Express, authService: AuthService) {
+    // Apply context middleware to ALL routes for request correlation
+    app.use('/api/auth', contextMiddleware);
+
     /**
-     * @route   GET http://localhost/api/auth/register
+     * @route   POST /api/auth/register
      * @desc    Registers a new user.
      */
-    app.post('/register', async (req, res) => {
+    app.post('/register', async (req: Request, res: Response) => {
         try {
+            logger.info("/register - User registration attempt", {email: req.body.email});
             const result = await authService.register(req.body);
-            res.status(201).json(result);
+            logger.info("/register - User registered successfully", {userId: result.user.id});
+            return res.status(201).json({message: "User registered successfully", email: result.user.email});
         } catch (error: any) {
-            res.status(400).json({error: error.message});
+            logger.error("/register - Registration failed", error, {email: req.body.email});
+            return res.status(400).json({error: error.message});
         }
     });
 
     /**
-     * @route   GET http://localhost/api/auth/login
+     * @route   POST /api/auth/login
      * @desc    Logs in an existing user.
      */
-    app.post('/login', async (req, res) => {
+    app.post('/login', async (req: Request, res: Response) => {
         try {
+            logger.info("/login - User login attempt", {email: req.body.email});
             const result = await authService.login(req.body);
+            logger.info("/login - User logged in successfully", {userId: result.user.id});
             res.json(result);
         } catch (error: any) {
+            logger.error("/login - Login failed", error, {email: req.body.email});
             res.status(400).json({error: error.message});
         }
     });
 
     /**
-     * @route   GET http://localhost/api/auth/check-user
+     * @route   GET /api/auth/check-user
      * @desc    Checks if a user exists by email.
      */
-    app.get('/check-user', async (req, res) => {
+    app.get('/check-user', async (req: Request, res: Response) => {
         try {
+            logger.info("/check-user - User check attempt", {email: req.body.email});
             const {email} = req.query;
             if (!email || typeof email !== 'string') {
                 return res.status(400).json({error: 'Email is required'});
             }
 
             const result = await authService.checkUserExists(email);
+            logger.info("/check-user - User existence check", {email, exists: result.exists});
             res.json(result);
         } catch (error: any) {
+            logger.error("/check-user - User check failed", error);
             res.status(400).json({error: error.message});
         }
     });
 
     /**
-     * @route   POST http://localhost/api/auth/verify-token
+     * @route   POST /api/auth/verify-token
      * @desc    Verifies the validity of a JWT token.
      */
-    app.post('/verify-token', async (req, res) => {
+    app.post('/verify-token', async (req: Request, res: Response) => {
         try {
+            logger.info("/verify-token - Token verification attempt");
             const {token} = req.body;
             if (!token) {
                 return res.status(400).json({error: 'Token is required'});
             }
 
             const result = await authService.verifyToken(token);
+            logger.info("/verify-token -Token verification ", {valid: result.valid, userId: result.user?.id});
             res.json(result);
         } catch (error: any) {
+            logger.error("Token verification failed ", error);
             res.status(400).json({error: error.message});
         }
     });
 
     /**
-     * @route   GET http://localhost/api/auth/profile
+     * @route   GET /api/auth/profile
      * @desc    Retrieves the profile of the authenticated user.
      * @access  Protected
      */
-    app.get('/profile', authMiddleware, async (req: Request, res) => {
+    app.get('/profile', authMiddleware, async (req: Request, res: Response) => {
         try {
-            const result = await authService.getProfile(req.userid);
-            res.json(result);
+            const userId = contextService.getCurrentUserId();
+
+            // Check if user is cached in context
+            let user = contextService.getCurrentUser();
+            if (!user) {
+                user = await authService.getProfile(userId);
+                contextService.setCurrentUser(user); // Cache for this request
+            }
+
+            logger.info("Profile retrieved");
+            res.json(user);
         } catch (error: any) {
+            logger.error('Profile retrieval failed', error);
             res.status(400).json({error: error.message});
         }
     });
 
     /**
-     * @route   PUT http://localhost/api/auth/profile
+     * @route   PUT /api/auth/profile
      * @desc    Updates the profile of the authenticated user.
      * @access  Protected
      */
     app.put('/profile', authMiddleware, async (req: Request<{}, {}, UpdateProfileRequest>, res: Response) => {
         try {
-            const updated = await authService.updateProfile(req.userid, req.body);
+            const userId = contextService.getCurrentUserId();
+            const updated = await authService.updateProfile(userId, req.body);
+
+            // Update cached user in context
+            contextService.setCurrentUser(updated);
+
+            logger.info('Profile updated', {fields: Object.keys(req.body)});
             res.json(updated);
         } catch (error: any) {
+            logger.error('Profile update failed', error);
             res.status(400).json({error: error.message});
         }
     });
 
     /**
-     * @route   POST http://localhost/api/auth/logout
+     * @route   POST /api/auth/logout
      * @desc    Stateless logout; client should discard the JWT.
+     * @access  Protected
      */
-    app.post('/logout', authMiddleware, async (_req: Request, res: Response) => {
-        // With stateless JWTs, logout is handled client-side by deleting the token
-        // Optionally we could implement token blacklisting.
+    app.post('/logout', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            logger.info('User logged out');
+        } catch (error) {
+            logger.info('Anonymous logout request');
+        }
+
         res.status(200).json({success: true, message: 'Logged out'});
     });
 
+    /**
+     * @route   GET /api/auth/verify-email
+     * @desc    Verifies user's email using a token.
+     */
     app.get('/verify-email', async (req: Request, res: Response) => {
         try {
             const {token} = req.query;
@@ -113,21 +157,52 @@ export function registerRoutes(app: Express, authService: AuthService) {
             }
 
             const result = await authService.verifyEmail(token);
+            logger.info('Email verified successfully', {userId: result.user.id});
             res.json(result);
         } catch (error: any) {
+            logger.error('Email verification failed', error);
             res.status(400).json({error: error.message});
         }
     });
 
     /**
-     * @route   GET http://localhost/api/auth/health
+     * @route   GET /api/auth/health
      * @desc    Health check endpoint to verify the service is running.
      */
-    app.get('/health', (req, res) => {
+    app.get('/health', (req: Request, res: Response) => {
+        const context = contextService.getContext();
         res.json({
             status: 'ok',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            service: 'auth-service',
+            requestId: context?.requestId
         });
     });
 
+    /**
+     * @route   GET /api/auth/me
+     * @desc    Get current user context information.
+     * @access  Protected
+     */
+    app.get('/me', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            logger.info("/me - Current user context retrieval");
+            const context = contextService.getContext();
+            if (!context) {
+                logger.info("/me - No user context available");
+                return res.status(401).json({error: 'No user context available'});
+            }
+            logger.info("/me - User context retrieved ", {userId: context.userId});
+            return res.json({
+                userId: context.userId,
+                email: context.userEmail,
+                role: context.userRole,
+                requestId: context.requestId,
+                timestamp: context.timestamp
+            });
+        } catch (error: any) {
+            logger.error("Context retrieval failed ", error);
+            return res.status(400).json({error: error.message});
+        }
+    });
 }
