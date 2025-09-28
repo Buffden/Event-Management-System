@@ -45,6 +45,7 @@
 
 # Environment Files
 **/.env
+**/.env.test
 **/.env.local
 **/.env.development.local
 **/.env.test.local
@@ -56,6 +57,9 @@
 **/*.tmp
 
 **/dist
+
+# Test Reports
+**/coverage/
 
 # Credentials
 **/EventManangementSystem_GoogleCreds.json

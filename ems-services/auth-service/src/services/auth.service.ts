@@ -106,9 +106,11 @@ export class AuthService {
             await rabbitMQService.sendMessage(queueName, msg);
 
         } catch (error) {
-            console.error('❌ Failed to publish verification email message. Rolling back user creation for user:', user.id, error);
+            console.error('❌ Failed to publish verification email message. Rolling back user creation for user:', user?.id, error);
             // Rollback user creation on email failure
-            await prisma.user.delete({where: {id: user.id}});
+            if (user?.id) {
+                await prisma.user.delete({where: {id: user.id}});
+            }
             throw new Error('Could not send verification email. Your registration has been cancelled.');
         }
     }
