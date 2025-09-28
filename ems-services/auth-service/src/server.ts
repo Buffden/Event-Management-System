@@ -7,6 +7,7 @@ import {configurePassport} from "./config/passport";
 import { AuthService } from './services/auth.service';
 import {registerOAuthRoutes} from "./routes/oauth.routes";
 import { rabbitMQService } from './services/rabbitmq.service';
+import { logger } from './utils/logger';
 
 dotenv.config();
 
@@ -31,21 +32,21 @@ const PORT = process.env.PORT || 3000;
 const startServer = async () => {
     // Connect to database
     await prisma.$connect();
-    console.log('✅ Database connected');
+    logger.info('Database connected');
 
     // Connect to RabbitMQ
     await rabbitMQService.connect();
-    console.log('✅ RabbitMQ connected');
+    logger.info('RabbitMQ connected');
 
     const server = app.listen(PORT, () => {
-        console.log(`🚀 Server running on http://localhost:${PORT}`);
+        logger.info(`Server running on http://localhost:${PORT}`, { port: PORT });
     });
 
     // Handle graceful shutdown
     const gracefulShutdown = async (signal: string) => {
-        console.log(`Received ${signal}. Shutting down gracefully...`);
+        logger.info(`Received ${signal}. Shutting down gracefully...`, { signal });
         server.close(async () => {
-            console.log('HTTP server closed.');
+            logger.info('HTTP server closed');
             await prisma.$disconnect();
             await rabbitMQService.close();
             process.exit(0);
@@ -57,6 +58,6 @@ const startServer = async () => {
 };
 
 startServer().catch(error => {
-    console.error('❌ Failed to start server:', error);
+    logger.error('Failed to start server', error);
     process.exit(1);
 });

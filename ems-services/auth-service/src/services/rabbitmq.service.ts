@@ -1,5 +1,6 @@
 import { connect, Connection, Channel, ChannelModel } from 'amqplib';
 import {EmailNotification} from "../types/types";
+import { logger } from '../utils/logger';
 
 class RabbitMQService {
     private connection: ChannelModel | undefined;
@@ -12,13 +13,13 @@ class RabbitMQService {
 
     public async connect(): Promise<void> {
         try {
-            console.log('🔌 Connecting to RabbitMQ...');
+            logger.info('Connecting to RabbitMQ...');
             // Use the directly imported 'connect' function
             this.connection = await connect(this.rabbitmqUrl);
             this.channel = await this.connection.createChannel();
-            console.log('✅ RabbitMQ connected successfully.');
+            logger.info('RabbitMQ connected successfully');
         } catch (error) {
-            console.error('❌ Failed to connect to RabbitMQ:', error);
+            logger.error('Failed to connect to RabbitMQ', error as Error);
             throw error;
         }
     }
@@ -34,9 +35,9 @@ class RabbitMQService {
                 persistent: true,
             });
 
-            console.log(`📦 Message sent to queue "${queue}"`);
+            logger.info(`Message sent to queue "${queue}"`, { queue });
         } catch (error) {
-            console.error(`❌ Error sending message to queue "${queue}":`, error);
+            logger.error(`Error sending message to queue "${queue}"`, error as Error, { queue });
         }
     }
 
@@ -47,7 +48,7 @@ class RabbitMQService {
         if (this.connection) {
             await this.connection.close();
         }
-        console.log('🔌 RabbitMQ connection closed.');
+        logger.info('RabbitMQ connection closed');
     }
 }
 
