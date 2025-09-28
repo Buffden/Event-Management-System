@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import {prisma} from '../database';
-import {AuthResponse, LoginRequest, MESSAGE_TYPE, RegisterRequest, Role, User} from '../types/types';
+import {AuthResponse, LoginRequest, MESSAGE_TYPE, RegisterRequest, Role, UpdateProfileRequest, User} from '../types/types';
 import {Profile} from 'passport-google-oauth20';
 import {ALLOWED_REGISTRATION_ROLES, DEFAULT_ROLE} from '../constants/roles';
 
@@ -318,5 +318,44 @@ export class AuthService {
         });
         if (!user) throw new Error('User not found');
         return user;
+    }
+
+    async updateProfile(userId: string, data: UpdateProfileRequest): Promise<User> {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const updateData: { name?: string | null; image?: string | null; password?: string } = {};
+
+        if (typeof data.name !== 'undefined') {
+            updateData.name = data.name;
+        }
+        if (typeof data.image !== 'undefined') {
+            updateData.image = data.image;
+        }
+
+        // Handle password change if both fields provided
+        if (data.newPassword) {
+            if (!user.password) {
+                throw new Error('Password change not available for OAuth accounts.');
+            }
+            if (!data.currentPassword) {
+                throw new Error('Current password is required to set a new password.');
+            }
+            const isCurrentValid = await bcrypt.compare(data.currentPassword, user.password);
+            if (!isCurrentValid) {
+                throw new Error('Current password is incorrect.');
+            }
+            const hashed = await bcrypt.hash(data.newPassword, 12);
+            updateData.password = hashed;
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+            select: userSelect,
+        });
+        return updated as User;
     }
 }

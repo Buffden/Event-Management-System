@@ -2,6 +2,7 @@ import {Express} from 'express';
 import {AuthService} from '../services/auth.service';
 import {authMiddleware} from '../middleware';
 import {Request, Response} from 'express';
+import {UpdateProfileRequest} from "../types/types";
 
 export function registerRoutes(app: Express, authService: AuthService) {
     /**
@@ -78,6 +79,30 @@ export function registerRoutes(app: Express, authService: AuthService) {
         } catch (error: any) {
             res.status(400).json({error: error.message});
         }
+    });
+
+    /**
+     * @route   PUT http://localhost/api/auth/profile
+     * @desc    Updates the profile of the authenticated user.
+     * @access  Protected
+     */
+    app.put('/profile', authMiddleware, async (req: Request<{}, {}, UpdateProfileRequest>, res: Response) => {
+        try {
+            const updated = await authService.updateProfile(req.userid, req.body);
+            res.json(updated);
+        } catch (error: any) {
+            res.status(400).json({error: error.message});
+        }
+    });
+
+    /**
+     * @route   POST http://localhost/api/auth/logout
+     * @desc    Stateless logout; client should discard the JWT.
+     */
+    app.post('/logout', authMiddleware, async (_req: Request, res: Response) => {
+        // With stateless JWTs, logout is handled client-side by deleting the token
+        // Optionally we could implement token blacklisting.
+        res.status(200).json({success: true, message: 'Logged out'});
     });
 
     app.get('/verify-email', async (req: Request, res: Response) => {
