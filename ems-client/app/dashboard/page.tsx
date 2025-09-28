@@ -223,7 +223,7 @@ export default function DashboardPage() {
               <div>
                 <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Email Verified</label>
                 <p className="text-slate-900 dark:text-white">
-                  {user?.emailVerified ? new Date(user.emailVerified).toLocaleDateString() : 'Yes'}
+                  {user?.emailVerified ? new Date(user.emailVerified).toLocaleDateString() : 'No'}
                 </p>
               </div>
               <div>
