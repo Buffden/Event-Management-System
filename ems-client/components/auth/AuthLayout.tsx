@@ -25,7 +25,7 @@ export function AuthLayout({
         {/* Header */}
         <div className="mb-8">
           {showBackButton && (
-            <Link href="/landing" className="inline-flex items-center text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white mb-6 transition-colors">
+            <Link href="/" className="inline-flex items-center text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white mb-6 transition-colors">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to home
             </Link>

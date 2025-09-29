@@ -1,16 +1,26 @@
-import {ThemeToggle} from "@/components/theme/ThemeToggle";
-import {ThemeDemo} from "@/components/theme/ThemeDemo";
+import {ThemeDemo} from '@/components/theme/ThemeDemo';
+import {ThemeToggle} from '@/components/theme/ThemeToggle';
 
-export default function ThemeInfoPage() {
+export default function Home() {
     return (
-        <main className="min-h-screen bg-background">
-            <div className="container mx-auto py-8">
-                <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-foreground">Welcome to the EMS Client</h1>
-                    <ThemeToggle/>
+        <div>
+            <div className="flex min-h-screen flex-col items-center justify-center bg-white dark:bg-gray-900">
+                <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16 ">
+                    <h1 className="text-5xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-[5rem]">
+                        EventManager
+                        <span className="text-blue-600 dark:text-blue-400">.</span>
+                    </h1>
+                    <div className="flex flex-col items-center gap-2">
+                        <p className="text-lg text-gray-700 dark:text-gray-300">
+                            The all-in-one platform for creating, managing, and tracking events.
+                        </p>
+                        <div className="flex gap-4">
+                        </div>
+                    </div>
+                    <ThemeDemo />
+                    <ThemeToggle />
                 </div>
-                <ThemeDemo/>
             </div>
-        </main>
+        </div>
     );
 }

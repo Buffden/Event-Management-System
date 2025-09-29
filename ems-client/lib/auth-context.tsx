@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     tokenManager.removeToken();
     setUser(null);
-    router.push('/landing');
+    router.push('/');
   };
 
   const value: AuthContextType = {
