@@ -24,6 +24,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   checkAuth: () => Promise<void>;
+  verifyEmail: (token: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -118,6 +119,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/landing');
   };
 
+  const verifyEmail = async (token: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setIsLoading(true);
+      const response = await apiClient.verifyEmail(token);
+      
+      if (response.token && response.user) {
+        tokenManager.setToken(response.token);
+        setUser(response.user);
+        return { success: true };
+      } else {
+        return { success: false, error: 'Email verification failed - invalid response format' };
+      }
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Email verification failed' 
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
@@ -126,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     checkAuth,
+    verifyEmail,
   };
 
   return (

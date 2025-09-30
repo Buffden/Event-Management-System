@@ -108,6 +108,10 @@ class ApiClient {
     return this.request<AuthResponse>('/profile');
   }
 
+  async verifyEmail(token: string): Promise<AuthResponse> {
+    return this.request<AuthResponse>(`/verify-email?token=${encodeURIComponent(token)}`);
+  }
+
   async updateProfile(userData: Partial<RegisterRequest>): Promise<AuthResponse> {
     return this.request<AuthResponse>('/profile', {
       method: 'PUT',
