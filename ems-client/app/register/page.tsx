@@ -18,6 +18,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState("USER");
   const [error, setError] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   
@@ -49,7 +50,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const result = await register(name, email, password);
+    const result = await register(name, email, password, role);
     
     if (result.success) {
       // Redirect to dashboard on successful registration
@@ -122,6 +123,54 @@ export default function RegisterPage() {
               required
               disabled={isLoading}
             />
+          </div>
+        </div>
+
+        {/* Role Selection */}
+        <div className="space-y-3">
+          <Label className="text-slate-700 dark:text-slate-300">
+            Account Type
+          </Label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className={`relative flex items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+              role === 'USER' 
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
+            }`}>
+              <input
+                type="radio"
+                name="role"
+                value="USER"
+                checked={role === 'USER'}
+                onChange={(e) => setRole(e.target.value)}
+                className="sr-only"
+                disabled={isLoading}
+              />
+              <div className="text-center">
+                <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">User</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">Event Attendee</div>
+              </div>
+            </label>
+            
+            <label className={`relative flex items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+              role === 'SPEAKER' 
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
+            }`}>
+              <input
+                type="radio"
+                name="role"
+                value="SPEAKER"
+                checked={role === 'SPEAKER'}
+                onChange={(e) => setRole(e.target.value)}
+                className="sr-only"
+                disabled={isLoading}
+              />
+              <div className="text-center">
+                <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">Speaker</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">Event Presenter</div>
+              </div>
+            </label>
           </div>
         </div>
 

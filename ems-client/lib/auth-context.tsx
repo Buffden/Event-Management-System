@@ -21,7 +21,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, email: string, password: string, role?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   checkAuth: () => Promise<void>;
   verifyEmail: (token: string) => Promise<{ success: boolean; error?: string }>;
@@ -90,10 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const register = async (name: string, email: string, password: string, role?: string): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsLoading(true);
-      const response = await apiClient.register({ name, email, password });
+      const response = await apiClient.register({ name, email, password, role });
       
       // Backend returns { token, user } directly without success field
       if (response.token && response.user) {
