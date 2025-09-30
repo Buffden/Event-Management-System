@@ -1,5 +1,5 @@
 import express from 'express';
-import dotenv from 'dotenv';
+import { config } from 'dotenv';
 import passport from 'passport';
 import { prisma } from './database';
 import { registerRoutes } from './routes/routes';
@@ -9,7 +9,9 @@ import {registerOAuthRoutes} from "./routes/oauth.routes";
 import { rabbitMQService } from './services/rabbitmq.service';
 import { logger } from './utils/logger';
 
-dotenv.config();
+// Load environment variables based on NODE_ENV
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
+config({ path: envFile });
 
 const app = express();
 const authService = new AuthService();

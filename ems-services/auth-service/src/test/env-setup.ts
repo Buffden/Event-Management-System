@@ -1,9 +1,9 @@
 // src/test/env-setup.ts
-import dotenv from 'dotenv';
+import { config } from 'dotenv';
 import path from 'path';
 
 // Load test environment variables as early as possible for all tests
-dotenv.config({ path: path.resolve(__dirname, '../../.env.test') });
+config({ path: path.resolve(__dirname, '../../.env.test') });
 
 // Ensure test environment
 process.env.NODE_ENV = 'test';

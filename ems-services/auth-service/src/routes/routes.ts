@@ -20,7 +20,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
             logger.info("/register - User registration attempt", {email: req.body.email});
             const result = await authService.register(req.body);
             logger.info("/register - User registered successfully", {userId: result.user.id});
-            return res.status(201).json({message: "User registered successfully", email: result.user.email});
+            return res.status(201).json(result);
         } catch (error: any) {
             logger.error("/register - Registration failed", error, {email: req.body.email});
             return res.status(400).json({error: error.message});
@@ -49,8 +49,8 @@ export function registerRoutes(app: Express, authService: AuthService) {
      */
     app.get('/check-user', async (req: Request, res: Response) => {
         try {
-            logger.info("/check-user - User check attempt", {email: req.body.email});
             const {email} = req.query;
+            logger.info("/check-user - User check attempt", {email});
             if (!email || typeof email !== 'string') {
                 return res.status(400).json({error: 'Email is required'});
             }
