@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     tokenManager.removeToken();
     setUser(null);
-    router.push('/landing');
+    router.push('/');
   };
 
   const verifyEmail = async (token: string): Promise<{ success: boolean; error?: string }> => {

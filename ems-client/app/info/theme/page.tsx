@@ -1,12 +1,7 @@
 import {ThemeDemo} from '@/components/theme/ThemeDemo';
 import {ThemeToggle} from '@/components/theme/ThemeToggle';
 
-import Image from "next/image";
-import { redirect } from 'next/navigation';
-
 export default function Home() {
-    // Redirect to our beautiful landing page
-    // redirect('/landing');
     return (
         <div>
             <div className="flex min-h-screen flex-col items-center justify-center bg-white dark:bg-gray-900">

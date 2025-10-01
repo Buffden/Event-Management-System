@@ -3,6 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import {ThemeToggle} from "@/components/theme/ThemeToggle";
 
 interface AuthLayoutProps {
   title: string;
@@ -12,25 +13,31 @@ interface AuthLayoutProps {
   showBackButton?: boolean;
 }
 
-export function AuthLayout({ 
-  title, 
-  description, 
-  children, 
+export function AuthLayout({
+  title,
+  description,
+  children,
   footer,
-  showBackButton = true 
+  showBackButton = true
 }: AuthLayoutProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="mb-8">
-          {showBackButton && (
-            <Link href="/landing" className="inline-flex items-center text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white mb-6 transition-colors">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to home
-            </Link>
-          )}
-          
+          <div className="flex items-center justify-between">
+              {showBackButton ? (
+                  <Link href="/" className="inline-flex items-center text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white transition-colors">
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back to home
+                  </Link>
+              ) : (
+                    <div></div>
+              )}
+              <div>
+                  <ThemeToggle />
+              </div>
+          </div>
           <div className="text-center space-y-2">
             <h2 className="text-3xl font-bold text-slate-900 dark:text-white">
               {title}
