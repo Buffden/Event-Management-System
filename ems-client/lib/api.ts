@@ -1,5 +1,5 @@
 // API client for Event Management System
-const API_BASE_URL = 'http://localhost/api/auth';
+const API_BASE_URL = 'http://localhost/api';
 
 // Types for API responses
 export interface LoginRequest {
@@ -84,45 +84,45 @@ class ApiClient {
 
   // Auth methods
   async login(credentials: LoginRequest): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/login', {
+    return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
   }
 
   async register(userData: RegisterRequest): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/register', {
+    return this.request<AuthResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
   }
 
   async verifyToken(token: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/verify-token', {
+    return this.request<AuthResponse>('/auth/verify-token', {
       method: 'POST',
       body: JSON.stringify({ token }),
     });
   }
 
   async getProfile(): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/profile');
+    return this.request<AuthResponse>('/auth/profile');
   }
 
   async updateProfile(userData: Partial<RegisterRequest>): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/profile', {
+    return this.request<AuthResponse>('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(userData),
     });
   }
 
   async logout(): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>('/logout', {
+    return this.request<{ success: boolean; message: string }>('/auth/logout', {
       method: 'POST',
     });
   }
 
   async checkUserExists(email: string): Promise<{ exists: boolean }> {
-    return this.request<{ exists: boolean }>(`/check-user?email=${encodeURIComponent(email)}`);
+    return this.request<{ exists: boolean }>(`/auth/check-user?email=${encodeURIComponent(email)}`);
   }
 
   // Token management
