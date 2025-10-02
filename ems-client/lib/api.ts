@@ -1,5 +1,5 @@
 // API client for Event Management System
-const API_BASE_URL = 'http://localhost/api';
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost/api';
 
 // Types for API responses
 export interface LoginRequest {
@@ -110,7 +110,7 @@ class ApiClient {
   }
 
   async verifyEmail(token: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>(`/verify-email?token=${encodeURIComponent(token)}`);
+    return this.request<AuthResponse>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
   }
 
   async updateProfile(userData: Partial<RegisterRequest>): Promise<AuthResponse> {

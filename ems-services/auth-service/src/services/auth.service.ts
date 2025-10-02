@@ -9,7 +9,7 @@ import {
     RegisterRequest,
     Role,
     UpdateProfileRequest,
-    User,
+    User, VerifyTokenResponse,
 } from '../types/types';
 import {Profile} from 'passport-google-oauth20';
 import {ALLOWED_REGISTRATION_ROLES, DEFAULT_ROLE} from '../constants/roles';
@@ -101,7 +101,7 @@ export class AuthService {
         try {
             logger.info("START - sendVerificationEmail(): ", {userId: user.id});
             const verificationToken = this._generateEmailVerificationToken(user.id);
-            const verificationLink = `${process.env.CLIENT_APP_URL}/verify-email?token=${verificationToken}`;
+            const verificationLink = `${process.env.CLIENT_URL}/auth/callback/?accessToken=${verificationToken}`;
 
             logger.info("sendVerificationEmail(): Publishing verification email message to RabbitMQ", {
                 userId: user.id,
@@ -206,7 +206,7 @@ export class AuthService {
             logger.info("register(): Sent verification email to ", {email: user.email});
             const token = this._generateToken(user);
             logger.info("END - register(): ", {userId: user.id});
-            return {token, user: user as User};
+            return {token, email: user.email, id: user.id, user: user as User};
         } catch (error) {
             logger.error("register(): Registration failed", error as Error, {email: data.email});
             throw error;
@@ -238,19 +238,20 @@ export class AuthService {
                 logger.error(`verifyEmail(): Email is already verified for user ${{userId: user.id}}`);
                 throw new Error('Email is already verified.');
             }
-
+            logger.info("verifyEmail(): updating user to set isActive=true and emailVerified timestamp", {userId: user.id});
             const updatedUser = await prisma.user.update({
                 where: {id: user.id},
                 data: {
                     isActive: true,
-                    emailVerified: new Date(),
+                    emailVerified: new Date(Date.now()),
                 },
                 select: userSelect,
             });
 
             // After successful verification, log the user in.
             const loginToken = this._generateToken(updatedUser as User);
-            return {token: loginToken, user: updatedUser as User};
+            logger.info("END - verifyEmail(): Email verified and user logged in", {userId: user.id});
+            return {token: loginToken, email: user.email, id: user.id, user: updatedUser as User};
 
         } catch (error: any) {
             if (error.name === 'TokenExpiredError') {
@@ -318,7 +319,7 @@ export class AuthService {
             // Omit password and accounts before returning
             logger.info("END - login(): User logged in successfully", {userId: user.id});
             const {password, accounts, ...userWithoutSensitiveData} = user;
-            return {token, user: userWithoutSensitiveData};
+            return {token, email: user.email, id: user.id, user: userWithPassword as User};
         } catch (error) {
             logger.error("login(): Login failed", error as Error);
             throw new Error("Login failed: " + (error as Error).message);
@@ -411,7 +412,7 @@ export class AuthService {
      * @param token The JWT to verify.
      * @returns An object with validity status and optionally the user.
      */
-    async verifyToken(token: string): Promise<{ valid: boolean; user?: User }> {
+    async verifyToken(token: string): Promise<VerifyTokenResponse> {
         try {
             const decoded = jwt.verify(token, this.JWT_SECRET) as { userId: string };
             const user = await prisma.user.findUnique({

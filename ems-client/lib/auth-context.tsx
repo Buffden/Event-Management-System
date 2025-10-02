@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient, tokenManager } from './api';
+import {apiClient, AuthResponse, tokenManager} from './api';
 
 interface User {
   id: string;
@@ -24,7 +24,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, role?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   checkAuth: () => Promise<void>;
-  verifyEmail: (token: string) => Promise<{ success: boolean; error?: string }>;
+  verifyEmail: (token: string) => Promise<{ success: boolean; error?: string, response?: AuthResponse }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -94,7 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       const response = await apiClient.register({ name, email, password, role });
-      
       // Backend returns { token, user } directly without success field
       if (response.token && response.user) {
         tokenManager.setToken(response.token);
@@ -119,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/');
   };
 
-  const verifyEmail = async (token: string): Promise<{ success: boolean; error?: string }> => {
+  const verifyEmail = async (token: string): Promise<{ success: boolean; error?: string, response?: AuthResponse }> => {
     try {
       setIsLoading(true);
       const response = await apiClient.verifyEmail(token);
@@ -127,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.token && response.user) {
         tokenManager.setToken(response.token);
         setUser(response.user);
-        return { success: true };
+        return { success: true , response};
       } else {
         return { success: false, error: 'Email verification failed - invalid response format' };
       }

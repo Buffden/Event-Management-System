@@ -62,8 +62,8 @@ describe('AuthService (unit)', () => {
             const result = await authService.register(registerData);
 
             // Assertions
-            expect(result.user.email).toBe(registerData.email);
-            expect(result.user.name).toBe(registerData.name);
+            expect(result.user?.email).toBe(registerData.email);
+            expect(result.user?.name).toBe(registerData.name);
             expect(result.token).toBe(mockToken);
 
             // Verify Prisma was called correctly
@@ -255,8 +255,8 @@ describe('AuthService (unit)', () => {
             const result = await authService.verifyEmail(mockVerificationToken);
 
             // Assertions
-            expect(result.user.isActive).toBe(true);
-            expect(result.user.emailVerified).toBeTruthy();
+            expect(result.user?.isActive).toBe(true);
+            expect(result.user?.emailVerified).toBeTruthy();
             expect(result.token).toBe(mockToken);
 
             // Verify JWT was verified with correct secret
@@ -338,7 +338,7 @@ describe('AuthService (unit)', () => {
             const result = await authService.login(loginData);
 
             // Assertions
-            expect(result.user.email).toBe(loginData.email);
+            expect(result.user?.email).toBe(loginData.email);
             expect(result.token).toBe(mockToken);
             // Password should be omitted from the result
 
@@ -475,8 +475,8 @@ describe('AuthService (unit)', () => {
             });
 
             const registerResult = await authService.register(userData);
-            expect(registerResult.user.email).toBe(userData.email);
-            expect(registerResult.user.isActive).toBe(false);
+            expect(registerResult.user?.email).toBe(userData.email);
+            expect(registerResult.user?.isActive).toBe(false);
 
             // Step 2: Verify Email
             const verifiedUser = {
@@ -493,8 +493,8 @@ describe('AuthService (unit)', () => {
             mockPrisma.user.update.mockResolvedValue(verifiedUser);
 
             const verifyResult = await authService.verifyEmail(mockVerificationToken);
-            expect(verifyResult.user.isActive).toBe(true);
-            expect(verifyResult.user.emailVerified).toBeTruthy();
+            expect(verifyResult.user?.isActive).toBe(true);
+            expect(verifyResult.user?.emailVerified).toBeTruthy();
 
             // Step 3: Login
             const userWithAccount = {
@@ -509,7 +509,7 @@ describe('AuthService (unit)', () => {
                 password: userData.password,
             });
             expect(loginResult.token).toBe(mockToken);
-            expect(loginResult.user.email).toBe(userData.email);
+            expect(loginResult.user?.email).toBe(userData.email);
         });
     });
 

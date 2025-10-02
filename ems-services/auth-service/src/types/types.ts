@@ -44,7 +44,14 @@ export interface LoginRequest {
  */
 export interface AuthResponse {
     token: string;
-    user: User;
+    email: string;
+    id: string;
+    user?: User;
+}
+
+export interface VerifyTokenResponse {
+    valid: boolean;
+    user?: User;
 }
 
 export enum MESSAGE_TYPE {

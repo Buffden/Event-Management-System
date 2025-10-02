@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api";
+import {useAuth} from "@/lib/auth-context";
 
 type VerificationStatus = 'verifying' | 'success' | 'error' | 'invalid';
 
@@ -17,11 +18,12 @@ function VerifyEmailContent() {
   
   const searchParams = useSearchParams();
   const router = useRouter();
-  const token = searchParams.get('token');
+  const accessToken = searchParams.get('accessToken');
+  const { verifyEmail } = useAuth();
 
   useEffect(() => {
-    const verifyEmail = async () => {
-      if (!token) {
+    const verifyEmailHelper = async () => {
+      if (!accessToken) {
         setStatus('invalid');
         setError('Invalid verification link');
         return;
@@ -31,13 +33,19 @@ function VerifyEmailContent() {
         setStatus('verifying');
         
         // Call the verification endpoint
-        const response = await apiClient.verifyEmail(token);
+        const {success, response, error} = await verifyEmail(accessToken);
+
+        if (error) {
+            setStatus('error');
+            setError(error);
+            return;
+        }
         
-        if (response.token && response.user) {
+        if (response?.token && response?.user) {
           setStatus('success');
-          setUserEmail(response.user.email);
+          setUserEmail(response?.user.email);
           
-          // Store the token and user data
+          // Store the accessToken and user data
           localStorage.setItem('auth_token', response.token);
           
           // Redirect to dashboard after a short delay
@@ -54,8 +62,8 @@ function VerifyEmailContent() {
       }
     };
 
-    verifyEmail();
-  }, [token, router]);
+      verifyEmailHelper();
+  }, [accessToken, router]);
 
   const getStatusIcon = () => {
     switch (status) {
