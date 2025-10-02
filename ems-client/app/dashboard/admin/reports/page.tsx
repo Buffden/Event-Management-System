@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, BarChart3, TrendingUp, Users, Calendar, Download, Filter } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import {logger} from "@/lib/logger";
 
 // Mock data for reports
 const mockReportData = {
@@ -47,7 +48,7 @@ export default function ReportsPage() {
 
   const handleExportReport = (type: string) => {
     // TODO: Implement report export functionality
-    console.log(`Exporting ${type} report`);
+    logger.debug(`Exporting ${type} report`);
   };
 
   if (isLoading) {

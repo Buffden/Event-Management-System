@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
+import { logger } from "@/lib/logger";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -17,25 +18,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
-  
+
   const { login, isLoading } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    
+
+    logger.userAction('Login form submitted', { email });
+
     if (!email || !password) {
+      logger.warn('Login form validation failed - missing fields');
       setError("Please fill in all fields");
       return;
     }
 
     const result = await login(email, password);
-    
+
     if (result.success) {
+      logger.userAction('Login successful, redirecting to dashboard');
       // Redirect to dashboard on successful login
       router.push('/dashboard');
     } else {
+      logger.warn('Login failed', { error: result.error });
       setError(result.error || "Login failed");
     }
   };
@@ -48,8 +54,8 @@ export default function LoginPage() {
       footer={
         <p className="text-slate-600 dark:text-slate-300">
           Don&apos;t have an account?{' '}
-          <Link 
-            href="/register" 
+          <Link
+            href="/register"
             className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
           >
             Create one
@@ -129,8 +135,8 @@ export default function LoginPage() {
               Remember me
             </Label>
           </div>
-          <Link 
-            href="/forgot-password" 
+          <Link
+            href="/forgot-password"
             className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
           >
             Forgot password?
@@ -138,8 +144,8 @@ export default function LoginPage() {
         </div>
 
         {/* Login Button */}
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
           disabled={isLoading}
         >
@@ -167,16 +173,16 @@ export default function LoginPage() {
 
         {/* Social Login */}
         <div className="grid grid-cols-2 gap-3">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="h-12 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
             type="button"
           >
             <Github className="w-4 h-4 mr-2" />
             GitHub
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="h-12 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
             type="button"
           >

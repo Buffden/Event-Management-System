@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
+import {logger} from "@/lib/logger";
 
 export default function VerifyEmailPendingPage() {
   const [isChecking, setIsChecking] = useState(false);
@@ -20,7 +21,7 @@ export default function VerifyEmailPendingPage() {
       // If verification is complete, redirect to dashboard
       router.push('/dashboard');
     } catch {
-      console.log('Still not verified');
+      logger.info('Still not verified');
     } finally {
       setIsChecking(false);
     }

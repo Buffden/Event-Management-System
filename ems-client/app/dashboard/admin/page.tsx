@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import {logger} from "@/lib/logger";
 
 // Mock data for development
 const mockStats = {
@@ -84,12 +85,12 @@ export default function AdminDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    console.log('Admin dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
+    logger.debug('Admin dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
     if (!isLoading && !isAuthenticated) {
-      console.log('Admin dashboard - Not authenticated, redirecting to login'); // Debug log
+      logger.info('Admin dashboard - Not authenticated, redirecting to login'); // Debug log
       router.push('/login');
     } else if (!isLoading && user?.role !== 'ADMIN') {
-      console.log('Admin dashboard - Not admin user, redirecting to dashboard'); // Debug log
+      logger.info('Admin dashboard - Not admin user, redirecting to dashboard'); // Debug log
       router.push('/dashboard');
     }
   }, [isAuthenticated, isLoading, user, router]);

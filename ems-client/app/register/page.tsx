@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
+import { logger } from "@/lib/logger";
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -21,41 +22,49 @@ export default function RegisterPage() {
   const [role, setRole] = useState("USER");
   const [error, setError] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  
+
   const { register, isLoading } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    
+
+    logger.userAction('Registration form submitted', { email, role });
+
     // Validation
     if (!name || !email || !password || !confirmPassword) {
+      logger.warn('Registration form validation failed - missing fields');
       setError("Please fill in all fields");
       return;
     }
 
     if (password !== confirmPassword) {
+      logger.warn('Registration form validation failed - passwords do not match');
       setError("Passwords do not match");
       return;
     }
 
     if (password.length < 8) {
+      logger.warn('Registration form validation failed - password too short');
       setError("Password must be at least 8 characters long");
       return;
     }
 
     if (!agreedToTerms) {
+      logger.warn('Registration form validation failed - terms not agreed');
       setError("Please agree to the terms and conditions");
       return;
     }
 
     const result = await register(name, email, password, role);
-    
+
     if (result.success) {
+      logger.userAction('Registration successful, redirecting to email verification');
       // Redirect to dashboard on successful registration
       router.push('/verify-email-pending');
     } else {
+      logger.warn('Registration failed', { error: result.error });
       setError(result.error || "Registration failed");
     }
   };
@@ -68,8 +77,8 @@ export default function RegisterPage() {
       footer={
         <p className="text-slate-600 dark:text-slate-300">
           Already have an account?{' '}
-          <Link 
-            href="/login" 
+          <Link
+            href="/login"
             className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
           >
             Sign in
@@ -133,8 +142,8 @@ export default function RegisterPage() {
           </Label>
           <div className="grid grid-cols-2 gap-3">
             <label className={`relative flex items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-              role === 'USER' 
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+              role === 'USER'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                 : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
             }`}>
               <input
@@ -151,10 +160,10 @@ export default function RegisterPage() {
                 <div className="text-sm text-slate-600 dark:text-slate-400">Event Attendee</div>
               </div>
             </label>
-            
+
             <label className={`relative flex items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-              role === 'SPEAKER' 
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+              role === 'SPEAKER'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                 : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
             }`}>
               <input
@@ -257,8 +266,8 @@ export default function RegisterPage() {
         </div>
 
         {/* Register Button */}
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
           disabled={isLoading}
         >
@@ -286,16 +295,16 @@ export default function RegisterPage() {
 
         {/* Social Registration */}
         <div className="grid grid-cols-2 gap-3">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="h-12 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
             type="button"
           >
             <Github className="w-4 h-4 mr-2" />
             GitHub
           </Button>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="h-12 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
             type="button"
           >

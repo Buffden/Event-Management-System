@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import {logger} from "@/lib/logger";
 
 // Mock data for development
 const mockStats = {
@@ -92,12 +93,12 @@ export default function AttendeeDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    console.log('Attendee dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
+    logger.debug('Attendee dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
     if (!isLoading && !isAuthenticated) {
-      console.log('Attendee dashboard - Not authenticated, redirecting to login'); // Debug log
+      logger.info('Attendee dashboard - Not authenticated, redirecting to login'); // Debug log
       router.push('/login');
     } else if (!isLoading && user?.role !== 'USER') {
-      console.log('Attendee dashboard - Not user, redirecting to dashboard'); // Debug log
+      logger.info('Attendee dashboard - Not user, redirecting to dashboard'); // Debug log
       router.push('/dashboard');
     }
   }, [isAuthenticated, isLoading, user, router]);

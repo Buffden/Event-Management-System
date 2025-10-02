@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import {logger} from "@/lib/logger";
 
 // Mock data for development
 const mockUsers = [
@@ -112,12 +113,12 @@ export default function UserManagementPage() {
 
   const handleRoleChange = (userId: string, newRole: string) => {
     // TODO: Implement role change API call
-    console.log(`Change user ${userId} role to ${newRole}`);
+    logger.debug(`Change user ${userId} role to ${newRole}`);
   };
 
   const handleStatusToggle = (userId: string, currentStatus: boolean) => {
     // TODO: Implement status toggle API call
-    console.log(`Toggle user ${userId} status from ${currentStatus} to ${!currentStatus}`);
+    logger.debug(`Toggle user ${userId} status from ${currentStatus} to ${!currentStatus}`);
   };
 
   if (isLoading) {
