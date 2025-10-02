@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
-import { AuthContext, JWTPayload } from '../types';
+import { AuthContext } from '../types';
+import { authValidationService } from '../services/auth-validation.service';
 
 // Extend Express Request type to include user
 declare global {
@@ -46,34 +46,20 @@ export const authMiddleware = (options: AuthMiddlewareOptions = {}) => {
         return next();
       }
 
-      // Verify JWT token
-      const jwtSecret = process.env.JWT_SECRET;
-      if (!jwtSecret) {
-        logger.error('JWT_SECRET environment variable is not set');
-        return res.status(500).json({
-          error: 'Server configuration error'
-        });
-      }
+      // Validate token with auth-service
+      const authContext = await authValidationService.validateTokenWithRole(token, roles);
 
-      const decoded = jwt.verify(token, jwtSecret) as JWTPayload;
-
-      // Create auth context
-      const authContext: AuthContext = {
-        userId: decoded.userId,
-        role: decoded.role as 'ADMIN' | 'SPEAKER' | 'ATTENDEE',
-        email: decoded.email
-      };
-
-      // Check role requirements
-      if (roles.length > 0 && !roles.includes(authContext.role)) {
-        logger.warn('Access denied: insufficient role', {
-          userId: authContext.userId,
-          userRole: authContext.role,
-          requiredRoles: roles
-        });
-        return res.status(403).json({
-          error: 'Insufficient permissions'
-        });
+      if (!authContext) {
+        if (required) {
+          logger.warn('Token validation failed', {
+            hasToken: !!token,
+            requiredRoles: roles
+          });
+          return res.status(401).json({
+            error: 'Invalid or expired token'
+          });
+        }
+        return next();
       }
 
       // Attach user to request
@@ -88,21 +74,13 @@ export const authMiddleware = (options: AuthMiddlewareOptions = {}) => {
     } catch (error) {
       logger.error('Authentication failed', error as Error);
 
-      if (error instanceof jwt.JsonWebTokenError) {
+      if (required) {
         return res.status(401).json({
-          error: 'Invalid token'
+          error: 'Authentication failed'
         });
       }
 
-      if (error instanceof jwt.TokenExpiredError) {
-        return res.status(401).json({
-          error: 'Token expired'
-        });
-      }
-
-      return res.status(500).json({
-        error: 'Authentication error'
-      });
+      next();
     }
   };
 };
