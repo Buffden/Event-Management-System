@@ -1,4 +1,6 @@
 // API client for Event Management System
+import { logger } from './logger';
+
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost/api';
 
 // Types for API responses
@@ -43,11 +45,12 @@ class ApiClient {
   }
 
   private async request<T>(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
-    
+    const method = options.method || 'GET';
+
     const defaultHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -66,16 +69,39 @@ class ApiClient {
       },
     };
 
+    // Log API call
+    logger.apiCall(method, url, options.body ? JSON.parse(options.body as string) : undefined);
+
     try {
       const response = await fetch(url, config);
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+
+        // Log API error response
+        logger.apiResponse(method, url, response.status, errorData);
+
+        // Handle specific error cases
+        if (response.status === 403) {
+          throw new Error(errorData.error || 'Account access denied - account may be inactive');
+        } else if (response.status === 401) {
+          throw new Error(errorData.error || 'Authentication failed - please login again');
+        } else {
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
       }
+
+      // Log successful API response
+      logger.apiResponse(method, url, response.status);
 
       return await response.json();
     } catch (error) {
+      logger.errorWithContext('API Request Failed', error as Error, {
+        method,
+        url,
+        endpoint
+      });
+
       if (error instanceof Error) {
         throw error;
       }
@@ -98,8 +124,8 @@ class ApiClient {
     });
   }
 
-  async verifyToken(token: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/verify-token', {
+  async verifyToken(token: string): Promise<boolean> {
+    return this.request<boolean>('/auth/verify-token', {
       method: 'POST',
       body: JSON.stringify({ token }),
     });
@@ -107,6 +133,22 @@ class ApiClient {
 
   async getProfile(): Promise<AuthResponse> {
     return this.request<AuthResponse>('/auth/profile');
+  }
+
+  async getMe(): Promise<{
+    userId: string;
+    email: string;
+    role: string;
+    requestId: string;
+    timestamp: number;
+  }> {
+    return this.request<{
+      userId: string;
+      email: string;
+      role: string;
+      requestId: string;
+      timestamp: number;
+    }>('/auth/me');
   }
 
   async verifyEmail(token: string): Promise<AuthResponse> {
@@ -133,21 +175,27 @@ class ApiClient {
   // Token management
   getToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
+    logger.debug('Token retrieved from storage', { hasToken: !!token });
+    return token;
   }
 
   setToken(token: string): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem('auth_token', token);
+    logger.info('Token stored in localStorage');
   }
 
   removeToken(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem('auth_token');
+    logger.info('Token removed from localStorage');
   }
 
   isAuthenticated(): boolean {
-    return !!this.getToken();
+    const hasToken = !!this.getToken();
+    logger.debug('Authentication check', { isAuthenticated: hasToken });
+    return hasToken;
   }
 }
 
@@ -160,6 +208,7 @@ export const authAPI = {
   register: (userData: RegisterRequest) => apiClient.register(userData),
   verifyToken: (token: string) => apiClient.verifyToken(token),
   getProfile: () => apiClient.getProfile(),
+  getMe: () => apiClient.getMe(),
   updateProfile: (userData: Partial<RegisterRequest>) => apiClient.updateProfile(userData),
   logout: () => apiClient.logout(),
   checkUserExists: (email: string) => apiClient.checkUserExists(email),
