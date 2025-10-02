@@ -54,7 +54,7 @@ export default function RegisterPage() {
     
     if (result.success) {
       // Redirect to dashboard on successful registration
-      router.push('/dashboard');
+      router.push('/verify-email-pending');
     } else {
       setError(result.error || "Registration failed");
     }

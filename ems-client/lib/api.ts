@@ -110,7 +110,7 @@ class ApiClient {
   }
 
   async verifyEmail(token: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>(`/verify-email?token=${encodeURIComponent(token)}`);
+    return this.request<AuthResponse>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
   }
 
   async updateProfile(userData: Partial<RegisterRequest>): Promise<AuthResponse> {

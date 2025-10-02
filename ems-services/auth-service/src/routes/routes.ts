@@ -162,6 +162,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
      * @desc    Verifies user's email using a token.
      */
     app.get('/verify-email', async (req: Request, res: Response) => {
+        logger.info("/verify-email - Email verification attempt");
         try {
             const {token} = req.query;
             if (!token || typeof token !== 'string') {
