@@ -59,15 +59,32 @@ services:
       args:
         - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
     container_name: event-service
-    environment:
-      - PORT=3000
-      - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - JWT_SECRET=secretkey
+    env_file:
+      ./ems-services/event-service/.env.production
     networks:
       - event-net
     depends_on:
       event-service-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      auth-service:
+        condition: service_started
+
+  booking-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/booking-service
+      dockerfile: Dockerfile
+      args:
+        - DATABASE_URL=postgresql://admin:password@booking-service-db:5432/booking_db
+    container_name: booking-service
+    env_file:
+      ./ems-services/booking-service/.env.production
+    networks:
+      - event-net
+    depends_on:
+      booking-service-db:
         condition: service_healthy
       rabbitmq:
         condition: service_started
@@ -116,6 +133,16 @@ services:
     volumes:
       - event-service-data:/var/lib/postgresql/data
 
+  booking-service-db:
+    <<: *base-service-db
+    container_name: booking-service-db
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=event_db
+    volumes:
+      - booking-service-data:/var/lib/postgresql/data
+
   #########################################
   #   INFRASTRUCTURE SERVICES
   #########################################
@@ -149,5 +176,6 @@ networks:
 volumes:
   auth-service-data:
   event-service-data:
+  booking-service-data:
   rabbitmq_data:
   rabbitmq_log:
