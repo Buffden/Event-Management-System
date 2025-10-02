@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       const response = await apiClient.register({ name, email, password, role });
-      
+      console.log(response);
       // Backend returns { token, user } directly without success field
       if (response.token && response.user) {
         tokenManager.setToken(response.token);

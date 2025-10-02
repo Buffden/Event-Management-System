@@ -8,8 +8,6 @@ services:
       context: ./ems-client
       dockerfile: Dockerfile
     container_name: ems-client
-    ports:
-      - "3000:3000"
     env_file:
       ./ems-client/.env.production
     networks:

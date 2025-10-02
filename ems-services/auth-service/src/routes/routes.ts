@@ -19,8 +19,12 @@ export function registerRoutes(app: Express, authService: AuthService) {
         try {
             logger.info("/register - User registration attempt", {email: req.body.email});
             const result = await authService.register(req.body);
-            logger.info("/register - User registered successfully", {userId: result.user.id});
-            return res.status(201).json(result);
+            logger.info("/register - User registered successfully", {userId: result.id});
+            res.status(201).json({
+                message: 'Registration successful! Please check your email to verify your account.',
+                token: result.token,
+                user: result.user
+            });
         } catch (error: any) {
             logger.error("/register - Registration failed", error, {email: req.body.email});
             return res.status(400).json({error: error.message});
@@ -35,8 +39,12 @@ export function registerRoutes(app: Express, authService: AuthService) {
         try {
             logger.info("/login - User login attempt", {email: req.body.email});
             const result = await authService.login(req.body);
-            logger.info("/login - User logged in successfully", {userId: result.user.id});
-            res.json(result);
+            logger.info("/login - User logged in successfully", {userId: result.id});
+            res.json({
+                message: 'Login successful',
+                token: result.token,
+                user: result.user
+            });
         } catch (error: any) {
             logger.error("/login - Login failed", error, {email: req.body.email});
             res.status(400).json({error: error.message});
@@ -57,7 +65,10 @@ export function registerRoutes(app: Express, authService: AuthService) {
 
             const result = await authService.checkUserExists(email);
             logger.info("/check-user - User existence check", {email, exists: result.exists});
-            res.json(result);
+            res.json({
+                message: 'User exists',
+                exists: result.exists
+            });
         } catch (error: any) {
             logger.error("/check-user - User check failed", error);
             res.status(400).json({error: error.message});
@@ -71,14 +82,15 @@ export function registerRoutes(app: Express, authService: AuthService) {
     app.post('/verify-token', async (req: Request, res: Response) => {
         try {
             logger.info("/verify-token - Token verification attempt");
-            const {token} = req.body;
+            const { token } = req.body;
             if (!token) {
-                return res.status(400).json({error: 'Token is required'});
+                return res.status(400).send('Verification token is missing.');
             }
 
-            const result = await authService.verifyToken(token);
+            const result = await authService.verifyToken(token as string);
             logger.info("/verify-token -Token verification ", {valid: result.valid, userId: result.user?.id});
-            res.json(result);
+            const redirectUrl = `${process.env.CLIENT_URL}/auth/callback?accessToken=${token}`;
+            res.status(200).send(result.valid);
         } catch (error: any) {
             logger.error("Token verification failed ", error);
             res.status(400).json({error: error.message});
@@ -157,8 +169,8 @@ export function registerRoutes(app: Express, authService: AuthService) {
             }
 
             const result = await authService.verifyEmail(token);
-            logger.info('Email verified successfully', {userId: result.user.id});
-            res.json(result);
+            logger.info('Email verified successfully', {userId: result.id});
+            res.status(200).json({success: true, message: 'Email verified successfully', token: result.token, user: result.user});
         } catch (error: any) {
             logger.error('Email verification failed', error);
             res.status(400).json({error: error.message});

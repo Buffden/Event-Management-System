@@ -17,11 +17,11 @@ function VerifyEmailContent() {
   
   const searchParams = useSearchParams();
   const router = useRouter();
-  const token = searchParams.get('token');
+  const accessToken = searchParams.get('accessToken');
 
   useEffect(() => {
     const verifyEmail = async () => {
-      if (!token) {
+      if (!accessToken) {
         setStatus('invalid');
         setError('Invalid verification link');
         return;
@@ -31,13 +31,13 @@ function VerifyEmailContent() {
         setStatus('verifying');
         
         // Call the verification endpoint
-        const response = await apiClient.verifyEmail(token);
+        const response = await apiClient.verifyEmail(accessToken);
         
         if (response.token && response.user) {
           setStatus('success');
           setUserEmail(response.user.email);
           
-          // Store the token and user data
+          // Store the accessToken and user data
           localStorage.setItem('auth_token', response.token);
           
           // Redirect to dashboard after a short delay
@@ -55,7 +55,7 @@ function VerifyEmailContent() {
     };
 
     verifyEmail();
-  }, [token, router]);
+  }, [accessToken, router]);
 
   const getStatusIcon = () => {
     switch (status) {
