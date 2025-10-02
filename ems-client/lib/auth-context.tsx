@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {apiClient, AuthResponse, tokenManager} from './api';
+import { logger } from './logger';
 
 interface User {
   id: string;
@@ -38,28 +39,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check if user is authenticated on mount
   useEffect(() => {
+    logger.info('AuthProvider initialized, checking authentication');
     checkAuth();
   }, []);
 
   const checkAuth = async () => {
     try {
+      logger.authEvent('Starting authentication check');
       const token = tokenManager.getToken();
       if (!token) {
+        logger.info('No token found, user not authenticated');
         setIsLoading(false);
         return;
       }
 
-      // Verify token and get user profile
+      // First verify the token is valid
+      logger.debug('Verifying token validity');
+      const isValid = await apiClient.verifyToken(token);
+      if (!isValid) {
+        // Token is invalid, remove it
+        logger.warn('Token validation failed, removing token');
+        tokenManager.removeToken();
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // Token is valid, get user profile
+      logger.debug('Token valid, fetching user profile');
       const response = await apiClient.getProfile();
       if (response.user) {
+        logger.authEvent('User authenticated successfully', {
+          userId: response.user.id,
+          email: response.user.email,
+          role: response.user.role
+        });
         setUser(response.user);
       } else {
-        // Token is invalid, remove it
+        // Profile fetch failed, remove token
+        logger.warn('Profile fetch failed, removing token');
         tokenManager.removeToken();
         setUser(null);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      logger.errorWithContext('Authentication check failed', error as Error);
       tokenManager.removeToken();
       setUser(null);
     } finally {
@@ -69,21 +92,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      logger.authEvent('Login attempt started', { email });
       setIsLoading(true);
       const response = await apiClient.login({ email, password });
-      
+
       // Backend returns { token, user } directly without success field
       if (response.token && response.user) {
+        logger.authEvent('Login successful', {
+          userId: response.user.id,
+          email: response.user.email,
+          role: response.user.role
+        });
         tokenManager.setToken(response.token);
         setUser(response.user);
         return { success: true };
       } else {
+        logger.warn('Login failed - invalid response format', response);
         return { success: false, error: 'Login failed - invalid response format' };
       }
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Login failed' 
+      logger.errorWithContext('Login failed', error as Error, { email });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Login failed'
       };
     } finally {
       setIsLoading(false);
@@ -92,20 +123,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (name: string, email: string, password: string, role?: string): Promise<{ success: boolean; error?: string }> => {
     try {
+      logger.authEvent('Registration attempt started', { email, role });
       setIsLoading(true);
       const response = await apiClient.register({ name, email, password, role });
       // Backend returns { token, user } directly without success field
       if (response.token && response.user) {
+        logger.authEvent('Registration successful', {
+          userId: response.user.id,
+          email: response.user.email,
+          role: response.user.role
+        });
         tokenManager.setToken(response.token);
         setUser(response.user);
         return { success: true };
       } else {
+        logger.warn('Registration failed - invalid response format', response);
         return { success: false, error: 'Registration failed - invalid response format' };
       }
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Registration failed' 
+      logger.errorWithContext('Registration failed', error as Error, { email, role });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Registration failed'
       };
     } finally {
       setIsLoading(false);
@@ -113,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    logger.authEvent('User logout');
     tokenManager.removeToken();
     setUser(null);
     router.push('/');
@@ -120,20 +160,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyEmail = async (token: string): Promise<{ success: boolean; error?: string, response?: AuthResponse }> => {
     try {
+      logger.authEvent('Email verification attempt started');
       setIsLoading(true);
       const response = await apiClient.verifyEmail(token);
-      
+
       if (response.token && response.user) {
+        logger.authEvent('Email verification successful', {
+          userId: response.user.id,
+          email: response.user.email
+        });
         tokenManager.setToken(response.token);
         setUser(response.user);
         return { success: true , response};
       } else {
+        logger.warn('Email verification failed - invalid response format', response);
         return { success: false, error: 'Email verification failed - invalid response format' };
       }
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Email verification failed' 
+      logger.errorWithContext('Email verification failed', error as Error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Email verification failed'
       };
     } finally {
       setIsLoading(false);

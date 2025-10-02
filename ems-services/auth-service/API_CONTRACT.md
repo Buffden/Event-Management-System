@@ -11,6 +11,19 @@ Protected endpoints require a JWT token in the Authorization header:
 Authorization: Bearer <jwt-token>
 ```
 
+**Security Features:**
+- JWT token signature validation
+- User existence verification in database
+- Account active status checking
+- Real-time role validation
+- Token expiry enforcement
+
+**Error Handling:**
+- 401: Authentication failed (invalid/expired token)
+- 403: Authorization failed (account inactive or insufficient permissions)
+- 400: Validation errors (missing/invalid request data)
+- 404: Resource not found
+
 ## Response Format
 All API responses follow this standard format:
 ```typescript
@@ -216,7 +229,57 @@ true
 }
 ```
 
-### 5. Email Verification
+### 5. Validate User (Microservice Authentication)
+**POST** `/validate-user`
+
+**Request Body:**
+```typescript
+{
+  token: string; // Required, JWT token to validate
+}
+```
+
+**Response:**
+```typescript
+// Success (200)
+{
+  valid: true,
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    role: "ADMIN" | "USER" | "SPEAKER";
+    isActive: boolean;
+    emailVerified: string | null; // ISO date string
+  }
+}
+
+// Error (400)
+{
+  error: "Token is required"
+}
+
+// Error (401)
+{
+  error: "Invalid or expired token"
+}
+
+// Error (403)
+{
+  error: "User account is not active"
+}
+```
+
+**Description:** This endpoint is designed for microservice-to-microservice authentication. It validates the JWT token and returns the complete user information, including role and account status.
+
+**Example Request:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### 6. Email Verification
 **GET** `/verify-email`
 
 **Query Parameters:**
@@ -251,7 +314,7 @@ true
 GET /api/auth/verify-email?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-### 6. Google OAuth Authentication
+### 7. Google OAuth Authentication
 **GET** `/google`
 
 **Description:** Initiates Google OAuth2 authentication flow
@@ -263,7 +326,7 @@ GET /api/auth/verify-email?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 GET /api/auth/google
 ```
 
-### 7. Google OAuth Callback
+### 8. Google OAuth Callback
 **GET** `/google/callback`
 
 **Description:** Handles callback from Google after authentication

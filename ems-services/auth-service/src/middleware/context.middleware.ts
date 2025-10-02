@@ -72,8 +72,9 @@ export const contextMiddleware = (req: Request, res: Response, next: NextFunctio
 /**
  * Authentication middleware that ensures user is authenticated
  * This should be used on protected routes AFTER contextMiddleware
+ * NOTE: This is a simple check - use the proper authMiddleware from auth.middleware.ts for JWT validation
  */
-export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
+export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = contextService.getCurrentUserId();
         if (!userId) {

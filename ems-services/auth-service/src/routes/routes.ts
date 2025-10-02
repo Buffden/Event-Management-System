@@ -1,7 +1,8 @@
 // src/routes/routes.ts - UPDATED VERSION
 import {Express} from 'express';
 import {AuthService} from '../services/auth.service';
-import {authMiddleware, contextMiddleware} from '../middleware/context.middleware';
+import {contextMiddleware} from '../middleware/context.middleware';
+import {authMiddleware} from '../middleware/auth.middleware';
 import {Request, Response} from 'express';
 import {UpdateProfileRequest} from "../types/types";
 import {contextService} from '../services/context.service';
@@ -94,6 +95,51 @@ export function registerRoutes(app: Express, authService: AuthService) {
         } catch (error: any) {
             logger.error("Token verification failed ", error);
             res.status(400).json({error: error.message});
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/validate-user
+     * @desc    Validates JWT token and returns user information for microservice authentication.
+     */
+    app.post('/validate-user', async (req: Request, res: Response) => {
+        try {
+            logger.info("/validate-user - User validation attempt");
+            const { token } = req.body;
+            if (!token) {
+                return res.status(400).json({error: 'Token is required'});
+            }
+
+            const result = await authService.verifyToken(token as string);
+            if (!result.valid || !result.user) {
+                return res.status(401).json({error: 'Invalid or expired token'});
+            }
+
+            // Check if user is active
+            if (!result.user.isActive) {
+                return res.status(403).json({error: 'User account is not active'});
+            }
+
+            logger.info("/validate-user - User validation successful", {
+                userId: result.user.id,
+                role: result.user.role,
+                email: result.user.email
+            });
+
+            res.json({
+                valid: true,
+                user: {
+                    id: result.user.id,
+                    email: result.user.email,
+                    name: result.user.name,
+                    role: result.user.role,
+                    isActive: result.user.isActive,
+                    emailVerified: result.user.emailVerified
+                }
+            });
+        } catch (error: any) {
+            logger.error("User validation failed", error);
+            res.status(401).json({error: 'Token validation failed'});
         }
     });
 
