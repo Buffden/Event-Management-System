@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import {logger} from "@/lib/logger";
 
 // Mock data for events
 const mockEvents = [
@@ -128,7 +129,7 @@ export default function EventManagementPage() {
 
   const handleEventAction = (eventId: string, action: string) => {
     // TODO: Implement event action API calls
-    console.log(`Event ${eventId} action: ${action}`);
+    logger.debug(`Event ${eventId} action: ${action}`);
   };
 
   const getRegistrationPercentage = (registered: number, capacity: number) => {

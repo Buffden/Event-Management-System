@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import {logger} from "@/lib/logger";
 
 // Mock data for flagged users
 const mockFlaggedUsers = [
@@ -100,17 +101,17 @@ export default function FlaggedUsersPage() {
 
   const handleReview = (userId: string, action: 'approve' | 'dismiss' | 'suspend') => {
     // TODO: Implement review action API call
-    console.log(`Review user ${userId} with action: ${action}`);
+    logger.debug(`Review user ${userId} with action: ${action}`);
   };
 
   const handleSuspend = (userId: string) => {
     // TODO: Implement suspend user API call
-    console.log(`Suspend user ${userId}`);
+    logger.debug(`Suspend user ${userId}`);
   };
 
   const handleDelete = (userId: string) => {
     // TODO: Implement delete user API call
-    console.log(`Delete user ${userId}`);
+    logger.debug(`Delete user ${userId}`);
   };
 
   if (isLoading) {

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Clock, CheckCircle, XCircle, Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import {logger} from "@/lib/logger";
 
 // Mock data for pending events
 const mockPendingEvents = [
@@ -50,7 +51,7 @@ export default function PendingEventsPage() {
 
   const handleEventAction = (eventId: string, action: 'approve' | 'reject') => {
     // TODO: Implement event approval/rejection API calls
-    console.log(`Event ${eventId} action: ${action}`);
+    logger.debug(`Event ${eventId} action: ${action}`);
   };
 
   if (isLoading) {

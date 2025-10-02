@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import {logger} from "@/lib/logger";
 
 // Mock data for development
 const mockStats = {
@@ -86,12 +87,12 @@ export default function SpeakerDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    console.log('Speaker dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
+    logger.debug('Speaker dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
     if (!isLoading && !isAuthenticated) {
-      console.log('Speaker dashboard - Not authenticated, redirecting to login'); // Debug log
+      logger.info('Speaker dashboard - Not authenticated, redirecting to login'); // Debug log
       router.push('/login');
     } else if (!isLoading && user?.role !== 'SPEAKER') {
-      console.log('Speaker dashboard - Not speaker user, redirecting to dashboard'); // Debug log
+      logger.info('Speaker dashboard - Not speaker user, redirecting to dashboard'); // Debug log
       router.push('/dashboard');
     }
   }, [isAuthenticated, isLoading, user, router]);

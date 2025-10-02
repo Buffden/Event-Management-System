@@ -3,6 +3,7 @@
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import {logger} from "@/lib/logger";
 
 export default function DashboardPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -16,10 +17,10 @@ export default function DashboardPage() {
 
     // Role-based routing
     if (!isLoading && isAuthenticated && user) {
-      console.log('Dashboard routing - User role:', user.role); // Debug log
+      logger.debug('Dashboard routing - User role:', user.role); // Debug log
       switch (user.role) {
         case 'ADMIN':
-          console.log('Redirecting admin to /dashboard/admin'); // Debug log
+          logger.info('Redirecting admin to /dashboard/admin'); // Debug log
           router.push('/dashboard/admin');
           break;
         case 'SPEAKER':
