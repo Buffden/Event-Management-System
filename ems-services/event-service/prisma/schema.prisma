@@ -15,15 +15,59 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// TODO: Replace with models of event-service
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  isActive  Boolean  @default(true)
+enum EventStatus {
+  DRAFT // Speaker is creating the event, not visible to anyone else.
+  PENDING_APPROVAL // Speaker has submitted the event for admin review.
+  REJECTED // Admin has rejected the event; speaker can edit and resubmit.
+  PUBLISHED // Approved and live. Visible to the public.
+  CANCELLED // Event has been cancelled.
+  COMPLETED // Event date has passed.
+}
+
+// Model for physical venues where events can be held.
+model Venue {
+  id          Int    @id @default(autoincrement())
+  name        String @unique
+  address     String @db.Text
+  capacity    Int
+  openingTime String // Stored in "HH:mm" format (24-hour).
+  closingTime String // Stored in "HH:mm" format (24-hour).
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("users")
+  events Event[]
+
+  @@map("venues")
+}
+
+// Model for events created by speakers and admins for speakers.
+model Event {
+  id             String      @id @default(cuid())
+  name           String
+  description    String      @db.Text
+  category       String
+  bannerImageUrl String?
+  status         EventStatus @default(DRAFT)
+
+  // field to store the reason for rejection from an admin.
+  rejectionReason String? @db.Text
+
+  // Foreign key to the User in the Auth Service (the event owner).
+  speakerId String
+
+  venueId Int
+  venue   Venue @relation(fields: [venueId], references: [id])
+
+  // The start and end time for the entire venue booking.
+  bookingStartDate DateTime
+  bookingEndDate   DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([speakerId])
+  @@index([venueId])
+  @@index([status]) // Add index on status for efficient querying of pending events.
+  @@map("events")
 }

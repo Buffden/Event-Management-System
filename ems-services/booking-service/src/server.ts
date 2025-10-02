@@ -2,10 +2,7 @@ import express from 'express';
 import { config } from 'dotenv';
 import { prisma } from './database';
 import { logger } from './utils/logger';
-import { rabbitMQService } from './services/rabbitmq.service';
-import { eventPublisherService } from './services/event-publisher.service';
-import routes from './routes';
-import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { rabbitMQService } from "./services/rabbitmq.service";
 
 // Load environment variables based on NODE_ENV
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
@@ -27,11 +24,6 @@ app.get('/health', (req, res) => {
 });
 
 // Register routes
-app.use('/api', routes);
-
-// Error handling middleware
-app.use(notFoundHandler);
-app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 3000;
@@ -47,8 +39,6 @@ const startServer = async () => {
         await rabbitMQService.connect();
         logger.info('RabbitMQ connected');
 
-        // Setup event publisher queues and bindings
-        await eventPublisherService.setupQueues();
         logger.info('Event publisher setup completed');
 
         const server = app.listen(PORT, () => {

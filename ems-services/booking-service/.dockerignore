@@ -1,0 +1,28 @@
+# Directories
+node_modules
+tests
+dist
+__tests__
+generated
+
+# Docker related
+Dockerfile
+
+# Logs
+*.log
+
+*.swp
+*.swo
+coverage
+*.spec.js
+*.tsbuildinfo
+
+# Hidden files and folders
+.git
+.env
+.DS_Store
+.vscode
+
+# Documentation
+docs
+*.md
