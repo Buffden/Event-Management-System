@@ -132,6 +132,9 @@ export default function EventManagementPage() {
   };
 
   const getRegistrationPercentage = (registered: number, capacity: number) => {
+    if (capacity <= 0) {
+      return 0;
+    }
     return Math.round((registered / capacity) * 100);
   };
 
