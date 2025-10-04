@@ -19,7 +19,7 @@ class EventService {
      */
     async createEvent(data: CreateEventRequest, speakerId: string): Promise<EventResponse> {
         try {
-            logger.info('Creating new event', {speakerId, eventName: data.name});
+            logger.info('createEvent() - Creating new event', {speakerId, eventName: data.name});
 
             // Validate venue exists
             const venue = await prisma.venue.findUnique({
@@ -27,6 +27,7 @@ class EventService {
             });
 
             if (!venue) {
+                logger.error('createEvent() - venue not found');
                 throw new Error('Venue not found');
             }
 
@@ -35,10 +36,12 @@ class EventService {
             const bookingEnd = new Date(data.bookingEndDate);
 
             if (bookingStart >= bookingEnd) {
+                logger.error('createEvent() - booking start date must be before end date');
                 throw new Error('Booking start date must be before end date');
             }
 
             if (bookingStart < new Date()) {
+                logger.error('createEvent() - booking start date cannot be in the past');
                 throw new Error('Booking start date cannot be in the past');
             }
 
@@ -61,6 +64,7 @@ class EventService {
             });
 
             if (overlappingEvents.length > 0) {
+                logger.error('createEvent() - venue is not available for the selected booking period');
                 throw new Error('Venue is not available for the selected booking period');
             }
 
@@ -81,11 +85,11 @@ class EventService {
                 }
             });
 
-            logger.info('Event created successfully', {eventId: event.id, speakerId});
+            logger.info('createEvent() - Event created successfully', {eventId: event.id, speakerId});
 
             return this.mapEventToResponse(event);
         } catch (error) {
-            logger.error('Failed to create event', error as Error, {speakerId, eventData: data});
+            logger.error('createEvent() - Failed to create event', error as Error, {speakerId, eventData: data});
             throw error;
         }
     }
@@ -95,7 +99,7 @@ class EventService {
      */
     async updateEvent(eventId: string, data: UpdateEventRequest, speakerId: string): Promise<EventResponse> {
         try {
-            logger.info('Updating event', {eventId, speakerId});
+            logger.info('updateEvent() - Updating event', {eventId, speakerId});
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
@@ -103,24 +107,29 @@ class EventService {
             });
 
             if (!existingEvent) {
+                logger.info("updateEvent() - Event not found", {eventId});
                 throw new Error('Event not found');
             }
 
             if (existingEvent.speakerId !== speakerId) {
+                logger.info("updateEvent() - Unauthorized: You can only update your own events", {eventId, speakerId});
                 throw new Error('Unauthorized: You can only update your own events');
             }
 
             if (existingEvent.status !== EventStatus.DRAFT && existingEvent.status !== EventStatus.REJECTED) {
+                logger.info("updateEvent() - Event can only be updated when in DRAFT or REJECTED status", {eventId, status: existingEvent.status});
                 throw new Error('Event can only be updated when in DRAFT or REJECTED status');
             }
 
             // Validate venue if provided
             if (data.venueId) {
+                logger.info("updateEvent() - Validating provided venueId", {venueId: data.venueId});
                 const venue = await prisma.venue.findUnique({
                     where: {id: data.venueId}
                 });
 
                 if (!venue) {
+                    logger.info("updateEvent() - Venue not found", {venueId: data.venueId});
                     throw new Error('Venue not found');
                 }
             }
@@ -129,12 +138,15 @@ class EventService {
             if (data.bookingStartDate || data.bookingEndDate) {
                 const bookingStart = data.bookingStartDate ? new Date(data.bookingStartDate) : existingEvent.bookingStartDate;
                 const bookingEnd = data.bookingEndDate ? new Date(data.bookingEndDate) : existingEvent.bookingEndDate;
+                logger.info("updateEvent() - Validating booking dates", {bookingStart, bookingEnd});
 
                 if (bookingStart >= bookingEnd) {
+                    logger.error("updateEvent() - booking start date must be before end date");
                     throw new Error('Booking start date must be before end date');
                 }
 
                 if (bookingStart < new Date()) {
+                    logger.error("updateEvent() - booking start date cannot be in the past");
                     throw new Error('Booking start date cannot be in the past');
                 }
 
@@ -158,7 +170,10 @@ class EventService {
                     }
                 });
 
+                logger.info("updateEvent() - Found overlapping events", {count: overlappingEvents.length});
+
                 if (overlappingEvents.length > 0) {
+                    logger.error("updateEvent() - venue is not available for the selected booking period");
                     throw new Error('Venue is not available for the selected booking period');
                 }
             }
@@ -173,11 +188,11 @@ class EventService {
                 include: {venue: true}
             });
 
-            logger.info('Event updated successfully', {eventId, speakerId});
+            logger.info('updateEvent() - Event updated successfully', {eventId, speakerId});
 
             return this.mapEventToResponse(event);
         } catch (error) {
-            logger.error('Failed to update event', error as Error, {eventId, speakerId, updateData: data});
+            logger.error('updateEvent() - Failed to update event', error as Error, {eventId, speakerId, updateData: data});
             throw error;
         }
     }
@@ -187,7 +202,7 @@ class EventService {
      */
     async submitEvent(eventId: string, speakerId: string): Promise<EventResponse> {
         try {
-            logger.info('Submitting event for approval', {eventId, speakerId});
+            logger.info('submitEvent() - Submitting event for approval', {eventId, speakerId});
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
@@ -195,14 +210,17 @@ class EventService {
             });
 
             if (!existingEvent) {
+                logger.info("submitEvent() - Event not found", {eventId});
                 throw new Error('Event not found');
             }
 
             if (existingEvent.speakerId !== speakerId) {
+                logger.info("submitEvent() - Unauthorized: You can only submit your own events", {eventId, speakerId});
                 throw new Error('Unauthorized: You can only submit your own events');
             }
 
             if (existingEvent.status !== EventStatus.DRAFT && existingEvent.status !== EventStatus.REJECTED) {
+                logger.info("submitEvent() - Event can only be submitted when in DRAFT or REJECTED status", {eventId, status: existingEvent.status});
                 throw new Error('Event can only be submitted when in DRAFT or REJECTED status');
             }
 
@@ -215,11 +233,11 @@ class EventService {
                 include: {venue: true}
             });
 
-            logger.info('Event submitted for approval', {eventId, speakerId});
+            logger.info('submitEvent() - Event submitted for approval', {eventId, speakerId});
 
             return this.mapEventToResponse(event);
         } catch (error) {
-            logger.error('Failed to submit event', error as Error, {eventId, speakerId});
+            logger.error('submitEvent() - Failed to submit event', error as Error, {eventId, speakerId});
             throw error;
         }
     }
@@ -229,7 +247,7 @@ class EventService {
      */
     async approveEvent(eventId: string): Promise<EventResponse> {
         try {
-            logger.info('Approving event', {eventId});
+            logger.info('approveEvent() - Approving event', {eventId});
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
@@ -237,10 +255,12 @@ class EventService {
             });
 
             if (!existingEvent) {
+                logger.info("approveEvent() - Event not found", {eventId});
                 throw new Error('Event not found');
             }
 
             if (existingEvent.status !== EventStatus.PENDING_APPROVAL) {
+                logger.info("approveEvent() - Event must be in PENDING_APPROVAL status to be approved", {eventId, status: existingEvent.status});
                 throw new Error('Event must be in PENDING_APPROVAL status to be approved');
             }
 
@@ -249,6 +269,8 @@ class EventService {
                 data: {status: EventStatus.PUBLISHED},
                 include: {venue: true}
             });
+
+            logger.info("approveEvent() - Event status updated to PUBLISHED", {eventId});
 
             // Publish event.published message
             const publishedMessage: EventPublishedMessage = {
@@ -260,13 +282,15 @@ class EventService {
                 bookingEndDate: event.bookingEndDate.toISOString()
             };
 
+            logger.info("approveEvent() - Published event", publishedMessage);
+
             await eventPublisherService.publishEventPublished(publishedMessage);
 
-            logger.info('Event approved and published', {eventId});
+            logger.info('approveEvent() - Event approved and published', {eventId});
 
             return this.mapEventToResponse(event);
         } catch (error) {
-            logger.error('Failed to approve event', error as Error, {eventId});
+            logger.error('approveEvent() - Failed to approve event', error as Error, {eventId});
             throw error;
         }
     }
@@ -276,7 +300,7 @@ class EventService {
      */
     async rejectEvent(eventId: string, rejectionReason: string): Promise<EventResponse> {
         try {
-            logger.info('Rejecting event', {eventId, rejectionReason});
+            logger.info('rejectEvent() - Rejecting event', {eventId, rejectionReason});
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
@@ -284,10 +308,12 @@ class EventService {
             });
 
             if (!existingEvent) {
+                logger.info("rejectEvent() - Rejecting event", {eventId, rejectionReason});
                 throw new Error('Event not found');
             }
 
             if (existingEvent.status !== EventStatus.PENDING_APPROVAL) {
+                logger.info("rejectEvent() - Event must be in PENDING_APPROVAL status to be rejected", {eventId, status: existingEvent.status});
                 throw new Error('Event must be in PENDING_APPROVAL status to be rejected');
             }
 
@@ -300,11 +326,11 @@ class EventService {
                 include: {venue: true}
             });
 
-            logger.info('Event rejected', {eventId, rejectionReason});
+            logger.info('rejectEvent() - Event rejected', {eventId, rejectionReason});
 
             return this.mapEventToResponse(event);
         } catch (error) {
-            logger.error('Failed to reject event', error as Error, {eventId, rejectionReason});
+            logger.error('rejectEvent() - Failed to reject event', error as Error, {eventId, rejectionReason});
             throw error;
         }
     }
@@ -314,7 +340,7 @@ class EventService {
      */
     async cancelEvent(eventId: string): Promise<EventResponse> {
         try {
-            logger.info('Cancelling event', {eventId});
+            logger.info('cancelEvent() - Cancelling event', {eventId});
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
@@ -322,10 +348,12 @@ class EventService {
             });
 
             if (!existingEvent) {
+                logger.info("cancelEvent() - Event not found", {eventId});
                 throw new Error('Event not found');
             }
 
             if (existingEvent.status !== EventStatus.PUBLISHED) {
+                logger.info("cancelEvent() - Event must be in PUBLISHED status to be cancelled", {eventId, status: existingEvent.status});
                 throw new Error('Event must be in PUBLISHED status to be cancelled');
             }
 
@@ -335,18 +363,22 @@ class EventService {
                 include: {venue: true}
             });
 
+            logger.info("cancelEvent() - Event status updated to CANCELLED", {eventId});
+
             // Publish event.cancelled message
             const cancelledMessage: EventCancelledMessage = {
                 eventId: event.id
             };
 
+            logger.info("cancelEvent() - Publishing event cancelled message", cancelledMessage);
+
             await eventPublisherService.publishEventCancelled(cancelledMessage);
 
-            logger.info('Event cancelled', {eventId});
+            logger.info('cancelEvent() - Event cancelled', {eventId});
 
             return this.mapEventToResponse(event);
         } catch (error) {
-            logger.error('Failed to cancel event', error as Error, {eventId});
+            logger.error('cancelEvent() - Failed to cancel event', error as Error, {eventId});
             throw error;
         }
     }
@@ -389,6 +421,7 @@ class EventService {
      * Get event by ID
      */
     async getEventById(eventId: string, includePrivate = false): Promise<EventResponse | null> {
+        logger.debug("getEventById() - Fetching event by ID", {eventId, includePrivate});
         try {
             const event = await prisma.event.findUnique({
                 where: {id: eventId},
@@ -415,6 +448,7 @@ class EventService {
      * Get events with filtering and pagination
      */
     async getEvents(filters: EventFilters, includePrivate = false): Promise<EventListResponse> {
+        logger.info('getEvents() - Fetching events');
         try {
             const {
                 status,
@@ -461,6 +495,8 @@ class EventService {
                 }
             }
 
+            logger.info('getEvents() - Built query filters', {where, page, limit});
+
             const [events, total] = await Promise.all([
                 prisma.event.findMany({
                     where,
@@ -472,6 +508,8 @@ class EventService {
                 prisma.event.count({where})
             ]);
 
+            logger.info('getEvents() - Built query filters', {fetched: events.length, total});
+
             const totalPages = Math.ceil(total / limit);
 
             return {
@@ -482,7 +520,7 @@ class EventService {
                 totalPages
             };
         } catch (error) {
-            logger.error('Failed to get events', error as Error, {filters});
+            logger.error('getEvents() - Failed to get events', error as Error, {filters});
             throw error;
         }
     }

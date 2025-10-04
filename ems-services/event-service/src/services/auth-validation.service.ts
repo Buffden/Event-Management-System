@@ -18,7 +18,7 @@ class AuthValidationService {
   private authServiceUrl: string;
 
   constructor() {
-    this.authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
+    this.authServiceUrl = `${process.env.GATEWAY_URL}/api/auth` || 'http://ems-gateway/api/auth';
   }
 
   /**
@@ -31,7 +31,7 @@ class AuthValidationService {
       logger.debug('Validating token with auth-service', { authServiceUrl: this.authServiceUrl });
 
       const response: AxiosResponse<AuthServiceResponse> = await axios.post(
-        `${this.authServiceUrl}/api/auth/validate-user`,
+        `${this.authServiceUrl}/validate-user`,
         { token },
         {
           timeout: 5000, // 5 second timeout

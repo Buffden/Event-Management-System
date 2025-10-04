@@ -14,90 +14,20 @@ import {
     VenueFilters,
 } from './types/event.types';
 import { ApiError } from './types/common.types';
+import { BaseApiClient } from './base-api.client';
 
 const LOGGER_COMPONENT_NAME = 'EventAPI';
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost/api';
 
 // Event API client class
-class EventApiClient {
-  private baseURL: string;
+class EventApiClient extends BaseApiClient {
+  protected readonly LOGGER_COMPONENT_NAME = LOGGER_COMPONENT_NAME;
 
   constructor(baseURL: string) {
-    this.baseURL = baseURL;
+    super(baseURL);
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
-    const method = options.method || 'GET';
 
-    const defaultHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Add authorization header if token exists
-    const token = this.getToken();
-    if (token) {
-      defaultHeaders['Authorization'] = `Bearer ${token}`;
-    }
-
-    const config: RequestInit = {
-      ...options,
-      headers: {
-        ...defaultHeaders,
-        ...options.headers,
-      },
-    };
-
-    // Log API call
-    logger.apiCall(method, url, options.body ? JSON.parse(options.body as string) : undefined);
-
-    try {
-      const response = await fetch(url, config);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-
-        // Log API error response
-        logger.apiResponse(LOGGER_COMPONENT_NAME, method, url, response.status, errorData);
-
-        // Handle specific error cases
-        if (response.status === 403) {
-          throw new Error(errorData.error || 'Access denied');
-        } else if (response.status === 401) {
-          throw new Error(errorData.error || 'Authentication required');
-        } else {
-          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-        }
-      }
-
-      // Log successful API response
-      logger.apiResponse(LOGGER_COMPONENT_NAME, method, url, response.status);
-
-      return await response.json();
-    } catch (error) {
-      logger.errorWithContext(LOGGER_COMPONENT_NAME, 'Event API Request Failed', error as Error, {
-        method,
-        url,
-        endpoint
-      });
-
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('An unexpected error occurred');
-    }
-  }
-
-  // Token management (for authenticated requests)
-  private getToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    const token = localStorage.getItem('auth_token');
-    logger.debug(LOGGER_COMPONENT_NAME, 'Token retrieved from storage', { hasToken: !!token });
-    return token;
-  }
 
   // Public Event Endpoints
   async getPublishedEvents(filters?: EventFilters): Promise<{ success: boolean; data: EventListResponse }> {
@@ -145,45 +75,45 @@ class EventApiClient {
 
   // Speaker Event Endpoints
   async getMyEvents(speakerId: string, filters?: EventFilters): Promise<{ success: boolean; data: EventListResponse }> {
-    const queryParams = new URLSearchParams();
+    logger.debug(LOGGER_COMPONENT_NAME, 'GetMyEvents', { speakerId, filters });
 
     // Note: Filters are not sent to server, they will be applied on client side
     // The server returns all events for the speaker, client handles filtering
+    const endpoint = `/speaker/events/my-events?speakerId=${speakerId}`;
 
-    const queryString = queryParams.toString();
-    const endpoint = `/events/my-events/${speakerId}?${queryString}`;
+    logger.debug(LOGGER_COMPONENT_NAME, `Sending request to ${endpoint}`);
 
     return this.request<{ success: boolean; data: EventListResponse }>(endpoint);
   }
 
   async createEvent(eventData: CreateEventRequest): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>('/events', {
+    return this.request<{ success: boolean; data: EventResponse }>('speaker/events', {
       method: 'POST',
       body: JSON.stringify(eventData),
     });
   }
 
   async updateEvent(eventId: string, updateData: UpdateEventRequest): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`/events/${eventId}`, {
+    return this.request<{ success: boolean; data: EventResponse }>(`speaker/events/${eventId}`, {
       method: 'PUT',
       body: JSON.stringify(updateData),
     });
   }
 
   async submitEvent(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`/events/${eventId}/submit`, {
+    return this.request<{ success: boolean; data: EventResponse }>(`speaker/events/${eventId}/submit`, {
       method: 'PATCH',
     });
   }
 
   async deleteEvent(eventId: string): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/events/${eventId}`, {
+    return this.request<{ success: boolean; message: string }>(`speaker/events/${eventId}`, {
       method: 'DELETE',
     });
   }
 
   async getMyEventById(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`/events/${eventId}`);
+    return this.request<{ success: boolean; data: EventResponse }>(`speaker/events/${eventId}`);
   }
 
   // Admin Event Endpoints
@@ -273,7 +203,7 @@ class EventApiClient {
 }
 
 // Create and export the Event API client instance
-export const eventApiClient = new EventApiClient(API_BASE_URL);
+export const eventApiClient = new EventApiClient(`${API_BASE_URL}/event`);
 
 // Convenience exports for event methods
 export const eventAPI = {
