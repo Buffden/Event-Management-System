@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import {logger} from "@/lib/logger";
 
+const COMPONENT_NAME = 'PendingEventsPage';
+
 // Mock data for pending events
 const mockPendingEvents = [
   {
@@ -51,7 +53,7 @@ export default function PendingEventsPage() {
 
   const handleEventAction = (eventId: string, action: 'approve' | 'reject') => {
     // TODO: Implement event approval/rejection API calls
-    logger.debug(`Event ${eventId} action: ${action}`);
+    logger.debug(COMPONENT_NAME, `Event ${eventId} action: ${action}`);
   };
 
   if (isLoading) {

@@ -9,9 +9,11 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import {logger} from "@/lib/logger";
 
+const LOGGER_COMPONENT_NAME = 'VerifyEmailPending';
+
 export default function VerifyEmailPendingPage() {
   const [isChecking, setIsChecking] = useState(false);
-  const { checkAuth, isLoading } = useAuth();
+  const { checkAuth, retryAuth, isLoading } = useAuth();
   const router = useRouter();
 
   const handleCheckVerification = async () => {
@@ -21,7 +23,20 @@ export default function VerifyEmailPendingPage() {
       // If verification is complete, redirect to dashboard
       router.push('/dashboard');
     } catch {
-      logger.info('Still not verified');
+      logger.info(LOGGER_COMPONENT_NAME, 'Still not verified');
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleRetryAuth = async () => {
+    setIsChecking(true);
+    try {
+      await retryAuth();
+      // If authentication is successful, redirect to dashboard
+      router.push('/dashboard');
+    } catch {
+      logger.info(LOGGER_COMPONENT_NAME, 'Authentication retry failed');
     } finally {
       setIsChecking(false);
     }
@@ -36,8 +51,8 @@ export default function VerifyEmailPendingPage() {
         <div className="text-center space-y-4">
           <p className="text-slate-600 dark:text-slate-300">
             Didn&apos;t receive the email?{' '}
-            <Link 
-              href="/register" 
+            <Link
+              href="/register"
               className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
             >
               Try registering again
@@ -52,12 +67,12 @@ export default function VerifyEmailPendingPage() {
           <div className="relative">
             {/* Outer glow effect */}
             <div className="absolute inset-0 bg-green-500/20 rounded-full blur-xl scale-150 animate-pulse"></div>
-            
+
             {/* Main circle */}
             <div className="relative w-24 h-24 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-2xl">
               <CheckCircle className="w-12 h-12 text-white animate-bounce" />
             </div>
-            
+
             {/* Floating particles */}
             <div className="absolute -top-2 -right-2 w-4 h-4 bg-green-400 rounded-full animate-ping"></div>
             <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-green-300 rounded-full animate-pulse"></div>
@@ -72,11 +87,11 @@ export default function VerifyEmailPendingPage() {
               Registration Successful!
             </span>
           </div>
-          
+
           <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             Verify Your Email Address
           </h2>
-          
+
           <div className="space-y-3 text-slate-600 dark:text-slate-300">
             <p className="text-lg">
               We&apos;ve sent a verification link to your email address.
@@ -107,7 +122,7 @@ export default function VerifyEmailPendingPage() {
           <p className="text-slate-600 dark:text-slate-300 ml-8">
             Look for an email from <span className="font-medium text-blue-600 dark:text-blue-400">EVENTO</span> with the subject &quot;Verify Your Email Address&quot;
           </p>
-          
+
           <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center space-x-2">
             <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
             <span>Click the verification link</span>
@@ -115,7 +130,7 @@ export default function VerifyEmailPendingPage() {
           <p className="text-slate-600 dark:text-slate-300 ml-8">
             The link will automatically verify your account and log you in
           </p>
-          
+
           <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center space-x-2">
             <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
             <span>Access your dashboard</span>
@@ -127,7 +142,7 @@ export default function VerifyEmailPendingPage() {
 
         {/* Action Buttons */}
         <div className="space-y-4">
-          <Button 
+          <Button
             onClick={handleCheckVerification}
             disabled={isChecking || isLoading}
             className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
@@ -144,9 +159,9 @@ export default function VerifyEmailPendingPage() {
               </>
             )}
           </Button>
-          
-          <Button 
-            variant="outline" 
+
+          <Button
+            variant="outline"
             asChild
             className="w-full border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
@@ -158,14 +173,23 @@ export default function VerifyEmailPendingPage() {
         </div>
 
         {/* Help Text */}
-        <div className="text-center">
+        <div className="text-center space-y-2">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Can&apos;t find the email? Check your spam folder or{' '}
-            <button 
+            <button
               onClick={handleCheckVerification}
               className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium underline"
             >
               click here to check verification status
+            </button>
+          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Having trouble?{' '}
+            <button
+              onClick={handleRetryAuth}
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium underline"
+            >
+              Retry authentication
             </button>
           </p>
         </div>

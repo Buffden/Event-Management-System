@@ -6,8 +6,11 @@ import { CheckCircle, XCircle, Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { apiClient } from "@/lib/api";
 import {useAuth} from "@/lib/auth-context";
+import {authAPI, authApiClient} from "@/lib/api/auth.api";
+import { logger } from "@/lib/logger";
+
+const LOGGER_COMPONENT_NAME = 'EmailVerificationCallback';
 
 type VerificationStatus = 'verifying' | 'success' | 'error' | 'invalid';
 
@@ -15,7 +18,7 @@ function VerifyEmailContent() {
   const [status, setStatus] = useState<VerificationStatus>('verifying');
   const [error, setError] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
-  
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const accessToken = searchParams.get('accessToken');
@@ -23,31 +26,53 @@ function VerifyEmailContent() {
 
   useEffect(() => {
     const verifyEmailHelper = async () => {
+      logger.info(LOGGER_COMPONENT_NAME, 'Email verification callback - accessToken:', accessToken);
       if (!accessToken) {
         setStatus('invalid');
         setError('Invalid verification link');
         return;
       }
 
+      // Check if already verified by checking localStorage
+      const existingToken = authApiClient.getToken();
+      if (existingToken) {
+        // Check if user is already authenticated
+        try {
+          const isValid = await authAPI.verifyToken(existingToken);
+          if (isValid) {
+            setStatus('success');
+            setUserEmail('Already verified');
+            setTimeout(() => {
+              router.push('/dashboard');
+            }, 1000);
+            return;
+          }
+        } catch (error) {
+          // Token is invalid, continue with verification
+        }
+      }
+
       try {
         setStatus('verifying');
-        
-        // Call the verification endpoint
-        const {success, response, error} = await verifyEmail(accessToken);
+        logger.info(LOGGER_COMPONENT_NAME, 'Calling verifyEmail with token:', accessToken);
 
-        if (error) {
+        // Call the verification endpoint
+        const result = await verifyEmail(accessToken);
+        logger.info(LOGGER_COMPONENT_NAME, 'Verification result:', result);
+
+        if (result.error) {
             setStatus('error');
-            setError(error);
+            setError(result.error);
             return;
         }
-        
-        if (response?.token && response?.user) {
+
+        if (result.success && result.response?.token && result.response?.user) {
           setStatus('success');
-          setUserEmail(response?.user.email);
-          
+          setUserEmail(result.response.user.email);
+
           // Store the accessToken and user data
-          localStorage.setItem('auth_token', response.token);
-          
+          localStorage.setItem('auth_token', result.response.token);
+
           // Redirect to dashboard after a short delay
           setTimeout(() => {
             router.push('/dashboard');
@@ -136,7 +161,7 @@ function VerifyEmailContent() {
               </span>
             </div>
           )}
-          
+
           {status === 'error' && (
             <div className="inline-flex items-center space-x-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-full px-4 py-2">
               <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
@@ -158,12 +183,12 @@ function VerifyEmailContent() {
                 Your account is now active and you&apos;re ready to start managing events.
               </p>
             </div>
-            
+
             <div className="text-center">
               <p className="text-slate-600 dark:text-slate-300 mb-4">
                 Redirecting to your dashboard in a few seconds...
               </p>
-              <Button 
+              <Button
                 asChild
                 className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
               >
@@ -187,9 +212,9 @@ function VerifyEmailContent() {
                 {statusMessage.description}
               </p>
             </div>
-            
+
             <div className="space-y-4">
-              <Button 
+              <Button
                 asChild
                 className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
               >
@@ -198,9 +223,9 @@ function VerifyEmailContent() {
                   Register Again
                 </Link>
               </Button>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 asChild
                 className="w-full border-slate-200 dark:border-slate-600"
               >

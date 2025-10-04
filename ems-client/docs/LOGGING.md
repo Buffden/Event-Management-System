@@ -65,7 +65,7 @@ Example:
 
 ## Integration Points
 
-### 1. API Client (`lib/api.ts`)
+### 1. API Client (`lib/api/auth.api.ts`, `lib/api/event.api.ts`)
 
 - Logs all API requests and responses
 - Tracks authentication status

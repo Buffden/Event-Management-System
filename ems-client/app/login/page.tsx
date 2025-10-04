@@ -12,6 +12,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { logger } from "@/lib/logger";
 
+const LOGGER_COMPONENT_NAME = 'LoginPage';
+
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -26,10 +28,10 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    logger.userAction('Login form submitted', { email });
+    logger.userAction(LOGGER_COMPONENT_NAME, 'Login form submitted', { email });
 
     if (!email || !password) {
-      logger.warn('Login form validation failed - missing fields');
+      logger.warn(LOGGER_COMPONENT_NAME, 'Login form validation failed - missing fields');
       setError("Please fill in all fields");
       return;
     }
@@ -37,11 +39,11 @@ export default function LoginPage() {
     const result = await login(email, password);
 
     if (result.success) {
-      logger.userAction('Login successful, redirecting to dashboard');
+      logger.userAction(LOGGER_COMPONENT_NAME, 'Login successful, redirecting to dashboard');
       // Redirect to dashboard on successful login
       router.push('/dashboard');
     } else {
-      logger.warn('Login failed', { error: result.error });
+      logger.warn(LOGGER_COMPONENT_NAME, 'Login failed', { error: result.error });
       setError(result.error || "Login failed");
     }
   };

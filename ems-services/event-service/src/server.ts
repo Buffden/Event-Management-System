@@ -27,7 +27,7 @@ app.get('/health', (req, res) => {
 });
 
 // Register routes
-app.use('/api', routes);
+app.use('/', routes);
 
 // Error handling middleware
 app.use(notFoundHandler);

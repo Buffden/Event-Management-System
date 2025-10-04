@@ -80,17 +80,19 @@ const mockFlaggedUsers = [
   }
 ];
 
+const LOGGER_COMPONENT_NAME = 'AdminDashboard';
+
 export default function AdminDashboard() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    logger.debug('Admin dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
+    logger.debug(LOGGER_COMPONENT_NAME, 'Admin dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
     if (!isLoading && !isAuthenticated) {
-      logger.info('Admin dashboard - Not authenticated, redirecting to login'); // Debug log
+      logger.info(LOGGER_COMPONENT_NAME, 'Admin dashboard - Not authenticated, redirecting to login'); // Debug log
       router.push('/login');
     } else if (!isLoading && user?.role !== 'ADMIN') {
-      logger.info('Admin dashboard - Not admin user, redirecting to dashboard'); // Debug log
+      logger.info(LOGGER_COMPONENT_NAME, 'Admin dashboard - Not admin user, redirecting to dashboard'); // Debug log
       router.push('/dashboard');
     }
   }, [isAuthenticated, isLoading, user, router]);

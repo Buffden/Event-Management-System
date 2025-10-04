@@ -2,8 +2,11 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import {apiClient, AuthResponse, tokenManager} from './api';
+import {AuthResponse} from './api/types/auth.types';
+import { tokenManager, authAPI, authApiClient} from '@/lib/api/auth.api';
 import { logger } from './logger';
+
+const LOGGER_COMPONENT_NAME = 'AuthContext';
 
 interface User {
   id: string;
@@ -25,6 +28,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, role?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   checkAuth: () => Promise<void>;
+  retryAuth: () => Promise<void>;
   verifyEmail: (token: string) => Promise<{ success: boolean; error?: string, response?: AuthResponse }>;
 }
 
@@ -33,58 +37,83 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
-
-  const isAuthenticated = !!user;
 
   // Check if user is authenticated on mount
   useEffect(() => {
-    logger.info('AuthProvider initialized, checking authentication');
+    logger.info(LOGGER_COMPONENT_NAME, 'AuthProvider initialized, checking authentication');
     checkAuth();
   }, []);
 
   const checkAuth = async () => {
     try {
-      logger.authEvent('Starting authentication check');
+      logger.authEvent(LOGGER_COMPONENT_NAME, 'Starting authentication check');
       const token = tokenManager.getToken();
       if (!token) {
-        logger.info('No token found, user not authenticated');
+        logger.info(LOGGER_COMPONENT_NAME, 'No token found, user not authenticated');
         setIsLoading(false);
         return;
       }
 
       // First verify the token is valid
-      logger.debug('Verifying token validity');
-      const isValid = await apiClient.verifyToken(token);
-      if (!isValid) {
-        // Token is invalid, remove it
-        logger.warn('Token validation failed, removing token');
-        tokenManager.removeToken();
-        setUser(null);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Verifying token validity');
+      try {
+        const isValid = await authAPI.verifyToken(token);
+        if (!isValid) {
+          // Token is invalid, remove it
+          logger.warn(LOGGER_COMPONENT_NAME, 'Token validation failed, removing token');
+          tokenManager.removeToken();
+          setUser(null);
+          setIsLoading(false);
+          setIsAuthenticated(false);
+          return;
+        }
+      } catch (error) {
+        // Token verification failed, but don't remove token immediately
+        // This could be a network issue
+        logger.warn(LOGGER_COMPONENT_NAME, 'Token verification failed, but keeping token for retry', error as Error);
         setIsLoading(false);
         return;
       }
 
       // Token is valid, get user profile
-      logger.debug('Token valid, fetching user profile');
-      const response = await apiClient.getProfile();
-      if (response.user) {
-        logger.authEvent('User authenticated successfully', {
-          userId: response.user.id,
-          email: response.user.email,
-          role: response.user.role
-        });
-        setUser(response.user);
-      } else {
-        // Profile fetch failed, remove token
-        logger.warn('Profile fetch failed, removing token');
-        tokenManager.removeToken();
+      logger.debug(LOGGER_COMPONENT_NAME, 'Token valid, fetching user profile');
+      try {
+        const response = await authAPI.getProfile();
+        // Backend profile endpoint returns user object directly, not wrapped in { user }
+        if (response && response.id) {
+          logger.authEvent(LOGGER_COMPONENT_NAME, 'User authenticated successfully', {
+            userId: response.id,
+            email: response.email,
+            role: response.role
+          });
+          setUser(response);
+          setIsAuthenticated(true);
+        } else {
+          // Profile fetch failed, but don't remove token immediately
+          logger.warn(LOGGER_COMPONENT_NAME, 'Profile fetch failed, but keeping token for retry', {
+            response,
+            responseType: typeof response,
+            responseKeys: response ? Object.keys(response) : 'null'
+          });
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        // Profile fetch failed, but don't remove token immediately
+        logger.warn(LOGGER_COMPONENT_NAME, 'Profile fetch failed, but keeping token for retry', error as Error);
         setUser(null);
+        setIsAuthenticated(false);
       }
     } catch (error) {
-      logger.errorWithContext('Authentication check failed', error as Error);
-      tokenManager.removeToken();
-      setUser(null);
+      logger.errorWithContext(LOGGER_COMPONENT_NAME, 'Authentication check failed', error as Error);
+      // Only remove token if it's a critical error
+      if (error instanceof Error && error.message.includes('401')) {
+        tokenManager.removeToken();
+        setUser(null);
+        setIsAuthenticated(false);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -92,26 +121,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      logger.authEvent('Login attempt started', { email });
+      logger.authEvent(LOGGER_COMPONENT_NAME, 'Login attempt started', { email });
       setIsLoading(true);
-      const response = await apiClient.login({ email, password });
+      const response = await authAPI.login({ email, password });
 
       // Backend returns { token, user } directly without success field
       if (response.token && response.user) {
-        logger.authEvent('Login successful', {
+        logger.authEvent(LOGGER_COMPONENT_NAME, 'Login successful', {
           userId: response.user.id,
           email: response.user.email,
           role: response.user.role
         });
         tokenManager.setToken(response.token);
         setUser(response.user);
+        setIsAuthenticated(true);
         return { success: true };
       } else {
-        logger.warn('Login failed - invalid response format', response);
+        logger.warn(LOGGER_COMPONENT_NAME, 'Login failed - invalid response format', response);
         return { success: false, error: 'Login failed - invalid response format' };
       }
     } catch (error) {
-      logger.errorWithContext('Login failed', error as Error, { email });
+      logger.errorWithContext(LOGGER_COMPONENT_NAME, 'Login failed', error as Error, { email });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Login failed'
@@ -123,25 +153,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (name: string, email: string, password: string, role?: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      logger.authEvent('Registration attempt started', { email, role });
+      logger.authEvent(LOGGER_COMPONENT_NAME, 'Registration attempt started', { email, role });
       setIsLoading(true);
-      const response = await apiClient.register({ name, email, password, role });
+      const response = await authAPI.register({ name, email, password, role });
       // Backend returns { token, user } directly without success field
       if (response.token && response.user) {
-        logger.authEvent('Registration successful', {
+        logger.authEvent(LOGGER_COMPONENT_NAME, 'Registration successful', {
           userId: response.user.id,
           email: response.user.email,
           role: response.user.role
         });
-        tokenManager.setToken(response.token);
         setUser(response.user);
         return { success: true };
       } else {
-        logger.warn('Registration failed - invalid response format', response);
+        logger.warn(LOGGER_COMPONENT_NAME, 'Registration failed - invalid response format', response);
         return { success: false, error: 'Registration failed - invalid response format' };
       }
     } catch (error) {
-      logger.errorWithContext('Registration failed', error as Error, { email, role });
+      logger.errorWithContext(LOGGER_COMPONENT_NAME, 'Registration failed', error as Error, { email, role });
+      setUser(null);
+      setIsAuthenticated(false);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Registration failed'
@@ -152,32 +183,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    logger.authEvent('User logout');
+    logger.authEvent(LOGGER_COMPONENT_NAME, 'User logout');
     tokenManager.removeToken();
     setUser(null);
+    setIsAuthenticated(false);
     router.push('/');
+  };
+
+  const retryAuth = async () => {
+    logger.info(LOGGER_COMPONENT_NAME, 'Retrying authentication...');
+    setIsLoading(true);
+    await checkAuth();
   };
 
   const verifyEmail = async (token: string): Promise<{ success: boolean; error?: string, response?: AuthResponse }> => {
     try {
-      logger.authEvent('Email verification attempt started');
+      logger.authEvent(LOGGER_COMPONENT_NAME, 'Email verification attempt started', { token: token.substring(0, 20) + '...' });
       setIsLoading(true);
-      const response = await apiClient.verifyEmail(token);
+      const response = await authApiClient.verifyEmail(token);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Email verification API response:', response);
 
       if (response.token && response.user) {
-        logger.authEvent('Email verification successful', {
+        logger.authEvent(LOGGER_COMPONENT_NAME, 'Email verification successful', {
           userId: response.user.id,
           email: response.user.email
         });
         tokenManager.setToken(response.token);
         setUser(response.user);
+        setIsAuthenticated(true);
         return { success: true , response};
       } else {
-        logger.warn('Email verification failed - invalid response format', response);
+        logger.warn(LOGGER_COMPONENT_NAME, 'Email verification failed - invalid response format', response);
         return { success: false, error: 'Email verification failed - invalid response format' };
       }
     } catch (error) {
-      logger.errorWithContext('Email verification failed', error as Error);
+      logger.errorWithContext(LOGGER_COMPONENT_NAME, 'Email verification failed', error as Error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Email verification failed'
@@ -195,6 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     checkAuth,
+    retryAuth,
     verifyEmail,
   };
 

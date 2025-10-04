@@ -88,17 +88,19 @@ const mockRecentRegistrations = [
   }
 ];
 
+const LOGGER_COMPONENT_NAME = 'AttendeeDashboard';
+
 export default function AttendeeDashboard() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    logger.debug('Attendee dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
+    logger.debug(LOGGER_COMPONENT_NAME, 'Attendee dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
     if (!isLoading && !isAuthenticated) {
-      logger.info('Attendee dashboard - Not authenticated, redirecting to login'); // Debug log
+      logger.info(LOGGER_COMPONENT_NAME, 'Attendee dashboard - Not authenticated, redirecting to login'); // Debug log
       router.push('/login');
     } else if (!isLoading && user?.role !== 'USER') {
-      logger.info('Attendee dashboard - Not user, redirecting to dashboard'); // Debug log
+      logger.info(LOGGER_COMPONENT_NAME, 'Attendee dashboard - Not user, redirecting to dashboard'); // Debug log
       router.push('/dashboard');
     }
   }, [isAuthenticated, isLoading, user, router]);

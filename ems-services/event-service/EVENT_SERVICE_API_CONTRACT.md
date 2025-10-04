@@ -267,6 +267,7 @@ GET /api/event/events?category=Technology&page=1&limit=10
   venueId: number; // Required, must exist
   bookingStartDate: string; // Required, ISO date string, must be in future
   bookingEndDate: string; // Required, ISO date string, must be after startDate
+  userId: string; // Required, Speaker/User ID
 }
 ```
 

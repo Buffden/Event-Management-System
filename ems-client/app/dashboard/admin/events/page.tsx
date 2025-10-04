@@ -31,59 +31,51 @@ import {logger} from "@/lib/logger";
 const mockEvents = [
   {
     id: '1',
-    title: 'Tech Conference 2024',
+    name: 'Tech Conference 2024',
     description: 'Annual technology conference featuring the latest innovations in software development, AI, and cloud computing.',
     status: 'published',
     venue: 'Convention Center Downtown',
     capacity: 500,
     registered: 342,
-    startDate: '2024-02-15T09:00:00Z',
-    endDate: '2024-02-17T18:00:00Z',
+    bookingStartDate: '2024-02-15T09:00:00Z',
+    bookingEndDate: '2024-02-17T18:00:00Z',
     createdAt: '2024-01-10T10:00:00Z',
-    sessions: 12,
-    speakers: 8
   },
   {
     id: '2',
-    title: 'Design Workshop',
+    name: 'Design Workshop',
     description: 'Interactive workshop on modern UI/UX design principles and tools.',
     status: 'draft',
     venue: 'Creative Studio Hub',
     capacity: 50,
     registered: 12,
-    startDate: '2024-02-20T10:00:00Z',
-    endDate: '2024-02-21T16:00:00Z',
+    bookingStartDate: '2024-02-20T10:00:00Z',
+    bookingEndDate: '2024-02-21T16:00:00Z',
     createdAt: '2024-01-15T14:30:00Z',
-    sessions: 4,
-    speakers: 3
   },
   {
     id: '3',
-    title: 'AI Summit',
+    name: 'AI Summit',
     description: 'Exploring the future of artificial intelligence and machine learning applications.',
     status: 'published',
     venue: 'Tech Innovation Center',
     capacity: 200,
     registered: 156,
-    startDate: '2024-03-01T08:00:00Z',
-    endDate: '2024-03-03T17:00:00Z',
+    bookingStartDate: '2024-03-01T08:00:00Z',
+    bookingEndDate: '2024-03-03T17:00:00Z',
     createdAt: '2024-01-05T09:15:00Z',
-    sessions: 8,
-    speakers: 6
   },
   {
     id: '4',
-    title: 'Startup Pitch Night',
+    name: 'Startup Pitch Night',
     description: 'Local startups present their innovative ideas to investors and industry experts.',
     status: 'archived',
     venue: 'Innovation Hub',
     capacity: 100,
     registered: 89,
-    startDate: '2024-01-25T18:00:00Z',
-    endDate: '2024-01-25T22:00:00Z',
+    bookingStartDate: '2024-01-25T18:00:00Z',
+    bookingEndDate: '2024-01-25T22:00:00Z',
     createdAt: '2024-01-01T12:00:00Z',
-    sessions: 1,
-    speakers: 10
   }
 ];
 
@@ -93,6 +85,8 @@ const statusColors = {
   archived: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
 };
+
+const COMPONENT_NAME = 'EventManagementPage';
 
 export default function EventManagementPage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -111,25 +105,25 @@ export default function EventManagementPage() {
 
   // Filter events based on search and filters
   const filteredEvents = mockEvents.filter(event => {
-    const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          event.venue.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = selectedStatus === 'ALL' || event.status === selectedStatus;
     
     const now = new Date();
-    const eventStart = new Date(event.startDate);
+    const eventStart = new Date(event.bookingStartDate);
     const matchesTimeframe = selectedTimeframe === 'ALL' ||
                            (selectedTimeframe === 'UPCOMING' && eventStart > now) ||
-                           (selectedTimeframe === 'ONGOING' && eventStart <= now && new Date(event.endDate) >= now) ||
-                           (selectedTimeframe === 'PAST' && new Date(event.endDate) < now);
+                           (selectedTimeframe === 'ONGOING' && eventStart <= now && new Date(event.bookingEndDate) >= now) ||
+                           (selectedTimeframe === 'PAST' && new Date(event.bookingEndDate) < now);
     
     return matchesSearch && matchesStatus && matchesTimeframe;
   });
 
   const handleEventAction = (eventId: string, action: string) => {
     // TODO: Implement event action API calls
-    logger.debug(`Event ${eventId} action: ${action}`);
+    logger.debug(COMPONENT_NAME, `Event ${eventId} action: ${action}`);
   };
 
   const getRegistrationPercentage = (registered: number, capacity: number) => {
@@ -329,7 +323,7 @@ export default function EventManagementPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                      {event.title}
+                      {event.name}
                     </CardTitle>
                     <Badge className={statusColors[event.status as keyof typeof statusColors]}>
                       {event.status.toUpperCase()}
@@ -356,7 +350,7 @@ export default function EventManagementPage() {
                   <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
                     <Clock className="h-4 w-4 mr-2" />
                     <span>
-                      {new Date(event.startDate).toLocaleDateString()} - {new Date(event.endDate).toLocaleDateString()}
+                      {new Date(event.bookingStartDate).toLocaleDateString()} - {new Date(event.bookingEndDate).toLocaleDateString()}
                     </span>
                   </div>
                   

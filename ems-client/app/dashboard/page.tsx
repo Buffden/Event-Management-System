@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import {logger} from "@/lib/logger";
 
+const LOGGER_COMPONENT_NAME = 'DashboardPage';
+
 export default function DashboardPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
@@ -20,7 +22,7 @@ export default function DashboardPage() {
       logger.debug('Dashboard routing - User role:', user.role); // Debug log
       switch (user.role) {
         case 'ADMIN':
-          logger.info('Redirecting admin to /dashboard/admin'); // Debug log
+          logger.info(LOGGER_COMPONENT_NAME, 'Redirecting admin to /dashboard/admin'); // Debug log
           router.push('/dashboard/admin');
           break;
         case 'SPEAKER':

@@ -82,17 +82,19 @@ const mockRecentFeedback = [
   }
 ];
 
+const LOGGER_COMPONENT_NAME = 'SpeakerDashboard';
+
 export default function SpeakerDashboard() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    logger.debug('Speaker dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
+    logger.debug(LOGGER_COMPONENT_NAME, 'Speaker dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
     if (!isLoading && !isAuthenticated) {
-      logger.info('Speaker dashboard - Not authenticated, redirecting to login'); // Debug log
+      logger.info(LOGGER_COMPONENT_NAME, 'Speaker dashboard - Not authenticated, redirecting to login'); // Debug log
       router.push('/login');
     } else if (!isLoading && user?.role !== 'SPEAKER') {
-      logger.info('Speaker dashboard - Not speaker user, redirecting to dashboard'); // Debug log
+      logger.info(LOGGER_COMPONENT_NAME, 'Speaker dashboard - Not speaker user, redirecting to dashboard'); // Debug log
       router.push('/dashboard');
     }
   }, [isAuthenticated, isLoading, user, router]);

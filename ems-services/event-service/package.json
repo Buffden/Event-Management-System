@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "node prisma/seed.js",
+    "prisma:seed:dev": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.1",
@@ -36,5 +38,8 @@
     "jest": "^29.7.0",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.4"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }

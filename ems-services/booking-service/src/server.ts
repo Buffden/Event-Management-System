@@ -2,7 +2,12 @@ import express from 'express';
 import { config } from 'dotenv';
 import { prisma } from './database';
 import { logger } from './utils/logger';
-import { rabbitMQService } from "./services/rabbitmq.service";
+import { eventPublisherService } from './services/event-publisher.service';
+import { eventConsumerService } from './services/event-consumer.service';
+import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import bookingRoutes from './routes/booking.routes';
+import adminRoutes from './routes/admin.routes';
+import speakerRoutes from './routes/speaker.routes';
 
 // Load environment variables based on NODE_ENV
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
@@ -12,18 +17,26 @@ const app = express();
 
 // --- Middleware ---
 app.use(express.json());
-app.use(express.urlencoded({extended: true}));
+app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
-    service: 'event-service',
-    timestamp: new Date().toISOString()
+    service: 'booking-service',
+    timestamp: new Date().toISOString(),
+    rabbitmq: eventPublisherService.isConnected() && eventConsumerService.isConnected()
   });
 });
 
 // Register routes
+app.use('/', bookingRoutes);
+app.use('/admin', adminRoutes);
+app.use('/', speakerRoutes);
+
+// Error handling middleware
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 3000;
@@ -35,14 +48,13 @@ const startServer = async () => {
         await prisma.$connect();
         logger.info('Database connected');
 
-        // Connect to RabbitMQ
-        await rabbitMQService.connect();
-        logger.info('RabbitMQ connected');
-
-        logger.info('Event publisher setup completed');
+        // Initialize RabbitMQ services
+        await eventPublisherService.initialize();
+        await eventConsumerService.initialize();
+        logger.info('RabbitMQ services initialized');
 
         const server = app.listen(PORT, () => {
-            logger.info(`Event Service running on http://localhost:${PORT}`, { port: PORT });
+            logger.info(`Booking Service running on http://localhost:${PORT}`, { port: PORT });
         });
 
         // Handle graceful shutdown
@@ -51,7 +63,8 @@ const startServer = async () => {
             server.close(async () => {
                 logger.info('HTTP server closed');
                 await prisma.$disconnect();
-                await rabbitMQService.close();
+                await eventPublisherService.close();
+                await eventConsumerService.close();
                 process.exit(0);
             });
         };

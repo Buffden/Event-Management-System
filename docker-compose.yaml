@@ -130,6 +130,8 @@ services:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=event_db
+    ports:
+      - "5432:5432"
     volumes:
       - event-service-data:/var/lib/postgresql/data
 

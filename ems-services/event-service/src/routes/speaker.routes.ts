@@ -13,38 +13,26 @@ const router = Router();
 router.use(requireSpeaker);
 
 /**
- * GET /events/my-events - Get a list of all events created by the authenticated speaker
+ * GET /events/my-events - Get a list of all events created by the specified speaker
  */
 router.get('/events/my-events',
-  validateQuery(validatePagination),
-  validateQuery(validateDateRange),
   asyncHandler(async (req: Request, res: Response) => {
-    const {
-      status,
-      category,
-      venueId,
-      startDate,
-      endDate,
-      page = 1,
-      limit = 10
-    } = req.query;
+    const { speakerId } = req.query;
 
-    const filters: EventFilters = {
-      status: status as EventStatus,
-      category: category as string,
-      venueId: venueId ? Number(venueId) : undefined,
-      startDate: startDate as string,
-      endDate: endDate as string,
-      page: Number(page),
-      limit: Number(limit)
-    };
+    // Validate speakerId parameter
+    if (!speakerId || typeof speakerId !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Speaker ID is required as a query parameter'
+      });
+    }
 
     logger.info('Fetching speaker events', {
-      speakerId: req.user!.userId,
-      filters
+      speakerId: speakerId
     });
 
-    const result = await eventService.getEventsBySpeaker(req.user!.userId, filters);
+    // Get all events for the speaker without any filters
+    const result = await eventService.getEventsBySpeaker(speakerId, {});
 
     res.json({
       success: true,
@@ -84,6 +72,10 @@ router.post('/events',
       errors.push({ field: 'bookingEndDate', message: 'Valid booking end date is required' });
     }
 
+    if (!body.userId || body.userId.trim().length === 0) {
+      errors.push({ field: 'userId', message: 'User ID is required' });
+    }
+
     if (body.bookingStartDate && body.bookingEndDate && new Date(body.bookingStartDate) >= new Date(body.bookingEndDate)) {
       errors.push({ field: 'bookingDates', message: 'Booking start date must be before end date' });
     }
@@ -92,7 +84,7 @@ router.post('/events',
   }),
   asyncHandler(async (req: Request, res: Response) => {
     const eventData: CreateEventRequest = req.body;
-    const speakerId = req.user!.userId;
+    const speakerId = eventData.userId;
 
     logger.info('Creating new event', { speakerId, eventName: eventData.name });
 
