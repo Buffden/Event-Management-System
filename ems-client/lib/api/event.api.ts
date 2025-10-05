@@ -203,7 +203,7 @@ class EventApiClient extends BaseApiClient {
 }
 
 // Create and export the Event API client instance
-export const eventApiClient = new EventApiClient(`${API_BASE_URL}/event`);
+export const eventApiClient = new EventApiClient(`${API_BASE_URL}/event/`);
 
 // Convenience exports for event methods
 export const eventAPI = {

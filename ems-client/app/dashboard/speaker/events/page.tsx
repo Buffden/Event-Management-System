@@ -67,7 +67,7 @@ export default function SpeakerEventManagementPage() {
                 throw new Error('Failed to fetch events');
             });
         } else {
-            logger.warn(LOGGER_COMPONENT_NAME, 'User is not authenticated or user data is missing');
+            logger.warn(LOGGER_COMPONENT_NAME, 'User is not authenticated or user data is missing', {user: user});
             router.push('/login');
         }
 
@@ -95,6 +95,25 @@ export default function SpeakerEventManagementPage() {
     const handleEventAction = (eventId: string, action: string) => {
         // TODO: Implement event action API calls
         logger.debug(LOGGER_COMPONENT_NAME, `Event ${eventId} action: ${action}`);
+        try {
+            if (action === 'publish') {
+                const response = eventAPI.submitEvent(eventId);
+                logger.debug(LOGGER_COMPONENT_NAME, `Event ${eventId} action response`, response);
+            } else if (action === 'archive') {
+                // TODO: Implement archive action
+                logger.debug(LOGGER_COMPONENT_NAME, `TODO: Implement archive action for event ${eventId}`);
+            } else if (action === 'delete') {
+                const response = eventAPI.deleteEvent(eventId);
+                logger.debug(LOGGER_COMPONENT_NAME, `Event ${eventId} action response`, response);
+                // Remove the deleted event from the state
+                setMockEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
+            } else {
+                logger.warn(LOGGER_COMPONENT_NAME, `Unknown action ${action} for event ${eventId}`);
+            }
+        } catch (error) {
+            logger.error(LOGGER_COMPONENT_NAME, `Failed to perform action ${action} on event ${eventId}`, {error});
+            throw error;
+        }
     };
 
     const getRegistrationPercentage = (registered: number, capacity: number) => {
@@ -142,7 +161,7 @@ export default function SpeakerEventManagementPage() {
                         <div className="flex items-center space-x-4">
                             <Button
                                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                                onClick={() => router.push('/dashboard/admin/events/create')}
+                                onClick={() => router.push('/dashboard/speaker/events/create')}
                             >
                                 <Plus className="h-4 w-4 mr-2"/>
                                 Create Event
@@ -353,7 +372,7 @@ export default function SpeakerEventManagementPage() {
                                             onClick={() => handleEventAction(event.id, 'publish')}
                                         >
                                             <Play className="h-4 w-4 mr-1"/>
-                                            Publish
+                                            Request Approval
                                         </Button>
                                     )}
 
@@ -393,7 +412,7 @@ export default function SpeakerEventManagementPage() {
                                         No events match your search criteria.
                                     </p>
                                     <Button
-                                        onClick={() => router.push('/dashboard/admin/events/create')}
+                                        onClick={() => router.push('/dashboard/speaker/events/create')}
                                         className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                                     >
                                         <Plus className="h-4 w-4 mr-2"/>
