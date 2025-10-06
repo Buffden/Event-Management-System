@@ -21,15 +21,24 @@ import {
     MoreHorizontal,
     Play,
     Pause,
-    Archive
+    Archive,
+    AlertCircle
 } from "lucide-react";
 import {useRouter} from "next/navigation";
 import {useEffect, useState} from "react";
 import {logger} from "@/lib/logger";
 
-import {statusColors} from "@/constants/events";
 import {eventAPI} from "@/lib/api/event.api";
-import {EventResponse} from "@/lib/api/types/event.types";
+import {EventResponse, EventStatus, EventFilters} from "@/lib/api/types/event.types";
+
+const statusColors = {
+  [EventStatus.DRAFT]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  [EventStatus.PENDING_APPROVAL]: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  [EventStatus.PUBLISHED]: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  [EventStatus.REJECTED]: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  [EventStatus.CANCELLED]: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  [EventStatus.COMPLETED]: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+};
 
 const LOGGER_COMPONENT_NAME = 'SpeakerEventManagementPage';
 
@@ -37,50 +46,74 @@ export default function SpeakerEventManagementPage() {
     const {user, isAuthenticated, isLoading, logout} = useAuth();
     const router = useRouter();
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedStatus, setSelectedStatus] = useState('ALL');
+    const [selectedStatus, setSelectedStatus] = useState<EventStatus | 'ALL'>('ALL');
     const [selectedTimeframe, setSelectedTimeframe] = useState('ALL');
-    const [mockEvents, setMockEvents] = useState<EventResponse[]>([]);
+
+    // API state management
+    const [events, setEvents] = useState<EventResponse[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [pagination, setPagination] = useState({
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0
+    });
+
+    // Load events from API
+    const loadEvents = async () => {
+        if (!user?.id) return;
+
+        try {
+            setLoading(true);
+            setError(null);
+
+            const filters: EventFilters = {
+                page: pagination.page,
+                limit: pagination.limit,
+                status: selectedStatus !== 'ALL' ? selectedStatus : undefined
+            };
+
+            logger.debug(LOGGER_COMPONENT_NAME, 'Loading events with filters', filters);
+
+            const response = await eventAPI.getMyEvents(user.id, filters);
+
+            if (response.success) {
+                setEvents(response.data.events);
+                setPagination(prev => ({
+                    ...prev,
+                    total: response.data.total,
+                    totalPages: response.data.totalPages
+                }));
+                logger.debug(LOGGER_COMPONENT_NAME, 'Events loaded successfully', { count: response.data.events.length });
+            } else {
+                throw new Error('Failed to load events');
+            }
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to load events';
+            setError(errorMessage);
+            logger.error(LOGGER_COMPONENT_NAME, 'Failed to load events', err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        logger.debug(LOGGER_COMPONENT_NAME, 'Auth state changed', {isAuthenticated, isLoading, user});
         if (!isLoading && !isAuthenticated) {
-            logger.debug(LOGGER_COMPONENT_NAME, 'User not authenticated, redirecting to login', {
-                isAuthenticated,
-                isLoading
-            });
             router.push('/login');
-            return;
         } else if (!isLoading && user?.role !== 'SPEAKER') {
-            logger.debug(LOGGER_COMPONENT_NAME, 'User does not have permissions', {isLoading, role: user?.role});
             router.push('/dashboard');
-            return;
+        } else if (isAuthenticated && user?.role === 'SPEAKER') {
+            loadEvents();
         }
+    }, [isAuthenticated, isLoading, user, router, selectedStatus, pagination.page]);
 
-        if (isAuthenticated && user) {
-            const getEvents = async (speakerId: string) => {
-                const response = await eventAPI.getMyEvents(speakerId, {});
-                logger.debug(LOGGER_COMPONENT_NAME, 'GetEvents - useEffect', response);
-                setMockEvents(response.data.events);
-            };
-            getEvents(user.id).catch(() => {
-                logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch events for speaker', {userId: user.id});
-                throw new Error('Failed to fetch events');
-            });
-        } else {
-            logger.warn(LOGGER_COMPONENT_NAME, 'User is not authenticated or user data is missing', {user: user});
-            router.push('/login');
-        }
-
-    }, [isAuthenticated, isLoading, user, router]);
-
-    // Filter events based on search and filters
-    const filteredEvents = mockEvents.filter(event => {
-        logger.debug(LOGGER_COMPONENT_NAME, 'User event found', event);
+    // Filter events based on search and timeframe (status filtering is done server-side)
+    const filteredEvents = events.filter(event => {
         const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
             event.venue.name.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchesStatus = selectedStatus === 'ALL' || event.status === selectedStatus;
 
         const now = new Date();
         const eventStart = new Date(event.bookingStartDate);
@@ -89,30 +122,39 @@ export default function SpeakerEventManagementPage() {
             (selectedTimeframe === 'ONGOING' && eventStart <= now && new Date(event.bookingEndDate) >= now) ||
             (selectedTimeframe === 'PAST' && new Date(event.bookingEndDate) < now);
 
-        return matchesSearch && matchesStatus && matchesTimeframe;
+        return matchesSearch && matchesTimeframe;
     });
 
-    const handleEventAction = (eventId: string, action: string) => {
-        // TODO: Implement event action API calls
-        logger.debug(LOGGER_COMPONENT_NAME, `Event ${eventId} action: ${action}`);
+    const handleEventAction = async (eventId: string, action: string) => {
         try {
-            if (action === 'publish') {
-                const response = eventAPI.submitEvent(eventId);
-                logger.debug(LOGGER_COMPONENT_NAME, `Event ${eventId} action response`, response);
-            } else if (action === 'archive') {
-                // TODO: Implement archive action
-                logger.debug(LOGGER_COMPONENT_NAME, `TODO: Implement archive action for event ${eventId}`);
-            } else if (action === 'delete') {
-                const response = eventAPI.deleteEvent(eventId);
-                logger.debug(LOGGER_COMPONENT_NAME, `Event ${eventId} action response`, response);
-                // Remove the deleted event from the state
-                setMockEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
-            } else {
-                logger.warn(LOGGER_COMPONENT_NAME, `Unknown action ${action} for event ${eventId}`);
+            setActionLoading(eventId);
+            logger.debug(LOGGER_COMPONENT_NAME, `Event ${eventId} action: ${action}`);
+
+            let response;
+            switch (action) {
+                case 'submit':
+                    response = await eventAPI.submitEvent(eventId);
+                    break;
+                case 'delete':
+                    response = await eventAPI.deleteEvent(eventId);
+                    break;
+                default:
+                    throw new Error(`Unknown action: ${action}`);
             }
-        } catch (error) {
-            logger.error(LOGGER_COMPONENT_NAME, `Failed to perform action ${action} on event ${eventId}`, {error});
-            throw error;
+
+            if (response.success) {
+                logger.info(LOGGER_COMPONENT_NAME, `Event ${eventId} ${action} successful`);
+                // Reload events to reflect changes
+                await loadEvents();
+            } else {
+                throw new Error(`Failed to ${action} event`);
+            }
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : `Failed to ${action} event`;
+            setError(errorMessage);
+            logger.error(LOGGER_COMPONENT_NAME, `Failed to ${action} event ${eventId}`, err);
+        } finally {
+            setActionLoading(null);
         }
     };
 
@@ -123,6 +165,15 @@ export default function SpeakerEventManagementPage() {
         return Math.round((registered / capacity) * 100);
     };
 
+    // Calculate stats from real data
+    const stats = {
+        total: events.length,
+        published: events.filter(e => e.status === EventStatus.PUBLISHED).length,
+        draft: events.filter(e => e.status === EventStatus.DRAFT).length,
+        pending: events.filter(e => e.status === EventStatus.PENDING_APPROVAL).length,
+        rejected: events.filter(e => e.status === EventStatus.REJECTED).length
+    };
+
     if (isLoading) {
         return (
             <div
@@ -131,6 +182,31 @@ export default function SpeakerEventManagementPage() {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
                     <p className="text-slate-700 dark:text-slate-300 font-medium">Loading event management...</p>
                 </div>
+            </div>
+        );
+    }
+
+    // Error state
+    if (error && !loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+                <Card className="max-w-md w-full mx-4">
+                    <CardContent className="text-center py-8">
+                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                            Error Loading Events
+                        </h3>
+                        <p className="text-slate-600 dark:text-slate-400 mb-4">
+                            {error}
+                        </p>
+                        <Button
+                            onClick={loadEvents}
+                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                        >
+                            Try Again
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
@@ -200,9 +276,8 @@ export default function SpeakerEventManagementPage() {
                             <div className="flex items-center">
                                 <Calendar className="h-8 w-8 text-blue-600"/>
                                 <div className="ml-4">
-                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total
-                                        Events</p>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockEvents.length}</p>
+                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Events</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.total}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -214,9 +289,7 @@ export default function SpeakerEventManagementPage() {
                                 <Play className="h-8 w-8 text-green-600"/>
                                 <div className="ml-4">
                                     <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Published</p>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                                        {mockEvents.filter(e => e.status === 'PUBLISHED').length}
-                                    </p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.published}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -228,9 +301,19 @@ export default function SpeakerEventManagementPage() {
                                 <Pause className="h-8 w-8 text-yellow-600"/>
                                 <div className="ml-4">
                                     <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Draft</p>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                                        {mockEvents.filter(e => e.status === 'DRAFT').length}
-                                    </p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.draft}</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-slate-200 dark:border-slate-700">
+                        <CardContent className="p-6">
+                            <div className="flex items-center">
+                                <AlertCircle className="h-8 w-8 text-orange-600"/>
+                                <div className="ml-4">
+                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Pending</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.pending}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -258,14 +341,16 @@ export default function SpeakerEventManagementPage() {
 
                             <select
                                 value={selectedStatus}
-                                onChange={(e) => setSelectedStatus(e.target.value)}
+                                onChange={(e) => setSelectedStatus(e.target.value as EventStatus | 'ALL')}
                                 className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                             >
                                 <option value="ALL">All Status</option>
-                                <option value="draft">Draft</option>
-                                <option value="published">Published</option>
-                                <option value="archived">Archived</option>
-                                <option value="cancelled">Cancelled</option>
+                                <option value={EventStatus.DRAFT}>Draft</option>
+                                <option value={EventStatus.PENDING_APPROVAL}>Pending Approval</option>
+                                <option value={EventStatus.PUBLISHED}>Published</option>
+                                <option value={EventStatus.REJECTED}>Rejected</option>
+                                <option value={EventStatus.CANCELLED}>Cancelled</option>
+                                <option value={EventStatus.COMPLETED}>Completed</option>
                             </select>
 
                             <select
@@ -303,8 +388,8 @@ export default function SpeakerEventManagementPage() {
                                             className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
                                             {event.name}
                                         </CardTitle>
-                                        <Badge className={statusColors[event.status as keyof typeof statusColors]}>
-                                            {event.status.toUpperCase()}
+                                        <Badge className={statusColors[event.status]}>
+                                            {event.status.replace('_', ' ')}
                                         </Badge>
                                     </div>
                                     <Button size="sm" variant="ghost">
@@ -365,42 +450,35 @@ export default function SpeakerEventManagementPage() {
                                         Edit
                                     </Button>
 
-                                    {event.status === 'DRAFT' && (
+                                    {(event.status === EventStatus.DRAFT || event.status === EventStatus.REJECTED) && (
                                         <Button
                                             size="sm"
                                             variant="default"
-                                            onClick={() => handleEventAction(event.id, 'publish')}
+                                            onClick={() => handleEventAction(event.id, 'submit')}
+                                            disabled={actionLoading === event.id}
                                         >
                                             <Play className="h-4 w-4 mr-1"/>
-                                            Request Approval
+                                            Submit for Approval
                                         </Button>
                                     )}
 
-                                    {event.status === 'PUBLISHED' && (
+                                    {event.status === EventStatus.DRAFT && (
                                         <Button
                                             size="sm"
-                                            variant="outline"
-                                            onClick={() => handleEventAction(event.id, 'archive')}
+                                            variant="destructive"
+                                            onClick={() => handleEventAction(event.id, 'delete')}
+                                            disabled={actionLoading === event.id}
                                         >
-                                            <Archive className="h-4 w-4 mr-1"/>
-                                            Archive
+                                            <Trash2 className="h-4 w-4 mr-1"/>
+                                            Delete
                                         </Button>
                                     )}
-
-                                    <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        onClick={() => handleEventAction(event.id, 'delete')}
-                                    >
-                                        <Trash2 className="h-4 w-4 mr-1"/>
-                                        Delete
-                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>
                     ))}
 
-                    {filteredEvents.length === 0 && (
+                    {filteredEvents.length === 0 && !loading && (
                         <div className="col-span-full">
                             <Card className="border-slate-200 dark:border-slate-700">
                                 <CardContent className="text-center py-12">
@@ -423,6 +501,45 @@ export default function SpeakerEventManagementPage() {
                         </div>
                     )}
                 </div>
+
+                {/* Pagination */}
+                {pagination.totalPages > 1 && (
+                    <div className="mt-8 flex justify-center">
+                        <Card className="border-slate-200 dark:border-slate-700">
+                            <CardContent className="p-4">
+                                <div className="flex items-center space-x-4">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                                        disabled={pagination.page === 1 || loading}
+                                    >
+                                        Previous
+                                    </Button>
+
+                                    <span className="text-sm text-slate-600 dark:text-slate-400">
+                                        Page {pagination.page} of {pagination.totalPages}
+                                    </span>
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                                        disabled={pagination.page === pagination.totalPages || loading}
+                                    >
+                                        Next
+                                    </Button>
+                                </div>
+
+                                <div className="mt-2 text-center">
+                                    <span className="text-xs text-slate-500 dark:text-slate-500">
+                                        Showing {events.length} of {pagination.total} events
+                                    </span>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
             </main>
         </div>
     );
