@@ -26,10 +26,11 @@ import {
 } from "lucide-react";
 import {useRouter} from "next/navigation";
 import {useEffect, useState} from "react";
-import {logger} from "@/lib/logger";
+import {useLogger} from "@/lib/logger/LoggerProvider";
 
 import {eventAPI} from "@/lib/api/event.api";
 import {EventResponse, EventStatus, EventFilters} from "@/lib/api/types/event.types";
+import {withSpeakerAuth} from "@/components/hoc/withAuth";
 
 const statusColors = {
   [EventStatus.DRAFT]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -42,9 +43,10 @@ const statusColors = {
 
 const LOGGER_COMPONENT_NAME = 'SpeakerEventManagementPage';
 
-export default function SpeakerEventManagementPage() {
-    const {user, isAuthenticated, isLoading, logout} = useAuth();
+function SpeakerEventManagementPage() {
+    const {user, logout} = useAuth();
     const router = useRouter();
+    const logger = useLogger();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStatus, setSelectedStatus] = useState<EventStatus | 'ALL'>('ALL');
     const [selectedTimeframe, setSelectedTimeframe] = useState('ALL');
@@ -93,21 +95,15 @@ export default function SpeakerEventManagementPage() {
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to load events';
             setError(errorMessage);
-            logger.error(LOGGER_COMPONENT_NAME, 'Failed to load events', err);
+            logger.error(LOGGER_COMPONENT_NAME, 'Failed to load events', err instanceof Error ? err : new Error(String(err)));
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        if (!isLoading && !isAuthenticated) {
-            router.push('/login');
-        } else if (!isLoading && user?.role !== 'SPEAKER') {
-            router.push('/dashboard');
-        } else if (isAuthenticated && user?.role === 'SPEAKER') {
-            loadEvents();
-        }
-    }, [isAuthenticated, isLoading, user, router, selectedStatus, pagination.page]);
+        loadEvents();
+    }, [selectedStatus, pagination.page]);
 
     // Filter events based on search and timeframe (status filtering is done server-side)
     const filteredEvents = events.filter(event => {
@@ -152,7 +148,7 @@ export default function SpeakerEventManagementPage() {
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : `Failed to ${action} event`;
             setError(errorMessage);
-            logger.error(LOGGER_COMPONENT_NAME, `Failed to ${action} event ${eventId}`, err);
+            logger.error(LOGGER_COMPONENT_NAME, `Failed to ${action} event ${eventId}`, err instanceof Error ? err : new Error(String(err)));
         } finally {
             setActionLoading(null);
         }
@@ -174,7 +170,7 @@ export default function SpeakerEventManagementPage() {
         rejected: events.filter(e => e.status === EventStatus.REJECTED).length
     };
 
-    if (isLoading) {
+    if (loading) {
         return (
             <div
                 className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -544,3 +540,5 @@ export default function SpeakerEventManagementPage() {
         </div>
     );
 }
+
+export default withSpeakerAuth(SpeakerEventManagementPage);

@@ -6,7 +6,9 @@ import { BaseApiClient } from './base-api.client';
 
 const LOGGER_COMPONENT_NAME = 'AuthAPI';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost/api';
+import { apiEndpoints } from './config';
+
+const API_BASE_URL = apiEndpoints.auth;
 
 // Auth API client class
 class AuthApiClient extends BaseApiClient {
@@ -19,28 +21,28 @@ class AuthApiClient extends BaseApiClient {
 
     // Auth methods
     async login(credentials: LoginRequest): Promise<AuthResponse> {
-        return this.request<AuthResponse>('/auth/login', {
+        return this.request<AuthResponse>('/login', {
             method: 'POST',
             body: JSON.stringify(credentials),
         });
     }
 
     async register(userData: RegisterRequest): Promise<AuthResponse> {
-        return this.request<AuthResponse>('/auth/register', {
+        return this.request<AuthResponse>('/register', {
             method: 'POST',
             body: JSON.stringify(userData),
         });
     }
 
     async verifyToken(token: string): Promise<boolean> {
-        return this.request<boolean>('/auth/verify-token', {
+        return this.request<boolean>('/verify-token', {
             method: 'POST',
             body: JSON.stringify({token}),
         });
     }
 
     async getProfile(): Promise<UserProfile> {
-        return this.request<UserProfile>('/auth/profile');
+        return this.request<UserProfile>('/profile');
     }
 
     async getMe(): Promise<{
@@ -61,24 +63,24 @@ class AuthApiClient extends BaseApiClient {
 
     async verifyEmail(token: string): Promise<AuthResponse> {
         logger.debug(LOGGER_COMPONENT_NAME, 'Verifying email with token');
-        return this.request<AuthResponse>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
+        return this.request<AuthResponse>(`/verify-email?token=${encodeURIComponent(token)}`);
     }
 
     async updateProfile(userData: Partial<RegisterRequest>): Promise<AuthResponse> {
-        return this.request<AuthResponse>('/auth/profile', {
+        return this.request<AuthResponse>('/profile', {
             method: 'PUT',
             body: JSON.stringify(userData),
         });
     }
 
     async logout(): Promise<{ success: boolean; message: string }> {
-        return this.request<{ success: boolean; message: string }>('/auth/logout', {
+        return this.request<{ success: boolean; message: string }>('/logout', {
             method: 'POST',
         });
     }
 
     async checkUserExists(email: string): Promise<{ exists: boolean }> {
-        return this.request<{ exists: boolean }>(`/auth/check-user?email=${encodeURIComponent(email)}`);
+        return this.request<{ exists: boolean }>(`/check-user?email=${encodeURIComponent(email)}`);
     }
 
 }

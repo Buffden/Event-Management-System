@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  LogOut, 
-  Calendar, 
-  Users, 
+import {
+  LogOut,
+  Calendar,
+  Users,
   Star,
   Clock,
   Plus,
@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import {logger} from "@/lib/logger";
+import {useLogger} from "@/lib/logger/LoggerProvider";
+import {withSpeakerAuth} from "@/components/hoc/withAuth";
 
 // Mock data for development
 const mockStats = {
@@ -84,35 +85,16 @@ const mockRecentFeedback = [
 
 const LOGGER_COMPONENT_NAME = 'SpeakerDashboard';
 
-export default function SpeakerDashboard() {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+function SpeakerDashboard() {
+  const { user, logout } = useAuth();
   const router = useRouter();
+  const logger = useLogger();
 
   useEffect(() => {
-    logger.debug(LOGGER_COMPONENT_NAME, 'Speaker dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
-    if (!isLoading && !isAuthenticated) {
-      logger.info(LOGGER_COMPONENT_NAME, 'Speaker dashboard - Not authenticated, redirecting to login'); // Debug log
-      router.push('/login');
-    } else if (!isLoading && user?.role !== 'SPEAKER') {
-      logger.info(LOGGER_COMPONENT_NAME, 'Speaker dashboard - Not speaker user, redirecting to dashboard'); // Debug log
-      router.push('/dashboard');
-    }
-  }, [isAuthenticated, isLoading, user, router]);
+    logger.debug(LOGGER_COMPONENT_NAME, 'Speaker dashboard loaded', { userRole: user?.role });
+  }, [user, logger]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-700 dark:text-slate-300 font-medium">Loading speaker dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || user?.role !== 'SPEAKER') {
-    return null; // Will redirect
-  }
+  // Loading and auth checks are handled by the HOC
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -128,13 +110,13 @@ export default function SpeakerDashboard() {
                 Speaker Panel
               </Badge>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage 
-                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`} 
-                    alt={user?.name || user?.email} 
+                  <AvatarImage
+                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`}
+                    alt={user?.name || user?.email}
                   />
                   <AvatarFallback className="text-xs">
                     {user?.name ? user.name.split(' ').map(n => n[0]).join('') : user?.email?.[0]?.toUpperCase()}
@@ -144,9 +126,9 @@ export default function SpeakerDashboard() {
                   {user?.name}
                 </span>
               </div>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={logout}
                 className="text-slate-600 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400"
@@ -248,34 +230,34 @@ export default function SpeakerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
-                <Button 
+                <Button
                   className="h-20 flex flex-col items-center justify-center space-y-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
                   onClick={() => router.push('/dashboard/speaker/sessions/create')}
                 >
                   <Plus className="h-5 w-5" />
                   <span className="text-sm">Create Session</span>
                 </Button>
-                
-                <Button 
-                  variant="outline" 
+
+                <Button
+                  variant="outline"
                   className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
                   onClick={() => router.push('/dashboard/speaker/events')}
                 >
                   <Calendar className="h-5 w-5" />
                   <span className="text-sm">My Events</span>
                 </Button>
-                
-                <Button 
-                  variant="outline" 
+
+                <Button
+                  variant="outline"
                   className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
                   onClick={() => router.push('/dashboard/speaker/feedback')}
                 >
                   <MessageSquare className="h-5 w-5" />
                   <span className="text-sm">View Feedback</span>
                 </Button>
-                
-                <Button 
-                  variant="outline" 
+
+                <Button
+                  variant="outline"
                   className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
                   onClick={() => router.push('/dashboard/speaker/profile')}
                 >
@@ -313,7 +295,7 @@ export default function SpeakerDashboard() {
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Badge 
+                      <Badge
                         variant={session.status === 'confirmed' ? 'default' : 'secondary'}
                         className={session.status === 'confirmed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : ''}
                       >
@@ -346,9 +328,9 @@ export default function SpeakerDashboard() {
                 <div key={feedback.id} className="flex items-start space-x-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
                   <div className="flex items-center space-x-1">
                     {[...Array(5)].map((_, i) => (
-                      <Star 
-                        key={i} 
-                        className={`h-4 w-4 ${i < feedback.rating ? 'text-yellow-400 fill-current' : 'text-slate-300'}`} 
+                      <Star
+                        key={i}
+                        className={`h-4 w-4 ${i < feedback.rating ? 'text-yellow-400 fill-current' : 'text-slate-300'}`}
                       />
                     ))}
                   </div>
@@ -366,3 +348,5 @@ export default function SpeakerDashboard() {
     </div>
   );
 }
+
+export default withSpeakerAuth(SpeakerDashboard);

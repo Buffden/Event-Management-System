@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import { logger } from "@/lib/logger";
+import { useLogger } from "@/lib/logger/LoggerProvider";
 
 const LOGGER_COMPONENT_NAME = 'RegisterPage';
 
@@ -27,6 +27,7 @@ export default function RegisterPage() {
 
   const { register, isLoading } = useAuth();
   const router = useRouter();
+  const logger = useLogger();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

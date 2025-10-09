@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  LogOut, 
-  Calendar, 
+import {
+  LogOut,
+  Calendar,
   Ticket,
   Star,
   Clock,
@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import {logger} from "@/lib/logger";
+import {useLogger} from "@/lib/logger/LoggerProvider";
+import {withUserAuth} from "@/components/hoc/withAuth";
 
 // Mock data for development
 const mockStats = {
@@ -90,35 +91,16 @@ const mockRecentRegistrations = [
 
 const LOGGER_COMPONENT_NAME = 'AttendeeDashboard';
 
-export default function AttendeeDashboard() {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+function AttendeeDashboard() {
+  const { user, logout } = useAuth();
   const router = useRouter();
+  const logger = useLogger();
 
   useEffect(() => {
-    logger.debug(LOGGER_COMPONENT_NAME, 'Attendee dashboard - Auth state:', { isLoading, isAuthenticated, userRole: user?.role }); // Debug log
-    if (!isLoading && !isAuthenticated) {
-      logger.info(LOGGER_COMPONENT_NAME, 'Attendee dashboard - Not authenticated, redirecting to login'); // Debug log
-      router.push('/login');
-    } else if (!isLoading && user?.role !== 'USER') {
-      logger.info(LOGGER_COMPONENT_NAME, 'Attendee dashboard - Not user, redirecting to dashboard'); // Debug log
-      router.push('/dashboard');
-    }
-  }, [isAuthenticated, isLoading, user, router]);
+    logger.debug(LOGGER_COMPONENT_NAME, 'Attendee dashboard loaded', { userRole: user?.role });
+  }, [user, logger]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-700 dark:text-slate-300 font-medium">Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || user?.role !== 'USER') {
-    return null; // Will redirect
-  }
+  // Loading and auth checks are handled by the HOC
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -134,13 +116,13 @@ export default function AttendeeDashboard() {
                 Attendee Portal
               </Badge>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage 
-                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`} 
-                    alt={user?.name || user?.email} 
+                  <AvatarImage
+                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`}
+                    alt={user?.name || user?.email}
                   />
                   <AvatarFallback className="text-xs">
                     {user?.name ? user.name.split(' ').map(n => n[0]).join('') : user?.email?.[0]?.toUpperCase()}
@@ -150,9 +132,9 @@ export default function AttendeeDashboard() {
                   {user?.name}
                 </span>
               </div>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={logout}
                 className="text-slate-600 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400"
@@ -254,34 +236,34 @@ export default function AttendeeDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
-                <Button 
+                <Button
                   className="h-20 flex flex-col items-center justify-center space-y-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
                   onClick={() => router.push('/events')}
                 >
                   <Search className="h-5 w-5" />
                   <span className="text-sm">Browse Events</span>
                 </Button>
-                
-                <Button 
-                  variant="outline" 
+
+                <Button
+                  variant="outline"
                   className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
                   onClick={() => router.push('/dashboard/attendee/tickets')}
                 >
                   <Ticket className="h-5 w-5" />
                   <span className="text-sm">My Tickets</span>
                 </Button>
-                
-                <Button 
-                  variant="outline" 
+
+                <Button
+                  variant="outline"
                   className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
                   onClick={() => router.push('/dashboard/attendee/schedule')}
                 >
                   <Calendar className="h-5 w-5" />
                   <span className="text-sm">My Schedule</span>
                 </Button>
-                
-                <Button 
-                  variant="outline" 
+
+                <Button
+                  variant="outline"
                   className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
                   onClick={() => router.push('/dashboard/attendee/profile')}
                 >
@@ -325,7 +307,7 @@ export default function AttendeeDashboard() {
                       )}
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Badge 
+                      <Badge
                         variant={event.status === 'registered' ? 'default' : 'secondary'}
                         className={event.status === 'registered' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
                       >
@@ -368,7 +350,7 @@ export default function AttendeeDashboard() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Badge 
+                    <Badge
                       variant="default"
                       className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                     >
@@ -387,3 +369,5 @@ export default function AttendeeDashboard() {
     </div>
   );
 }
+
+export default withUserAuth(AttendeeDashboard);

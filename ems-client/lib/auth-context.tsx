@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { useRouter } from 'next/navigation';
 import {AuthResponse} from './api/types/auth.types';
 import { tokenManager, authAPI, authApiClient} from '@/lib/api/auth.api';
-import { logger } from './logger';
+import { useLogger } from './logger/LoggerProvider';
 
 const LOGGER_COMPONENT_NAME = 'AuthContext';
 
@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
+  const logger = useLogger();
 
   // Check if user is authenticated on mount
   useEffect(() => {

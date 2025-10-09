@@ -1,5 +1,6 @@
 # Stage 1: Build
-FROM node:lts-slim AS builder
+FROM alpine:latest AS builder
+RUN apk update && apk add nodejs npm && rm -rf /var/cache/apk/*
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -9,7 +10,8 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Runner
-FROM node:lts-slim AS runner
+FROM alpine:latest AS runner
+RUN apk update && apk add nodejs npm && rm -rf /var/cache/apk/*
 WORKDIR /app
 
 ENV NODE_ENV=production

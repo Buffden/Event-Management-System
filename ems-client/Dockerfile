@@ -1,5 +1,6 @@
 # Stage 1: Production dependencies
-FROM node:lts-alpine AS builder
+FROM alpine:latest AS builder
+RUN apk update && apk add nodejs npm && rm -rf /var/cache/apk/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 
@@ -15,7 +16,8 @@ COPY . .
 # Build the application in production mode
 RUN npm run build
 
-FROM node:lts-alpine AS runner
+FROM alpine:latest AS runner
+RUN apk update && apk add nodejs npm && rm -rf /var/cache/apk/*
 WORKDIR /app
 
 # Set production environment

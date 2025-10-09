@@ -17,7 +17,9 @@ import { ApiError } from './types/common.types';
 import { BaseApiClient } from './base-api.client';
 
 const LOGGER_COMPONENT_NAME = 'EventAPI';
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost/api';
+import { apiEndpoints } from './config';
+
+const API_BASE_URL = apiEndpoints.event;
 
 // Event API client class
 class EventApiClient extends BaseApiClient {
@@ -87,33 +89,33 @@ class EventApiClient extends BaseApiClient {
   }
 
   async createEvent(eventData: CreateEventRequest): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>('speaker/events', {
+    return this.request<{ success: boolean; data: EventResponse }>('/speaker/events', {
       method: 'POST',
       body: JSON.stringify(eventData),
     });
   }
 
   async updateEvent(eventId: string, updateData: UpdateEventRequest): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`speaker/events/${eventId}`, {
+    return this.request<{ success: boolean; data: EventResponse }>(`/speaker/events/${eventId}`, {
       method: 'PUT',
       body: JSON.stringify(updateData),
     });
   }
 
   async submitEvent(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`speaker/events/${eventId}/submit`, {
+    return this.request<{ success: boolean; data: EventResponse }>(`/speaker/events/${eventId}/submit`, {
       method: 'PATCH',
     });
   }
 
   async deleteEvent(eventId: string): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`speaker/events/${eventId}`, {
+    return this.request<{ success: boolean; message: string }>(`/speaker/events/${eventId}`, {
       method: 'DELETE',
     });
   }
 
   async getMyEventById(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`speaker/events/${eventId}`);
+    return this.request<{ success: boolean; data: EventResponse }>(`/speaker/events/${eventId}`);
   }
 
   // Admin Event Endpoints
@@ -203,7 +205,7 @@ class EventApiClient extends BaseApiClient {
 }
 
 // Create and export the Event API client instance
-export const eventApiClient = new EventApiClient(`${API_BASE_URL}/event/`);
+export const eventApiClient = new EventApiClient(API_BASE_URL);
 
 // Convenience exports for event methods
 export const eventAPI = {
