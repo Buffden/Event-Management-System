@@ -55,7 +55,7 @@ export interface VerifyTokenResponse {
 }
 
 export enum MESSAGE_TYPE {
-    EMAIL = 'EMAIL',
+    ACCOUNT_VERIFICATION_EMAIL = 'ACCOUNT_VERIFICATION_EMAIL',
 }
 
 export interface EmailPayload {
@@ -69,8 +69,19 @@ export interface Notification {
     message: unknown;
 }
 
+// Account Verification Email
+export interface AccountVerificationEmail extends Notification {
+    type: MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL;
+    message: {
+        to: string;
+        subject: string;
+        verificationLink: string;
+        userName: string;
+    };
+}
+
 export interface EmailNotification extends Notification {
-    type: MESSAGE_TYPE.EMAIL;
+    type: MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL;
     message: EmailPayload; // Use the new type here
 }
 

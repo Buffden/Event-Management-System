@@ -87,3 +87,15 @@ export interface EventUpdatedMessage {
 export interface EventCancelledMessage {
   eventId: string;
 }
+
+export interface EventApprovedMessage {
+  eventId: string;
+  speakerId: string;
+  speakerName: string;
+  speakerEmail: string;
+  eventName: string;
+  eventDescription: string;
+  venueName: string;
+  bookingStartDate: string;
+  bookingEndDate: string;
+}

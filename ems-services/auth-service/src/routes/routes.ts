@@ -264,4 +264,42 @@ export function registerRoutes(app: Express, authService: AuthService) {
             return res.status(400).json({error: error.message});
         }
     });
+
+    /**
+     * @route   GET /api/auth/internal/users/:id
+     * @desc    Get user information by ID (for internal microservice communication).
+     * @access  Internal service only (no auth required)
+     */
+    app.get('/internal/users/:id', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+
+            // Check for internal service header
+            const serviceHeader = req.headers['x-internal-service'];
+            if (serviceHeader !== 'event-service') {
+                return res.status(403).json({error: 'Access denied: Internal service only'});
+            }
+
+            logger.info("Getting user by ID (internal)", { userId: id });
+            const user = await authService.getProfile(id);
+
+            res.json({
+                valid: true,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    role: user.role,
+                    isActive: user.isActive,
+                    emailVerified: user.emailVerified
+                }
+            });
+        } catch (error: any) {
+            logger.error('Get user by ID (internal) failed', error);
+            if (error.message === 'User not found') {
+                return res.status(404).json({error: 'User not found'});
+            }
+            return res.status(400).json({error: error.message});
+        }
+    });
 }

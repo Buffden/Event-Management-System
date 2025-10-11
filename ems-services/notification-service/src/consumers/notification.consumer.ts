@@ -2,7 +2,8 @@
 
 import { connect, ChannelModel, Channel, ConsumeMessage } from 'amqplib';
 import { emailService } from '../services/email.service';
-import { AnyNotification, EmailNotification, MESSAGE_TYPE } from '../types/types';
+import { emailTemplateService } from '../services/email-template.service';
+import { AnyNotification, MESSAGE_TYPE } from '../types/types';
 
 // A type guard to safely check if a message is a valid notification
 function isNotification(obj: any): obj is AnyNotification {
@@ -51,23 +52,17 @@ export class NotificationConsumer {
 
             console.log(`Processing message of type: ${notification.type}`);
 
-            // Use a switch statement for scalability
-            switch (notification.type) {
-                case MESSAGE_TYPE.EMAIL:
-                    // TypeScript now knows `notification` is of type `EmailNotification`
-                    // and that `notification.message` has `to`, `subject`, and `body`.
-                    await emailService.sendEmail(notification.message);
-                    console.log(`✅ Email sent to ${notification.message.to}`);
-                    break;
+            // Generate email content based on notification type
+            const emailContent = emailTemplateService.generateEmailContent(notification);
 
-                // case MESSAGE_TYPE.SMS:
-                //     // Handle SMS messages here
-                //     break;
+            // Send email using the generated content
+            await emailService.sendEmail({
+                to: notification.message.to,
+                subject: emailContent.subject,
+                body: emailContent.body
+            });
 
-                default:
-                    // Handle unknown message types
-                    throw new Error(`Unsupported message type: ${notification.type}`);
-            }
+            console.log(`✅ ${notification.type} email sent to ${notification.message.to}`);
 
             // Acknowledge the message on success
             this.channel.ack(msg);

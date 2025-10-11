@@ -14,7 +14,8 @@ import {
 import {Profile} from 'passport-google-oauth20';
 import {ALLOWED_REGISTRATION_ROLES, DEFAULT_ROLE} from '../constants/roles';
 
-import {EmailNotification, rabbitMQService} from './rabbitmq.service';
+import {rabbitMQService} from './rabbitmq.service';
+import {AccountVerificationEmail} from '../types/types';
 import {logger} from '../utils/logger';
 
 const userSelect = {
@@ -108,17 +109,13 @@ export class AuthService {
                 to: user.email
             });
 
-            const msg: EmailNotification = {
-                type: MESSAGE_TYPE.EMAIL,
+            const msg: AccountVerificationEmail = {
+                type: MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL,
                 message: {
                     to: user.email,
                     subject: `${process.env.APP_NAME || 'EVENTO'} Verify Your Email Address`,
-                    body: `
-                    <h1>Welcome, ${user.name}!</h1>
-                    <p>Thank you for registering. Please click the link below to verify your email address:</p>
-                    <a href="${verificationLink}">Verify My Email</a>
-                    <p>This link will expire in 1 hour.</p>
-                `
+                    verificationLink,
+                    userName: user.name || 'User',
                 }
             };
 
