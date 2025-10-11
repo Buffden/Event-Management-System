@@ -10,7 +10,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import { logger } from "@/lib/logger";
+import { useLogger } from "@/lib/logger/LoggerProvider";
+
+const LOGGER_COMPONENT_NAME = 'RegisterPage';
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -25,34 +27,35 @@ export default function RegisterPage() {
 
   const { register, isLoading } = useAuth();
   const router = useRouter();
+  const logger = useLogger();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    logger.userAction('Registration form submitted', { email, role });
+    logger.userAction(LOGGER_COMPONENT_NAME, 'Registration form submitted', { email, role });
 
     // Validation
     if (!name || !email || !password || !confirmPassword) {
-      logger.warn('Registration form validation failed - missing fields');
+      logger.warn(LOGGER_COMPONENT_NAME, 'Registration form validation failed - missing fields');
       setError("Please fill in all fields");
       return;
     }
 
     if (password !== confirmPassword) {
-      logger.warn('Registration form validation failed - passwords do not match');
+      logger.warn(LOGGER_COMPONENT_NAME, 'Registration form validation failed - passwords do not match');
       setError("Passwords do not match");
       return;
     }
 
     if (password.length < 8) {
-      logger.warn('Registration form validation failed - password too short');
+      logger.warn(LOGGER_COMPONENT_NAME, 'Registration form validation failed - password too short');
       setError("Password must be at least 8 characters long");
       return;
     }
 
     if (!agreedToTerms) {
-      logger.warn('Registration form validation failed - terms not agreed');
+      logger.warn(LOGGER_COMPONENT_NAME, 'Registration form validation failed - terms not agreed');
       setError("Please agree to the terms and conditions");
       return;
     }
@@ -60,11 +63,11 @@ export default function RegisterPage() {
     const result = await register(name, email, password, role);
 
     if (result.success) {
-      logger.userAction('Registration successful, redirecting to email verification');
+      logger.userAction(LOGGER_COMPONENT_NAME, 'Registration successful, redirecting to email verification');
       // Redirect to dashboard on successful registration
       router.push('/verify-email-pending');
     } else {
-      logger.warn('Registration failed', { error: result.error });
+      logger.warn(LOGGER_COMPONENT_NAME, 'Registration failed', { error: result.error });
       setError(result.error || "Registration failed");
     }
   };

@@ -25,6 +25,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {logger} from "@/lib/logger";
 
+const COMPONENT_NAME = 'UserManagementPage';
+
 // Mock data for development
 const mockUsers = [
   {
@@ -113,12 +115,12 @@ export default function UserManagementPage() {
 
   const handleRoleChange = (userId: string, newRole: string) => {
     // TODO: Implement role change API call
-    logger.debug(`Change user ${userId} role to ${newRole}`);
+    logger.debug(COMPONENT_NAME, `Change user ${userId} role to ${newRole}`);
   };
 
   const handleStatusToggle = (userId: string, currentStatus: boolean) => {
     // TODO: Implement status toggle API call
-    logger.debug(`Toggle user ${userId} status from ${currentStatus} to ${!currentStatus}`);
+    logger.debug(COMPONENT_NAME, `Toggle user ${userId} status from ${currentStatus} to ${!currentStatus}`);
   };
 
   if (isLoading) {

@@ -23,6 +23,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import {logger} from "@/lib/logger";
 
+const COMPONENT_NAME = 'FlaggedUsersPage';
+
 // Mock data for flagged users
 const mockFlaggedUsers = [
   {
@@ -101,17 +103,17 @@ export default function FlaggedUsersPage() {
 
   const handleReview = (userId: string, action: 'approve' | 'dismiss' | 'suspend') => {
     // TODO: Implement review action API call
-    logger.debug(`Review user ${userId} with action: ${action}`);
+    logger.debug(COMPONENT_NAME, `Review user ${userId} with action: ${action}`);
   };
 
   const handleSuspend = (userId: string) => {
     // TODO: Implement suspend user API call
-    logger.debug(`Suspend user ${userId}`);
+    logger.debug(COMPONENT_NAME, `Suspend user ${userId}`);
   };
 
   const handleDelete = (userId: string) => {
     // TODO: Implement delete user API call
-    logger.debug(`Delete user ${userId}`);
+    logger.debug(COMPONENT_NAME, `Delete user ${userId}`);
   };
 
   if (isLoading) {

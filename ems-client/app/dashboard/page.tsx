@@ -1,38 +1,37 @@
 'use client';
 
 import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
+import { useLogger } from "@/lib/logger/LoggerProvider";
 import { useEffect } from "react";
-import {logger} from "@/lib/logger";
+import { withAuth } from "@/components/hoc/withAuth";
 
-export default function DashboardPage() {
-  const { user, isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
+const LOGGER_COMPONENT_NAME = 'DashboardPage';
+
+function DashboardPage() {
+  const { user } = useAuth();
+  const logger = useLogger();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-      return;
-    }
+    if (user) {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Dashboard routing - User role:', user.role);
 
-    // Role-based routing
-    if (!isLoading && isAuthenticated && user) {
-      logger.debug('Dashboard routing - User role:', user.role); // Debug log
       switch (user.role) {
         case 'ADMIN':
-          logger.info('Redirecting admin to /dashboard/admin'); // Debug log
-          router.push('/dashboard/admin');
+          logger.info(LOGGER_COMPONENT_NAME, 'Redirecting admin to /dashboard/admin');
+          window.location.href = '/dashboard/admin';
           break;
         case 'SPEAKER':
-          router.push('/dashboard/speaker');
+          logger.info(LOGGER_COMPONENT_NAME, 'Redirecting speaker to /dashboard/speaker');
+          window.location.href = '/dashboard/speaker';
           break;
         case 'USER':
         default:
-          router.push('/dashboard/attendee');
+          logger.info(LOGGER_COMPONENT_NAME, 'Redirecting user to /dashboard/attendee');
+          window.location.href = '/dashboard/attendee';
           break;
       }
     }
-  }, [isAuthenticated, isLoading, user, router]);
+  }, [user, logger]);
 
   // Loading state
   return (
@@ -44,3 +43,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+export default withAuth(DashboardPage);

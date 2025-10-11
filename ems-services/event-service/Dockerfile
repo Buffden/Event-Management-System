@@ -1,5 +1,6 @@
 # Stage 1: Build
-FROM node:lts-slim AS builder
+FROM alpine:latest AS builder
+RUN apk update && apk add nodejs npm && rm -rf /var/cache/apk/*
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -14,10 +15,9 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Runner
-FROM node:lts-slim AS runner
+FROM alpine:latest AS runner
+RUN apk update && apk add nodejs npm openssl && rm -rf /var/cache/apk/*
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y openssl
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -35,4 +35,4 @@ COPY --from=builder /app/generated ./generated
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run prisma:seed && node dist/server.js"]

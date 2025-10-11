@@ -9,6 +9,7 @@ export interface CreateEventRequest {
   venueId: number;
   bookingStartDate: string; // ISO string
   bookingEndDate: string; // ISO string
+  userId: string; // Speaker/User ID
 }
 
 export interface UpdateEventRequest {
@@ -58,8 +59,8 @@ export interface EventFilters {
   category?: string;
   venueId?: number;
   speakerId?: string;
-  startDate?: string;
-  endDate?: string;
+  bookingStartDate?: string;
+  bookingEndDate?: string;
   page?: number;
   limit?: number;
 }

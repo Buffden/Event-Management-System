@@ -36,8 +36,8 @@ router.get('/admin/events',
       category: category as string,
       venueId: venueId ? Number(venueId) : undefined,
       speakerId: speakerId as string,
-      startDate: startDate as string,
-      endDate: endDate as string,
+      bookingStartDate: startDate as string,
+      bookingEndDate: endDate as string,
       page: Number(page),
       limit: Number(limit)
     };

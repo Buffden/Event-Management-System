@@ -9,7 +9,7 @@ const router = Router();
 router.use('/', publicRoutes);
 
 // Speaker routes (SPEAKER role required)
-router.use('/', speakerRoutes);
+router.use('/speaker', speakerRoutes);
 
 // Admin routes (ADMIN role required)
 router.use('/admin', adminRoutes);

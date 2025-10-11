@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import {logger} from "@/lib/logger";
 
+const COMPONENT_NAME = 'ReportsPage';
+
 // Mock data for reports
 const mockReportData = {
   totalEvents: 8,
@@ -48,7 +50,7 @@ export default function ReportsPage() {
 
   const handleExportReport = (type: string) => {
     // TODO: Implement report export functionality
-    logger.debug(`Exporting ${type} report`);
+    logger.debug(COMPONENT_NAME, `Exporting ${type} report`);
   };
 
   if (isLoading) {

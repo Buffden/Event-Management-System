@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "node prisma/seed.js",
+    "prisma:seed:dev": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.1",
@@ -23,18 +25,21 @@
   "devDependencies": {
     "@types/amqplib": "^0.10.7",
     "@types/bcryptjs": "^2.4.6",
-    "@types/express": "^5.0.3",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^24.3.3",
-    "nodemon": "^3.1.10",
-    "prisma": "^6.16.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.2",
     "@types/dotenv": "^6.1.1",
+    "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.7.0",
     "@types/supertest": "^6.0.3",
     "jest": "^29.7.0",
+    "nodemon": "^3.1.10",
+    "prisma": "^6.16.1",
     "supertest": "^7.1.4",
-    "ts-jest": "^29.4.4"
+    "ts-jest": "^29.4.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }

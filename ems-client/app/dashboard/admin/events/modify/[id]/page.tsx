@@ -7,6 +7,8 @@ import { ArrowLeft, Edit, Save, Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+const COMPONENT_NAME = 'ModifyEventPage';
+
 export default function ModifyEventPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
