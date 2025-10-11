@@ -1,5 +1,4 @@
 import { connect, Connection, Channel, ChannelModel } from 'amqplib';
-import {EmailNotification} from "../types/types";
 import { logger } from '../utils/logger';
 
 class RabbitMQService {
@@ -62,4 +61,4 @@ class RabbitMQService {
 }
 
 const rabbitMQService = new RabbitMQService(process.env.RABBITMQ_URL!);
-export { rabbitMQService, EmailNotification };
+export { rabbitMQService };
