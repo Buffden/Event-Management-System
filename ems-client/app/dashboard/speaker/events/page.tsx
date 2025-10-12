@@ -432,7 +432,11 @@ function SpeakerEventManagementPage() {
 
                                 {/* Actions */}
                                 <div className="flex flex-wrap gap-2">
-                                    <Button size="sm" variant="outline">
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={() => router.push(`/dashboard/speaker/events/${event.id}`)}
+                                    >
                                         <Eye className="h-4 w-4 mr-1"/>
                                         View
                                     </Button>
@@ -440,7 +444,8 @@ function SpeakerEventManagementPage() {
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => router.push(`/dashboard/admin/events/modify/${event.id}`)}
+                                        onClick={() => router.push(`/dashboard/speaker/events/edit/${event.id}`)}
+                                        disabled={event.status !== EventStatus.DRAFT && event.status !== EventStatus.REJECTED}
                                     >
                                         <Edit className="h-4 w-4 mr-1"/>
                                         Edit

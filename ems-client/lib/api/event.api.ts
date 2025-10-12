@@ -134,51 +134,53 @@ class EventApiClient extends BaseApiClient {
     }
 
     const queryString = queryParams.toString();
-    const endpoint = `/admin/events${queryString ? `?${queryString}` : ''}`;
+    // Note: Double /admin prefix due to backend route structure - will be refactored in future ticket
+    const endpoint = `/admin/admin/events${queryString ? `?${queryString}` : ''}`;
 
     return this.request<{ success: boolean; data: EventListResponse }>(endpoint);
   }
 
   async getEventById(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`/admin/events/${eventId}`);
+    return this.request<{ success: boolean; data: EventResponse }>(`/admin/admin/events/${eventId}`);
   }
 
   async approveEvent(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`/admin/events/${eventId}/approve`, {
+    return this.request<{ success: boolean; data: EventResponse }>(`/admin/admin/events/${eventId}/approve`, {
       method: 'PATCH',
     });
   }
 
   async rejectEvent(eventId: string, rejectionData: RejectEventRequest): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`/admin/events/${eventId}/reject`, {
+    return this.request<{ success: boolean; data: EventResponse }>(`/admin/admin/events/${eventId}/reject`, {
       method: 'PATCH',
       body: JSON.stringify(rejectionData),
     });
   }
 
   async cancelEvent(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`/admin/events/${eventId}/cancel`, {
+    return this.request<{ success: boolean; data: EventResponse }>(`/admin/admin/events/${eventId}/cancel`, {
       method: 'PATCH',
     });
   }
 
   // Admin Venue Endpoints
+  // Note: Double /admin prefix due to backend route structure - will be refactored in future ticket
   async createVenue(venueData: CreateVenueRequest): Promise<{ success: boolean; data: VenueResponse }> {
-    return this.request<{ success: boolean; data: VenueResponse }>('/admin/venues', {
+    return this.request<{ success: boolean; data: VenueResponse }>('/admin/admin/venues', {
       method: 'POST',
       body: JSON.stringify(venueData),
     });
   }
 
   async updateVenue(venueId: number, updateData: UpdateVenueRequest): Promise<{ success: boolean; data: VenueResponse }> {
-    return this.request<{ success: boolean; data: VenueResponse }>(`/admin/venues/${venueId}`, {
+    return this.request<{ success: boolean; data: VenueResponse }>(`/admin/admin/venues/${venueId}`, {
       method: 'PUT',
       body: JSON.stringify(updateData),
     });
   }
 
   async deleteVenue(venueId: number): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/admin/venues/${venueId}`, {
+    return this.request<{ success: boolean; message: string }>(`/admin/admin/venues/${venueId}`, {
       method: 'DELETE',
     });
   }
@@ -194,13 +196,13 @@ class EventApiClient extends BaseApiClient {
     }
 
     const queryString = queryParams.toString();
-    const endpoint = `/admin/venues${queryString ? `?${queryString}` : ''}`;
+    const endpoint = `/admin/admin/venues${queryString ? `?${queryString}` : ''}`;
 
     return this.request<{ success: boolean; data: VenueListResponse }>(endpoint);
   }
 
   async getVenueById(venueId: number): Promise<{ success: boolean; data: VenueResponse }> {
-    return this.request<{ success: boolean; data: VenueResponse }>(`/admin/venues/${venueId}`);
+    return this.request<{ success: boolean; data: VenueResponse }>(`/admin/admin/venues/${venueId}`);
   }
 }
 

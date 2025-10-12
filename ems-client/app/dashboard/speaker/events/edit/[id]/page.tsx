@@ -20,9 +20,9 @@ import { useEffect, useState } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
 import { eventAPI } from "@/lib/api/event.api";
 import { UpdateEventRequest, VenueResponse, EventResponse, EventStatus } from "@/lib/api/types/event.types";
-import { withAdminAuth } from "@/components/hoc/withAuth";
+import { withSpeakerAuth } from "@/components/hoc/withAuth";
 
-const LOGGER_COMPONENT_NAME = 'AdminModifyEventPage';
+const LOGGER_COMPONENT_NAME = 'SpeakerEditEventPage';
 
 const statusColors = {
   [EventStatus.DRAFT]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -33,14 +33,13 @@ const statusColors = {
   [EventStatus.COMPLETED]: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
 };
 
-function AdminModifyEventPage() {
+function SpeakerEditEventPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const logger = useLogger();
   const eventId = params.id as string;
 
-  // Form state
   const [formData, setFormData] = useState<UpdateEventRequest>({
     name: '',
     description: '',
@@ -63,7 +62,7 @@ function AdminModifyEventPage() {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
       return;
-    } else if (!authLoading && user?.role !== 'ADMIN') {
+    } else if (!authLoading && user?.role !== 'SPEAKER') {
       router.push('/dashboard');
       return;
     }
@@ -79,14 +78,13 @@ function AdminModifyEventPage() {
       setIsLoading(true);
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading event', { eventId });
       
-      const response = await eventAPI.getEventById(eventId);
+      const response = await eventAPI.getMyEventById(eventId);
       
       if (response.success) {
         const event = response.data;
         setOriginalEvent(event);
         
-        // Pre-populate form with existing data
-        // Convert ISO dates to datetime-local format
+        // Pre-populate form
         const startDate = new Date(event.bookingStartDate);
         const endDate = new Date(event.bookingEndDate);
         
@@ -124,10 +122,8 @@ function AdminModifyEventPage() {
   const loadVenues = async () => {
     try {
       setIsLoadingVenues(true);
-      logger.debug(LOGGER_COMPONENT_NAME, 'Loading venues');
       const response = await eventAPI.getAllVenues();
       setVenues(response.data);
-      logger.debug(LOGGER_COMPONENT_NAME, 'Venues loaded successfully', { count: response.data.length });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load venues', error as Error);
     } finally {
@@ -169,7 +165,6 @@ function AdminModifyEventPage() {
 
   const handleInputChange = (field: keyof UpdateEventRequest, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -183,12 +178,16 @@ function AdminModifyEventPage() {
       return;
     }
 
+    // Check if event can be edited
+    if (originalEvent && originalEvent.status !== EventStatus.DRAFT && originalEvent.status !== EventStatus.REJECTED) {
+      setErrors({ general: 'Only DRAFT or REJECTED events can be edited' });
+      return;
+    }
+
     setIsSubmitting(true);
     logger.info(LOGGER_COMPONENT_NAME, 'Updating event', { eventId, eventName: formData.name });
 
     try {
-      // Note: Currently using speaker endpoint for updates
-      // This might need adjustment based on backend permissions
       const response = await eventAPI.updateEvent(eventId, formData);
       
       if (!response.success) {
@@ -196,13 +195,10 @@ function AdminModifyEventPage() {
       }
 
       logger.info(LOGGER_COMPONENT_NAME, 'Event updated successfully', { eventId });
-
-      // Show success message
       setShowSuccess(true);
 
-      // Redirect after a short delay
       setTimeout(() => {
-        router.push('/dashboard/admin/events');
+        router.push('/dashboard/speaker/events');
       }, 2000);
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to update event', error as Error);
@@ -225,7 +221,7 @@ function AdminModifyEventPage() {
     );
   }
 
-  if (!isAuthenticated || user?.role !== 'ADMIN') {
+  if (!isAuthenticated || user?.role !== 'SPEAKER') {
     return null;
   }
 
@@ -243,7 +239,7 @@ function AdminModifyEventPage() {
               {errors.general}
             </p>
             <Button
-              onClick={() => router.push('/dashboard/admin/events')}
+              onClick={() => router.push('/dashboard/speaker/events')}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
             >
               Back to Events
@@ -265,7 +261,7 @@ function AdminModifyEventPage() {
               Event Updated Successfully!
             </h3>
             <p className="text-slate-600 dark:text-slate-400 mb-4">
-              The event changes have been saved.
+              Your event changes have been saved.
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-500">
               Redirecting to events list...
@@ -276,9 +272,35 @@ function AdminModifyEventPage() {
     );
   }
 
+  // Check if event can be edited
+  const canEdit = originalEvent && (originalEvent.status === EventStatus.DRAFT || originalEvent.status === EventStatus.REJECTED);
+
+  if (!canEdit && originalEvent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+        <Card className="max-w-md w-full mx-4">
+          <CardContent className="text-center py-8">
+            <AlertCircle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+              Cannot Edit Event
+            </h3>
+            <p className="text-slate-600 dark:text-slate-400 mb-4">
+              Only DRAFT or REJECTED events can be edited. This event has status: <strong>{originalEvent.status}</strong>
+            </p>
+            <Button
+              onClick={() => router.push('/dashboard/speaker/events')}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            >
+              Back to Events
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      {/* Header */}
       <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -286,7 +308,7 @@ function AdminModifyEventPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => router.push('/dashboard/admin/events')}
+                onClick={() => router.push('/dashboard/speaker/events')}
                 className="text-slate-600 hover:text-slate-900"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
@@ -300,28 +322,18 @@ function AdminModifyEventPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Event Info Banner */}
         {originalEvent && (
           <Card className="mb-6 border-slate-200 dark:border-slate-700">
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
-                    Current Event Status
-                  </h3>
-                  <div className="space-y-1 text-sm text-slate-600 dark:text-slate-400">
-                    <p><strong>Event ID:</strong> <span className="font-mono">{originalEvent.id}</span></p>
-                    <p><strong>Speaker ID:</strong> <span className="font-mono">{originalEvent.speakerId}</span></p>
-                    <p><strong>Created:</strong> {new Date(originalEvent.createdAt).toLocaleString()}</p>
-                    <p><strong>Last Updated:</strong> {new Date(originalEvent.updatedAt).toLocaleString()}</p>
-                    {originalEvent.rejectionReason && (
-                      <p className="text-red-600 dark:text-red-400">
-                        <strong>Rejection Reason:</strong> {originalEvent.rejectionReason}
-                      </p>
-                    )}
-                  </div>
+                  <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Current Status</h3>
+                  {originalEvent.rejectionReason && (
+                    <p className="text-sm text-red-600 dark:text-red-400 mb-2">
+                      <strong>Rejection Reason:</strong> {originalEvent.rejectionReason}
+                    </p>
+                  )}
                 </div>
                 <Badge className={statusColors[originalEvent.status]}>
                   {originalEvent.status.replace('_', ' ')}
@@ -334,10 +346,10 @@ function AdminModifyEventPage() {
         <Card className="border-slate-200 dark:border-slate-700">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">
-              Event Modification Form
+              Edit Event
             </CardTitle>
             <CardDescription className="text-slate-600 dark:text-slate-400">
-              Update the event details below. All fields can be modified.
+              Update your event details. You can only edit DRAFT or REJECTED events.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -351,7 +363,6 @@ function AdminModifyEventPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Basic Information */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
                   <Calendar className="h-5 w-5 mr-2" />
@@ -360,74 +371,51 @@ function AdminModifyEventPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Event Name *
-                    </Label>
+                    <Label htmlFor="name">Event Name *</Label>
                     <Input
                       id="name"
-                      type="text"
                       value={formData.name}
                       onChange={(e) => handleInputChange('name', e.target.value)}
-                      placeholder="Enter event name"
                       className={errors.name ? 'border-red-500' : ''}
                     />
-                    {errors.name && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.name}</p>
-                    )}
+                    {errors.name && <p className="text-sm text-red-600">{errors.name}</p>}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="category" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Category *
-                    </Label>
+                    <Label htmlFor="category">Category *</Label>
                     <Input
                       id="category"
-                      type="text"
                       value={formData.category}
                       onChange={(e) => handleInputChange('category', e.target.value)}
-                      placeholder="e.g., Technology, Business, Education"
                       className={errors.category ? 'border-red-500' : ''}
                     />
-                    {errors.category && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.category}</p>
-                    )}
+                    {errors.category && <p className="text-sm text-red-600">{errors.category}</p>}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Description *
-                  </Label>
+                  <Label htmlFor="description">Description *</Label>
                   <textarea
                     id="description"
                     value={formData.description}
                     onChange={(e) => handleInputChange('description', e.target.value)}
-                    placeholder="Describe your event in detail..."
                     rows={4}
-                    className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.description ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-md ${errors.description ? 'border-red-500' : 'border-slate-300'}`}
                   />
-                  {errors.description && (
-                    <p className="text-sm text-red-600 dark:text-red-400">{errors.description}</p>
-                  )}
+                  {errors.description && <p className="text-sm text-red-600">{errors.description}</p>}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bannerImageUrl" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Banner Image URL
-                  </Label>
+                  <Label htmlFor="bannerImageUrl">Banner Image URL</Label>
                   <Input
                     id="bannerImageUrl"
                     type="url"
                     value={formData.bannerImageUrl}
                     onChange={(e) => handleInputChange('bannerImageUrl', e.target.value)}
-                    placeholder="https://example.com/image.jpg"
                   />
                 </div>
               </div>
 
-              {/* Venue Selection */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
                   <MapPin className="h-5 w-5 mr-2" />
@@ -435,22 +423,17 @@ function AdminModifyEventPage() {
                 </h3>
 
                 <div className="space-y-2">
-                  <Label htmlFor="venueId" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Select Venue *
-                  </Label>
+                  <Label htmlFor="venueId">Select Venue *</Label>
                   {isLoadingVenues ? (
                     <div className="flex items-center justify-center py-4">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                      <span className="ml-2 text-slate-600 dark:text-slate-400">Loading venues...</span>
                     </div>
                   ) : (
                     <select
                       id="venueId"
                       value={formData.venueId}
                       onChange={(e) => handleInputChange('venueId', parseInt(e.target.value))}
-                      className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                        errors.venueId ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md ${errors.venueId ? 'border-red-500' : 'border-slate-300'}`}
                     >
                       <option value={0}>Select a venue</option>
                       {venues.map((venue) => (
@@ -460,13 +443,10 @@ function AdminModifyEventPage() {
                       ))}
                     </select>
                   )}
-                  {errors.venueId && (
-                    <p className="text-sm text-red-600 dark:text-red-400">{errors.venueId}</p>
-                  )}
+                  {errors.venueId && <p className="text-sm text-red-600">{errors.venueId}</p>}
                 </div>
               </div>
 
-              {/* Date and Time */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
                   <Clock className="h-5 w-5 mr-2" />
@@ -475,9 +455,7 @@ function AdminModifyEventPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="bookingStartDate" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Start Date & Time *
-                    </Label>
+                    <Label htmlFor="bookingStartDate">Start Date & Time *</Label>
                     <Input
                       id="bookingStartDate"
                       type="datetime-local"
@@ -485,15 +463,11 @@ function AdminModifyEventPage() {
                       onChange={(e) => handleInputChange('bookingStartDate', e.target.value)}
                       className={errors.bookingStartDate ? 'border-red-500' : ''}
                     />
-                    {errors.bookingStartDate && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.bookingStartDate}</p>
-                    )}
+                    {errors.bookingStartDate && <p className="text-sm text-red-600">{errors.bookingStartDate}</p>}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="bookingEndDate" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      End Date & Time *
-                    </Label>
+                    <Label htmlFor="bookingEndDate">End Date & Time *</Label>
                     <Input
                       id="bookingEndDate"
                       type="datetime-local"
@@ -501,20 +475,16 @@ function AdminModifyEventPage() {
                       onChange={(e) => handleInputChange('bookingEndDate', e.target.value)}
                       className={errors.bookingEndDate ? 'border-red-500' : ''}
                     />
-                    {errors.bookingEndDate && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.bookingEndDate}</p>
-                    )}
+                    {errors.bookingEndDate && <p className="text-sm text-red-600">{errors.bookingEndDate}</p>}
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-200 dark:border-slate-700">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => router.push('/dashboard/admin/events')}
-                  className="flex-1 sm:flex-none"
+                  onClick={() => router.push('/dashboard/speaker/events')}
                   disabled={isSubmitting}
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
@@ -524,12 +494,12 @@ function AdminModifyEventPage() {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 sm:flex-none bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                 >
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Saving Changes...
+                      Saving...
                     </>
                   ) : (
                     <>
@@ -547,4 +517,5 @@ function AdminModifyEventPage() {
   );
 }
 
-export default withAdminAuth(AdminModifyEventPage);
+export default withSpeakerAuth(SpeakerEditEventPage);
+

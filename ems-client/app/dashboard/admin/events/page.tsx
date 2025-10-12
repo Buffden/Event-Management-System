@@ -30,6 +30,7 @@ import { useLogger } from "@/lib/logger/LoggerProvider";
 import { eventAPI } from "@/lib/api/event.api";
 import { EventResponse, EventStatus, EventFilters } from "@/lib/api/types/event.types";
 import { withAdminAuth } from "@/components/hoc/withAuth";
+import { RejectionModal } from "@/components/admin/RejectionModal";
 
 const statusColors = {
   [EventStatus.DRAFT]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -49,6 +50,10 @@ function EventManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<EventStatus | 'ALL'>('ALL');
   const [selectedTimeframe, setSelectedTimeframe] = useState('ALL');
+  
+  // Rejection modal state
+  const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false);
+  const [eventToReject, setEventToReject] = useState<{ id: string; name: string } | null>(null);
 
   // API state management
   const [events, setEvents] = useState<EventResponse[]>([]);
@@ -128,10 +133,6 @@ function EventManagementPage() {
         case 'approve':
           response = await eventAPI.approveEvent(eventId);
           break;
-        case 'reject':
-          // For now, using a default rejection reason - in a real app, you'd show a modal
-          response = await eventAPI.rejectEvent(eventId, { rejectionReason: 'Event rejected by admin' });
-          break;
         case 'cancel':
           response = await eventAPI.cancelEvent(eventId);
           break;
@@ -153,6 +154,39 @@ function EventManagementPage() {
       const errorMessage = err instanceof Error ? err.message : `Failed to ${action} event`;
       setError(errorMessage);
       logger.error(COMPONENT_NAME, `Failed to ${action} event ${eventId}`, err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectClick = (event: EventResponse) => {
+    setEventToReject({ id: event.id, name: event.name });
+    setIsRejectionModalOpen(true);
+  };
+
+  const handleRejectConfirm = async (rejectionReason: string) => {
+    if (!eventToReject) return;
+
+    try {
+      setActionLoading(eventToReject.id);
+      logger.debug(COMPONENT_NAME, `Rejecting event ${eventToReject.id} with reason: ${rejectionReason}`);
+
+      const response = await eventAPI.rejectEvent(eventToReject.id, { rejectionReason });
+
+      if (response.success) {
+        logger.info(COMPONENT_NAME, `Event ${eventToReject.id} rejected successfully`);
+        setIsRejectionModalOpen(false);
+        setEventToReject(null);
+        // Reload events to reflect changes
+        await loadEvents();
+      } else {
+        throw new Error('Failed to reject event');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to reject event';
+      setError(errorMessage);
+      logger.error(COMPONENT_NAME, `Failed to reject event ${eventToReject.id}`, err instanceof Error ? err : new Error(String(err)));
+      throw err; // Re-throw to let modal handle the error
     } finally {
       setActionLoading(null);
     }
@@ -422,7 +456,11 @@ function EventManagementPage() {
 
                 {/* Actions */}
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => router.push(`/dashboard/admin/events/${event.id}`)}
+                  >
                     <Eye className="h-4 w-4 mr-1" />
                     View
                   </Button>
@@ -451,7 +489,7 @@ function EventManagementPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleEventAction(event.id, 'reject')}
+                        onClick={() => handleRejectClick(event)}
                         disabled={actionLoading === event.id}
                       >
                         <AlertCircle className="h-4 w-4 mr-1" />
@@ -548,6 +586,18 @@ function EventManagementPage() {
             </Card>
           </div>
         )}
+
+        {/* Rejection Modal */}
+        <RejectionModal
+          isOpen={isRejectionModalOpen}
+          onClose={() => {
+            setIsRejectionModalOpen(false);
+            setEventToReject(null);
+          }}
+          onConfirm={handleRejectConfirm}
+          eventName={eventToReject?.name}
+          isLoading={!!eventToReject && actionLoading === eventToReject.id}
+        />
       </main>
     </div>
   );

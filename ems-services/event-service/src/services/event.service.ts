@@ -28,7 +28,7 @@ class EventService {
     /**
      * Get speaker information from auth service
      */
-    private async getSpeakerInfo(speakerId: string): Promise<{ name: string | null; email: string } | null> {
+    private async getSpeakerInfo(speakerId: string): Promise<{ name: string | null; email: string; role: string } | null> {
         try {
             logger.debug('Getting speaker information', { speakerId, authServiceUrl: this.authServiceUrl });
 
@@ -48,12 +48,14 @@ class EventService {
                 logger.debug('Speaker information retrieved successfully', {
                     speakerId: user.id,
                     email: user.email,
-                    name: user.name
+                    name: user.name,
+                    role: user.role
                 });
 
                 return {
                     name: user.name,
-                    email: user.email
+                    email: user.email,
+                    role: user.role
                 };
             }
 
@@ -85,11 +87,26 @@ class EventService {
     }
 
     /**
-     * Create a new event (DRAFT status)
+     * Create a new event
+     * - ADMIN creates events → Auto-published (PUBLISHED status)
+     * - SPEAKER creates events → Needs approval (DRAFT status)
      */
     async createEvent(data: CreateEventRequest, speakerId: string): Promise<EventResponse> {
         try {
             logger.info('createEvent() - Creating new event', {speakerId, eventName: data.name});
+
+            // Get creator information to determine if they're an admin
+            const creatorInfo = await this.getSpeakerInfo(speakerId);
+            const isAdmin = creatorInfo?.role === 'ADMIN';
+            
+            // Admin events are auto-published, speaker events start as DRAFT
+            const initialStatus = isAdmin ? EventStatus.PUBLISHED : EventStatus.DRAFT;
+
+            logger.info('createEvent() - Event will be created with status', {
+                creatorRole: creatorInfo?.role,
+                isAdmin,
+                initialStatus
+            });
 
             // Validate venue exists
             const venue = await prisma.venue.findUnique({
@@ -148,14 +165,32 @@ class EventService {
                     venueId: data.venueId,
                     bookingStartDate: bookingStart,
                     bookingEndDate: bookingEnd,
-                    status: EventStatus.DRAFT
+                    status: initialStatus
                 },
                 include: {
                     venue: true
                 }
             });
 
-            logger.info('createEvent() - Event created successfully', {eventId: event.id, speakerId});
+            logger.info('createEvent() - Event created successfully', {
+                eventId: event.id, 
+                speakerId, 
+                status: event.status,
+                autoPublished: isAdmin
+            });
+
+            // If admin created and auto-published, send event.published message
+            if (isAdmin && event.status === EventStatus.PUBLISHED) {
+                logger.info('createEvent() - Publishing event.published message for admin-created event', {eventId: event.id});
+                await eventPublisherService.publishEventPublished({
+                    eventId: event.id,
+                    speakerId: event.speakerId,
+                    name: event.name,
+                    capacity: venue.capacity,
+                    bookingStartDate: event.bookingStartDate.toISOString(),
+                    bookingEndDate: event.bookingEndDate.toISOString()
+                });
+            }
 
             return this.mapEventToResponse(event);
         } catch (error) {

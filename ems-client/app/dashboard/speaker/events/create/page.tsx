@@ -21,10 +21,11 @@ import { useEffect, useState } from "react";
 import { logger } from "@/lib/logger";
 import { eventAPI } from "@/lib/api/event.api";
 import { CreateEventRequest, VenueResponse } from "@/lib/api/types/event.types";
+import { withSpeakerAuth } from "@/components/hoc/withAuth";
 
 const LOGGER_COMPONENT_NAME = 'SpeakerCreateEventPage';
 
-export default function SpeakerCreateEventPage() {
+function SpeakerCreateEventPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
@@ -426,3 +427,5 @@ export default function SpeakerCreateEventPage() {
     </div>
   );
 }
+
+export default withSpeakerAuth(SpeakerCreateEventPage);

@@ -230,10 +230,27 @@ function AdminDashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <Button
                   className="h-20 flex flex-col items-center justify-center space-y-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                  onClick={() => router.push('/dashboard/admin/events')}
+                >
+                  <Calendar className="h-5 w-5" />
+                  <span className="text-sm">Manage Events</span>
+                </Button>
+
+                <Button
+                  className="h-20 flex flex-col items-center justify-center space-y-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                   onClick={() => router.push('/dashboard/admin/events/create')}
                 >
                   <Plus className="h-5 w-5" />
                   <span className="text-sm">Create Event</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2 border-orange-200 bg-orange-50 hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/20"
+                  onClick={() => router.push('/dashboard/admin/events/pending')}
+                >
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  <span className="text-sm">Pending Approvals</span>
                 </Button>
 
                 <Button
