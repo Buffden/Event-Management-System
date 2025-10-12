@@ -1,7 +1,7 @@
 import {Router, Request, Response} from 'express';
 import {eventService} from '../services/event.service';
 import {logger} from '../utils/logger';
-import {requireSpeaker} from '../middleware/auth.middleware';
+import {requireAdminOrSpeaker} from '../middleware/auth.middleware';
 import {asyncHandler} from '../middleware/error.middleware';
 import {
     validateRequest,
@@ -14,8 +14,8 @@ import {EventStatus} from '../../generated/prisma';
 
 const router = Router();
 
-// Apply speaker authentication to all routes
-router.use(requireSpeaker);
+// Apply speaker authentication to all routes (allows both SPEAKER and ADMIN roles)
+router.use(requireAdminOrSpeaker);
 
 /**
  * GET /events/my-events - Get a list of all events created by the specified speaker
