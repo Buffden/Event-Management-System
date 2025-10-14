@@ -1,6 +1,6 @@
 // Auth API client for Event Management System
 import {logger} from '../logger';
-import {LoginRequest, RegisterRequest, ForgotPasswordRequest, AuthResponse, UserProfile} from './types/auth.types';
+import {LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest, VerifyResetTokenRequest, VerifyResetTokenResponse, ResetPasswordResponse, AuthResponse, UserProfile} from './types/auth.types';
 import {ApiError} from './types/common.types';
 import { BaseApiClient } from './base-api.client';
 
@@ -90,6 +90,20 @@ class AuthApiClient extends BaseApiClient {
         });
     }
 
+    async verifyResetToken(data: VerifyResetTokenRequest): Promise<VerifyResetTokenResponse> {
+        return this.request<VerifyResetTokenResponse>('/verify-reset-token', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async resetPassword(data: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+        return this.request<ResetPasswordResponse>('/reset-password', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
 }
 
 // Create and export the Auth API client instance
@@ -107,6 +121,8 @@ export const authAPI = {
     logout: () => authApiClient.logout(),
     checkUserExists: (email: string) => authApiClient.checkUserExists(email),
     forgotPassword: (data: ForgotPasswordRequest) => authApiClient.forgotPassword(data),
+    verifyResetToken: (data: VerifyResetTokenRequest) => authApiClient.verifyResetToken(data),
+    resetPassword: (data: ResetPasswordRequest) => authApiClient.resetPassword(data),
 };
 
 export const tokenManager = {

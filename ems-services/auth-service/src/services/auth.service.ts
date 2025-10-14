@@ -6,6 +6,8 @@ import {
     AuthResponse,
     EmailNotification,
     ForgotPasswordRequest,
+    ResetPasswordRequest,
+    VerifyResetTokenRequest,
     LoginRequest,
     MESSAGE_TYPE,
     RegisterRequest,
@@ -335,6 +337,87 @@ export class AuthService {
     }
 
     /**
+     * Verifies a password reset token.
+     * @param data The verify reset token request object containing token.
+     */
+    async verifyResetToken(data: VerifyResetTokenRequest): Promise<{ valid: boolean; message: string }> {
+        try {
+            logger.debug("START - verifyResetToken(): ", {token: data.token});
+
+            // Verify the JWT token
+            const decoded = jwt.verify(data.token, this.EMAIL_VERIFICATION_SECRET) as any;
+
+            if (decoded.type !== 'password-reset') {
+                logger.debug("verifyResetToken(): Invalid token type", {type: decoded.type});
+                return { valid: false, message: 'Invalid reset token.' };
+            }
+
+            // Check if user exists and is active
+            const user = await prisma.user.findUnique({
+                where: { id: decoded.userId },
+                select: { id: true, isActive: true }
+            });
+
+            if (!user || !user.isActive) {
+                logger.debug("verifyResetToken(): User not found or inactive", {userId: decoded.userId});
+                return { valid: false, message: 'Invalid or expired reset token.' };
+            }
+
+            logger.debug("verifyResetToken(): Token verified successfully", {userId: user.id});
+            return { valid: true, message: 'Token is valid.' };
+
+        } catch (error) {
+            logger.error("verifyResetToken(): Error occurred", error as Error, {token: data.token});
+            return { valid: false, message: 'Invalid or expired reset token.' };
+        }
+    }
+
+    /**
+     * Resets the user's password using a valid reset token.
+     * @param data The reset password request object containing token and new password.
+     */
+    async resetPassword(data: ResetPasswordRequest): Promise<{ message: string }> {
+        try {
+            logger.debug("START - resetPassword(): ", {token: data.token});
+
+            // Verify the JWT token
+            const decoded = jwt.verify(data.token, this.EMAIL_VERIFICATION_SECRET) as any;
+
+            if (decoded.type !== 'password-reset') {
+                logger.debug("resetPassword(): Invalid token type", {type: decoded.type});
+                throw new Error('Invalid reset token.');
+            }
+
+            // Check if user exists and is active
+            const user = await prisma.user.findUnique({
+                where: { id: decoded.userId },
+                select: { id: true, email: true, isActive: true }
+            });
+
+            if (!user || !user.isActive) {
+                logger.debug("resetPassword(): User not found or inactive", {userId: decoded.userId});
+                throw new Error('Invalid or expired reset token.');
+            }
+
+            // Hash the new password
+            const hashedPassword = await bcrypt.hash(data.newPassword, 12);
+
+            // Update the user's password
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { password: hashedPassword }
+            });
+
+            logger.debug("resetPassword(): Password reset successfully", {userId: user.id, email: user.email});
+            return { message: 'Password has been reset successfully.' };
+
+        } catch (error) {
+            logger.error("resetPassword(): Error occurred", error as Error, {token: data.token});
+            throw error;
+        }
+    }
+
+    /**
      * Public method to log a user in.
      * Ensures the user has an Account record (for backward compatibility).
      * @param data The login request object.
@@ -348,7 +431,7 @@ export class AuthService {
                 logger.error("login(): Email and password are required");
                 throw new Error('Email and password are required.');
             }
-            
+
             logger.debug("login(): Finding user by email", {email: data.email});
             const userWithPassword = await prisma.user.findUnique({
                 where: {email: data.email},

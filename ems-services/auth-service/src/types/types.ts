@@ -45,6 +45,15 @@ export interface ForgotPasswordRequest {
     email: string;
 }
 
+export interface ResetPasswordRequest {
+    token: string;
+    newPassword: string;
+}
+
+export interface VerifyResetTokenRequest {
+    token: string;
+}
+
 /**
  * Defines the shape of a successful authentication response.
  * It includes the access token and the full user object.
