@@ -11,6 +11,10 @@ export interface RegisterRequest {
     role?: string;
 }
 
+export interface ForgotPasswordRequest {
+    email: string;
+}
+
 export interface AuthResponse {
     success?: boolean;
     message?: string;

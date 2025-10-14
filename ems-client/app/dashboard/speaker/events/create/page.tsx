@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import DateTimeSelector from "@/components/functional/DateTimeSelector";
 import {
   ArrowLeft,
   Save,
@@ -45,6 +46,28 @@ function SpeakerCreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
+
+  // Date range state
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date(Date.now() + 24 * 60 * 60 * 1000)); // Tomorrow
+
+  // Sync date range with form data
+  useEffect(() => {
+    const formatDateForAPI = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      bookingStartDate: formatDateForAPI(startDate),
+      bookingEndDate: formatDateForAPI(endDate)
+    }));
+  }, [startDate, endDate]);
 
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Auth state changed', { isAuthenticated, isLoading, user });
@@ -107,17 +130,13 @@ function SpeakerCreateEventPage() {
       newErrors.bookingEndDate = 'End date is required';
     }
 
-    if (formData.bookingStartDate && formData.bookingEndDate) {
-      const startDate = new Date(formData.bookingStartDate);
-      const endDate = new Date(formData.bookingEndDate);
+    // Validate date range
+    if (startDate >= endDate) {
+      newErrors.bookingEndDate = 'End date must be after start date';
+    }
 
-      if (startDate >= endDate) {
-        newErrors.bookingEndDate = 'End date must be after start date';
-      }
-
-      if (startDate < new Date()) {
-        newErrors.bookingStartDate = 'Start date cannot be in the past';
-      }
+    if (startDate < new Date()) {
+      newErrors.bookingStartDate = 'Start date cannot be in the past';
     }
 
     setErrors(newErrors);
@@ -342,41 +361,28 @@ function SpeakerCreateEventPage() {
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
                   <Clock className="h-5 w-5 mr-2" />
-                  Date and Time
+                  Event Date & Time
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bookingStartDate" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Start Date & Time *
-                    </Label>
-                    <Input
-                      id="bookingStartDate"
-                      type="datetime-local"
-                      value={formData.bookingStartDate}
-                      onChange={(e) => handleInputChange('bookingStartDate', e.target.value)}
-                      className={errors.bookingStartDate ? 'border-red-500' : ''}
-                    />
-                    {errors.bookingStartDate && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.bookingStartDate}</p>
-                    )}
-                  </div>
+                <div className="space-y-4">
+                  <DateTimeSelector
+                    start={startDate}
+                    end={endDate}
+                    setStartDate={setStartDate}
+                    setEndDate={setEndDate}
+                    showTimeSelectors={true}
+                  />
 
-                  <div className="space-y-2">
-                    <Label htmlFor="bookingEndDate" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      End Date & Time *
-                    </Label>
-                    <Input
-                      id="bookingEndDate"
-                      type="datetime-local"
-                      value={formData.bookingEndDate}
-                      onChange={(e) => handleInputChange('bookingEndDate', e.target.value)}
-                      className={errors.bookingEndDate ? 'border-red-500' : ''}
-                    />
-                    {errors.bookingEndDate && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.bookingEndDate}</p>
-                    )}
-                  </div>
+                  {(errors.bookingStartDate || errors.bookingEndDate) && (
+                    <div className="space-y-1">
+                      {errors.bookingStartDate && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{errors.bookingStartDate}</p>
+                      )}
+                      {errors.bookingEndDate && (
+                        <p className="text-sm text-red-600 dark:text-red-400">{errors.bookingEndDate}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

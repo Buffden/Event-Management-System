@@ -53,6 +53,24 @@ export function registerRoutes(app: Express, authService: AuthService) {
     });
 
     /**
+     * @route   POST /api/auth/forgot-password
+     * @desc    Sends a password reset email to the user.
+     */
+    app.post('/forgot-password', async (req: Request, res: Response) => {
+        try {
+            logger.info("/forgot-password - Password reset request", {email: req.body.email});
+            await authService.forgotPassword(req.body);
+            logger.info("/forgot-password - Password reset email sent successfully", {email: req.body.email});
+            res.json({
+                message: 'If an account with that email exists, a password reset link has been sent.'
+            });
+        } catch (error: any) {
+            logger.error("/forgot-password - Password reset failed", error, {email: req.body.email});
+            res.status(400).json({error: error.message});
+        }
+    });
+
+    /**
      * @route   GET /api/auth/check-user
      * @desc    Checks if a user exists by email.
      */

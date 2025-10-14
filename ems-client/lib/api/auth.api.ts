@@ -1,6 +1,6 @@
 // Auth API client for Event Management System
 import {logger} from '../logger';
-import {LoginRequest, RegisterRequest, AuthResponse, UserProfile} from './types/auth.types';
+import {LoginRequest, RegisterRequest, ForgotPasswordRequest, AuthResponse, UserProfile} from './types/auth.types';
 import {ApiError} from './types/common.types';
 import { BaseApiClient } from './base-api.client';
 
@@ -83,6 +83,13 @@ class AuthApiClient extends BaseApiClient {
         return this.request<{ exists: boolean }>(`/check-user?email=${encodeURIComponent(email)}`);
     }
 
+    async forgotPassword(data: ForgotPasswordRequest): Promise<{ message: string }> {
+        return this.request<{ message: string }>('/forgot-password', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
 }
 
 // Create and export the Auth API client instance
@@ -99,6 +106,7 @@ export const authAPI = {
     updateProfile: (userData: Partial<RegisterRequest>) => authApiClient.updateProfile(userData),
     logout: () => authApiClient.logout(),
     checkUserExists: (email: string) => authApiClient.checkUserExists(email),
+    forgotPassword: (data: ForgotPasswordRequest) => authApiClient.forgotPassword(data),
 };
 
 export const tokenManager = {
