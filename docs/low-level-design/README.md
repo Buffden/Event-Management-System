@@ -7,7 +7,7 @@ This directory contains the Low Level Design documentation for the Event Managem
 ## Structure
 
 ### Use Cases
-- [Use Cases Overview](./use-cases/use-cases-overview.md) - Complete list of 10 core use cases
+- [Use Cases Overview](./use-cases/use-cases-overview.md) - Complete list of 11 core use cases
 - [Use Case Flows](./use-cases/use-case-flows.md) - Detailed user flows in plain English
 
 ### Implementation Phases
