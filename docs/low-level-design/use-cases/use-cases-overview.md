@@ -166,7 +166,7 @@ Following the LLD approach, these use cases are prioritized for implementation b
 ## Implementation Strategy
 
 ### Time Management
-- **45 minutes per use case** (following LLD interview approach)
+- **Time-box design phase to 45 minutes per use case** (following LLD interview approach)
 - **Focus on core functionality** first
 - **Iterative implementation** with feedback
 
