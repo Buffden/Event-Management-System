@@ -1,0 +1,270 @@
+@startuml TicketValidationAttendanceUseCase
+title Ticket Validation & Attendance Tracking Use Case - Class Diagram
+
+' Core Domain Entities
+class Ticket {
+  - id: string
+  - registrationId: string
+  - qrCode: string
+  - status: TicketStatus
+  - issuedAt: Date
+  - scannedAt: Date
+  + getId(): string
+  + getRegistrationId(): string
+  + getQRCode(): string
+  + getStatus(): TicketStatus
+  + getIssuedAt(): Date
+  + getScannedAt(): Date
+  + isScanned(): boolean
+  + markAsScanned(): void
+}
+
+class Attendance {
+  - id: string
+  - ticketId: string
+  - eventId: string
+  - sessionId: string
+  - staffId: string
+  - scanTime: Date
+  - scanMethod: ScanMethod
+  - location: string
+  + getId(): string
+  + getTicketId(): string
+  + getEventId(): string
+  + getSessionId(): string
+  + getStaffId(): string
+  + getScanTime(): Date
+  + getScanMethod(): ScanMethod
+  + getLocation(): string
+}
+
+class StaffUser {
+  - id: string
+  - userId: string
+  - role: StaffRole
+  - permissions: string[]
+  - isActive: boolean
+  + getId(): string
+  + getUserId(): string
+  + getRole(): StaffRole
+  + getPermissions(): string[]
+  + isActive(): boolean
+  + canScanTickets(): boolean
+  + hasPermission(permission: string): boolean
+}
+
+enum TicketStatus {
+  ISSUED
+  SCANNED
+  REVOKED
+}
+
+enum ScanMethod {
+  QR_CODE
+  MANUAL
+  NFC
+}
+
+enum StaffRole {
+  SCANNER
+  MANAGER
+  ADMIN
+}
+
+' Domain Services
+class TicketValidationService {
+  - ticketRepository: TicketRepository
+  - attendanceRepository: AttendanceRepository
+  - staffRepository: StaffRepository
+  - clock: Clock
+  + validateTicket(qrCodeData: string): TicketValidationResult
+  + recordAttendance(ticketId: string, staffId: string, location: string): Attendance
+  + trackCheckins(eventId: string): AttendanceSummary
+  + generateAttendanceReport(eventId: string): AttendanceReport
+  + checkDuplicateScan(ticketId: string): boolean
+}
+
+class AttendanceTrackingService {
+  - attendanceRepository: AttendanceRepository
+  - eventRepository: EventRepository
+  - sessionRepository: SessionRepository
+  + getEventAttendance(eventId: string): Attendance[]
+  + getSessionAttendance(sessionId: string): Attendance[]
+  + getRealTimeStats(eventId: string): RealTimeStats
+  + exportAttendanceData(eventId: string): AttendanceData
+}
+
+' Application Handlers
+class ValidateTicketHandler {
+  - ticketValidationService: TicketValidationService
+  + handle(request: ValidateTicketRequest): ValidateTicketResponse
+}
+
+class RecordAttendanceHandler {
+  - ticketValidationService: TicketValidationService
+  + handle(request: RecordAttendanceRequest): RecordAttendanceResponse
+}
+
+class TrackAttendanceHandler {
+  - attendanceTrackingService: AttendanceTrackingService
+  + handle(request: TrackAttendanceRequest): TrackAttendanceResponse
+}
+
+' Infrastructure Layer
+interface TicketRepository {
+  + findById(id: string): Ticket | null
+  + findByQRCode(qrCode: string): Ticket | null
+  + update(ticket: Ticket): void
+}
+
+interface AttendanceRepository {
+  + findById(id: string): Attendance | null
+  + findByTicketId(ticketId: string): Attendance[]
+  + findByEventId(eventId: string): Attendance[]
+  + findBySessionId(sessionId: string): Attendance[]
+  + save(attendance: Attendance): void
+  + findByEventAndTimeRange(eventId: string, startTime: Date, endTime: Date): Attendance[]
+}
+
+interface StaffRepository {
+  + findById(id: string): StaffUser | null
+  + findByUserId(userId: string): StaffUser | null
+  + findActiveStaff(): StaffUser[]
+}
+
+interface EventRepository {
+  + findById(id: string): Event | null
+}
+
+interface SessionRepository {
+  + findById(id: string): Session | null
+  + findByEventId(eventId: string): Session[]
+}
+
+' DTOs
+class ValidateTicketRequest {
+  + qrCodeData: string
+  + staffId: string
+  + location: string
+  + scanMethod: ScanMethod
+}
+
+class RecordAttendanceRequest {
+  + ticketId: string
+  + staffId: string
+  + eventId: string
+  + sessionId: string
+  + location: string
+  + scanMethod: ScanMethod
+}
+
+class TrackAttendanceRequest {
+  + eventId: string
+  + sessionId: string
+  + timeRange: TimeRange
+}
+
+class ValidateTicketResponse {
+  + isValid: boolean
+  + ticket: Ticket | null
+  + message: string
+  + canProceed: boolean
+}
+
+class RecordAttendanceResponse {
+  + attendanceId: string
+  + attendance: Attendance
+  + message: string
+  + success: boolean
+}
+
+class TrackAttendanceResponse {
+  + eventId: string
+  + attendanceSummary: AttendanceSummary
+  + realTimeStats: RealTimeStats
+}
+
+class TicketValidationResult {
+  + isValid: boolean
+  + ticket: Ticket | null
+  + message: string
+  + isDuplicate: boolean
+  + canProceed: boolean
+}
+
+class AttendanceSummary {
+  + totalScans: number
+  + uniqueAttendees: number
+  + sessionBreakdown: SessionAttendance[]
+  + timeRange: TimeRange
+}
+
+class RealTimeStats {
+  + currentAttendees: number
+  + peakAttendance: number
+  + lastScanTime: Date
+  + scanRate: number
+}
+
+class AttendanceReport {
+  + eventId: string
+  + generatedAt: Date
+  + totalAttendance: number
+  + sessionBreakdown: SessionAttendance[]
+  + hourlyBreakdown: HourlyAttendance[]
+}
+
+class SessionAttendance {
+  + sessionId: string
+  + sessionName: string
+  + attendanceCount: number
+  + capacity: number
+  + attendanceRate: number
+}
+
+class HourlyAttendance {
+  + hour: string
+  + attendanceCount: number
+  + scanCount: number
+}
+
+class TimeRange {
+  - startTime: Date
+  - endTime: Date
+  + getStartTime(): Date
+  + getEndTime(): Date
+  + contains(date: Date): boolean
+}
+
+' Relationships
+Ticket ||--o{ Attendance : "generates"
+StaffUser ||--o{ Attendance : "records"
+Attendance ||--|| ScanMethod : "uses"
+StaffUser ||--|| StaffRole : "has"
+Ticket ||--|| TicketStatus : "has"
+
+TicketValidationService --> TicketRepository : "uses"
+TicketValidationService --> AttendanceRepository : "uses"
+TicketValidationService --> StaffRepository : "uses"
+
+AttendanceTrackingService --> AttendanceRepository : "uses"
+AttendanceTrackingService --> EventRepository : "uses"
+AttendanceTrackingService --> SessionRepository : "uses"
+
+ValidateTicketHandler --> TicketValidationService : "uses"
+RecordAttendanceHandler --> TicketValidationService : "uses"
+TrackAttendanceHandler --> AttendanceTrackingService : "uses"
+
+ValidateTicketHandler --> ValidateTicketRequest : "handles"
+RecordAttendanceHandler --> RecordAttendanceRequest : "handles"
+TrackAttendanceHandler --> TrackAttendanceRequest : "handles"
+
+TicketValidationService --> TicketValidationResult : "returns"
+TicketValidationService --> Attendance : "creates"
+TicketValidationService --> AttendanceSummary : "returns"
+TicketValidationService --> AttendanceReport : "returns"
+
+AttendanceTrackingService --> AttendanceSummary : "returns"
+AttendanceTrackingService --> RealTimeStats : "returns"
+
+@enduml

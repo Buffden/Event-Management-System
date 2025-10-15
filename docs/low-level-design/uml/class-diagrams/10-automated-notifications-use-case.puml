@@ -1,0 +1,314 @@
+@startuml AutomatedNotificationsUseCase
+title Automated Notifications Use Case - Class Diagram
+
+' Core Domain Entities
+class Notification {
+  - id: string
+  - userId: string
+  - type: NotificationType
+  - subject: string
+  - message: string
+  - status: NotificationStatus
+  - scheduledAt: Date
+  - sentAt: Date
+  - deliveryStatus: DeliveryStatus
+  - metadata: NotificationMetadata
+  + getId(): string
+  + getUserId(): string
+  + getType(): NotificationType
+  + getSubject(): string
+  + getMessage(): string
+  + getStatus(): NotificationStatus
+  + getScheduledAt(): Date
+  + getSentAt(): Date
+  + getDeliveryStatus(): DeliveryStatus
+  + markAsSent(): void
+  + markAsDelivered(): void
+  + markAsFailed(): void
+  + scheduleFor(scheduledAt: Date): void
+}
+
+class EmailTemplate {
+  - id: string
+  - type: NotificationType
+  - subject: string
+  - body: string
+  - variables: string[]
+  - isActive: boolean
+  + getId(): string
+  + getType(): NotificationType
+  + getSubject(): string
+  + getBody(): string
+  + getVariables(): string[]
+  + isActive(): boolean
+  + renderTemplate(variables: Map<string, string>): string
+}
+
+class User {
+  - id: string
+  - email: string
+  - name: string
+  - notificationPreferences: NotificationPreferences
+  + getId(): string
+  + getEmail(): string
+  + getName(): string
+  + getNotificationPreferences(): NotificationPreferences
+  + canReceiveNotification(type: NotificationType): boolean
+}
+
+enum NotificationType {
+  REGISTRATION_CONFIRMATION
+  EVENT_REMINDER
+  ASSIGNMENT_NOTIFICATION
+  CANCELLATION_NOTICE
+  FEEDBACK_REQUEST
+  SYSTEM_UPDATE
+}
+
+enum NotificationStatus {
+  PENDING
+  SCHEDULED
+  SENT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  BOUNCED
+  FAILED
+}
+
+' Domain Services
+class NotificationService {
+  - notificationRepository: NotificationRepository
+  - templateRepository: EmailTemplateRepository
+  - userRepository: UserRepository
+  - emailService: EmailService
+  - schedulerService: SchedulerService
+  + sendNotification(userId: string, type: NotificationType, data: NotificationData): Notification
+  + scheduleReminder(userId: string, eventId: string, reminderTime: Date): Notification
+  + handleEmailDelivery(notificationId: string): void
+  + trackDeliveryStatus(notificationId: string): DeliveryStatus
+  + sendBulkNotifications(userIds: string[], type: NotificationType, data: NotificationData): Notification[]
+  + retryFailedNotifications(): void
+}
+
+class NotificationSchedulerService {
+  - notificationRepository: NotificationRepository
+  - schedulerService: SchedulerService
+  + scheduleNotification(notification: Notification, scheduledAt: Date): void
+  + processScheduledNotifications(): void
+  + cancelScheduledNotification(notificationId: string): void
+  + rescheduleNotification(notificationId: string, newTime: Date): void
+}
+
+class NotificationTemplateService {
+  - templateRepository: EmailTemplateRepository
+  + getTemplate(type: NotificationType): EmailTemplate
+  + renderTemplate(templateId: string, variables: Map<string, string>): string
+  + createTemplate(templateData: CreateTemplateRequest): EmailTemplate
+  + updateTemplate(templateId: string, templateData: UpdateTemplateRequest): EmailTemplate
+}
+
+' Application Handlers
+class SendNotificationHandler {
+  - notificationService: NotificationService
+  + handle(request: SendNotificationRequest): SendNotificationResponse
+}
+
+class ScheduleReminderHandler {
+  - notificationService: NotificationService
+  - notificationSchedulerService: NotificationSchedulerService
+  + handle(request: ScheduleReminderRequest): ScheduleReminderResponse
+}
+
+class HandleDeliveryHandler {
+  - notificationService: NotificationService
+  + handle(request: HandleDeliveryRequest): HandleDeliveryResponse
+}
+
+' Infrastructure Layer
+interface NotificationRepository {
+  + findById(id: string): Notification | null
+  + findByUserId(userId: string): Notification[]
+  + findByType(type: NotificationType): Notification[]
+  + findByStatus(status: NotificationStatus): Notification[]
+  + findScheduledNotifications(): Notification[]
+  + findFailedNotifications(): Notification[]
+  + save(notification: Notification): void
+  + update(notification: Notification): void
+  + delete(id: string): void
+}
+
+interface EmailTemplateRepository {
+  + findById(id: string): EmailTemplate | null
+  + findByType(type: NotificationType): EmailTemplate | null
+  + findActiveTemplates(): EmailTemplate[]
+  + save(template: EmailTemplate): void
+  + update(template: EmailTemplate): void
+  + delete(id: string): void
+}
+
+interface UserRepository {
+  + findById(id: string): User | null
+  + findByEmail(email: string): User | null
+  + save(user: User): void
+}
+
+interface EmailService {
+  + sendEmail(to: string, subject: string, body: string): EmailResult
+  + sendBulkEmail(recipients: string[], subject: string, body: string): EmailResult[]
+  + validateEmail(email: string): boolean
+}
+
+interface SchedulerService {
+  + scheduleJob(jobId: string, scheduledAt: Date, callback: Function): void
+  + cancelJob(jobId: string): void
+  + rescheduleJob(jobId: string, newTime: Date): void
+  + processScheduledJobs(): void
+}
+
+' DTOs
+class SendNotificationRequest {
+  + userId: string
+  + type: NotificationType
+  + subject: string
+  + message: string
+  + data: NotificationData
+  + immediate: boolean
+}
+
+class ScheduleReminderRequest {
+  + userId: string
+  + eventId: string
+  + type: NotificationType
+  + reminderTime: Date
+  + templateId: string
+}
+
+class HandleDeliveryRequest {
+  + notificationId: string
+  + deliveryStatus: DeliveryStatus
+  + deliveryTime: Date
+  + errorMessage: string
+}
+
+class SendNotificationResponse {
+  + notificationId: string
+  + notification: Notification
+  + message: string
+  + success: boolean
+}
+
+class ScheduleReminderResponse {
+  + notificationId: string
+  + notification: Notification
+  + scheduledFor: Date
+  + message: string
+}
+
+class HandleDeliveryResponse {
+  + notificationId: string
+  + deliveryStatus: DeliveryStatus
+  + message: string
+  + success: boolean
+}
+
+class CreateTemplateRequest {
+  + type: NotificationType
+  + subject: string
+  + body: string
+  + variables: string[]
+}
+
+class UpdateTemplateRequest {
+  + subject: string
+  + body: string
+  + variables: string[]
+  + isActive: boolean
+}
+
+class NotificationData {
+  - eventId: string
+  - eventName: string
+  - userName: string
+  - customData: Map<string, string>
+  + getEventId(): string
+  + getEventName(): string
+  + getUserName(): string
+  + getCustomData(): Map<string, string>
+  + setCustomData(key: string, value: string): void
+}
+
+class NotificationMetadata {
+  - eventId: string
+  - sessionId: string
+  - assignmentId: string
+  - customFields: Map<string, string>
+  + getEventId(): string
+  + getSessionId(): string
+  + getAssignmentId(): string
+  + getCustomFields(): Map<string, string>
+}
+
+class NotificationPreferences {
+  - emailEnabled: boolean
+  - pushEnabled: boolean
+  - smsEnabled: boolean
+  - allowedTypes: NotificationType[]
+  + isEmailEnabled(): boolean
+  + isPushEnabled(): boolean
+  + isSmsEnabled(): boolean
+  + getAllowedTypes(): NotificationType[]
+  + canReceiveType(type: NotificationType): boolean
+}
+
+class EmailResult {
+  - success: boolean
+  - messageId: string
+  - errorMessage: string
+  - deliveredAt: Date
+  + isSuccess(): boolean
+  + getMessageId(): string
+  + getErrorMessage(): string
+  + getDeliveredAt(): Date
+}
+
+' Relationships
+Notification ||--|| User : "sent to"
+Notification ||--|| NotificationType : "has"
+Notification ||--|| NotificationStatus : "has"
+Notification ||--|| DeliveryStatus : "has"
+Notification ||--|| EmailTemplate : "uses template"
+EmailTemplate ||--|| NotificationType : "for type"
+
+NotificationService --> NotificationRepository : "uses"
+NotificationService --> EmailTemplateRepository : "uses"
+NotificationService --> UserRepository : "uses"
+NotificationService --> EmailService : "uses"
+NotificationService --> SchedulerService : "uses"
+
+NotificationSchedulerService --> NotificationRepository : "uses"
+NotificationSchedulerService --> SchedulerService : "uses"
+
+NotificationTemplateService --> EmailTemplateRepository : "uses"
+
+SendNotificationHandler --> NotificationService : "uses"
+ScheduleReminderHandler --> NotificationService : "uses"
+ScheduleReminderHandler --> NotificationSchedulerService : "uses"
+HandleDeliveryHandler --> NotificationService : "uses"
+
+SendNotificationHandler --> SendNotificationRequest : "handles"
+ScheduleReminderHandler --> ScheduleReminderRequest : "handles"
+HandleDeliveryHandler --> HandleDeliveryRequest : "handles"
+
+NotificationService --> Notification : "creates"
+NotificationService --> SendNotificationResponse : "returns"
+NotificationService --> ScheduleReminderResponse : "returns"
+NotificationService --> HandleDeliveryResponse : "returns"
+
+@enduml

@@ -1,0 +1,444 @@
+@startuml FeedbackCollectionReportingUseCase
+title Feedback Collection & Reporting Use Case - Class Diagram
+
+' Core Domain Entities
+class Feedback {
+  - id: string
+  - userId: string
+  - eventId: string
+  - sessionId: string
+  - rating: number
+  - comment: string
+  - submittedAt: Date
+  - isAnonymous: boolean
+  + getId(): string
+  + getUserId(): string
+  + getEventId(): string
+  + getSessionId(): string
+  + getRating(): number
+  + getComment(): string
+  + getSubmittedAt(): Date
+  + isAnonymous(): boolean
+  + updateRating(rating: number): void
+  + updateComment(comment: string): void
+  + markAsAnonymous(): void
+}
+
+class Report {
+  - id: string
+  - type: ReportType
+  - eventId: string
+  - generatedBy: string
+  - generatedAt: Date
+  - data: ReportData
+  - status: ReportStatus
+  + getId(): string
+  + getType(): ReportType
+  + getEventId(): string
+  + getGeneratedBy(): string
+  + getGeneratedAt(): Date
+  + getData(): ReportData
+  + getStatus(): ReportStatus
+  + markAsCompleted(): void
+  + markAsFailed(): void
+  + updateData(data: ReportData): void
+}
+
+class Event {
+  - id: string
+  - title: string
+  - startDate: Date
+  - endDate: Date
+  - status: EventStatus
+  + getId(): string
+  + getTitle(): string
+  + getStartDate(): Date
+  + getEndDate(): Date
+  + getStatus(): EventStatus
+  + isCompleted(): boolean
+}
+
+class User {
+  - id: string
+  - email: string
+  - name: string
+  + getId(): string
+  + getEmail(): string
+  + getName(): string
+}
+
+enum ReportType {
+  ATTENDANCE_SUMMARY
+  FEEDBACK_ANALYSIS
+  EVENT_PERFORMANCE
+  SPEAKER_RATINGS
+  SESSION_BREAKDOWN
+  EXPORT_DATA
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  COMPLETED
+  CANCELLED
+}
+
+' Domain Services
+class FeedbackCollectionService {
+  - feedbackRepository: FeedbackRepository
+  - eventRepository: EventRepository
+  - userRepository: UserRepository
+  - notificationService: NotificationService
+  + collectFeedback(userId: string, eventId: string, feedbackData: FeedbackData): Feedback
+  + sendFeedbackRequest(eventId: string): void
+  + getFeedbackByEvent(eventId: string): Feedback[]
+  + getFeedbackBySession(sessionId: string): Feedback[]
+  + getFeedbackByUser(userId: string): Feedback[]
+  + validateFeedbackSubmission(userId: string, eventId: string): boolean
+}
+
+class ReportGenerationService {
+  - reportRepository: ReportRepository
+  - feedbackRepository: FeedbackRepository
+  - attendanceRepository: AttendanceRepository
+  - eventRepository: EventRepository
+  + generateReport(reportType: ReportType, eventId: string, generatedBy: string): Report
+  + viewAnalytics(eventId: string): EventAnalytics
+  + exportFeedbackData(eventId: string): FeedbackExportData
+  + scheduleReportGeneration(reportType: ReportType, eventId: string, scheduleTime: Date): void
+  + getReportHistory(eventId: string): Report[]
+}
+
+class AnalyticsService {
+  - feedbackRepository: FeedbackRepository
+  - attendanceRepository: AttendanceRepository
+  - eventRepository: EventRepository
+  + calculateEventRating(eventId: string): number
+  + calculateSessionRatings(eventId: string): SessionRating[]
+  + calculateAttendanceRate(eventId: string): number
+  + generateTrends(eventId: string): EventTrends
+  + compareEvents(eventIds: string[]): EventComparison
+}
+
+' Application Handlers
+class CollectFeedbackHandler {
+  - feedbackCollectionService: FeedbackCollectionService
+  + handle(request: CollectFeedbackRequest): CollectFeedbackResponse
+}
+
+class GenerateReportHandler {
+  - reportGenerationService: ReportGenerationService
+  + handle(request: GenerateReportRequest): GenerateReportResponse
+}
+
+class ViewAnalyticsHandler {
+  - reportGenerationService: ReportGenerationService
+  - analyticsService: AnalyticsService
+  + handle(request: ViewAnalyticsRequest): ViewAnalyticsResponse
+}
+
+' Infrastructure Layer
+interface FeedbackRepository {
+  + findById(id: string): Feedback | null
+  + findByEventId(eventId: string): Feedback[]
+  + findBySessionId(sessionId: string): Feedback[]
+  + findByUserId(userId: string): Feedback[]
+  + findByUserAndEvent(userId: string, eventId: string): Feedback | null
+  + save(feedback: Feedback): void
+  + update(feedback: Feedback): void
+  + delete(id: string): void
+  + getAverageRating(eventId: string): number
+  + getRatingDistribution(eventId: string): RatingDistribution
+}
+
+interface ReportRepository {
+  + findById(id: string): Report | null
+  + findByEventId(eventId: string): Report[]
+  + findByType(type: ReportType): Report[]
+  + findByStatus(status: ReportStatus): Report[]
+  + save(report: Report): void
+  + update(report: Report): void
+  + delete(id: string): void
+}
+
+interface AttendanceRepository {
+  + findByEventId(eventId: string): Attendance[]
+  + findBySessionId(sessionId: string): Attendance[]
+  + getAttendanceCount(eventId: string): number
+  + getUniqueAttendees(eventId: string): number
+}
+
+interface EventRepository {
+  + findById(id: string): Event | null
+  + save(event: Event): void
+}
+
+interface UserRepository {
+  + findById(id: string): User | null
+  + save(user: User): void
+}
+
+interface NotificationService {
+  + sendFeedbackRequest(userId: string, eventId: string): void
+  + sendReportReady(recipientId: string, reportId: string): void
+}
+
+' DTOs
+class CollectFeedbackRequest {
+  + userId: string
+  + eventId: string
+  + sessionId: string
+  + rating: number
+  + comment: string
+  + isAnonymous: boolean
+}
+
+class GenerateReportRequest {
+  + reportType: ReportType
+  + eventId: string
+  + generatedBy: string
+  + filters: ReportFilters
+}
+
+class ViewAnalyticsRequest {
+  + eventId: string
+  + timeRange: DateRange
+  + includeSessions: boolean
+}
+
+class CollectFeedbackResponse {
+  + feedbackId: string
+  + feedback: Feedback
+  + message: string
+  + success: boolean
+}
+
+class GenerateReportResponse {
+  + reportId: string
+  + report: Report
+  + message: string
+  + estimatedCompletionTime: Date
+}
+
+class ViewAnalyticsResponse {
+  + eventId: string
+  + analytics: EventAnalytics
+  + trends: EventTrends
+}
+
+class FeedbackData {
+  - rating: number
+  - comment: string
+  - sessionId: string
+  - isAnonymous: boolean
+  + getRating(): number
+  + getComment(): string
+  + getSessionId(): string
+  + isAnonymous(): boolean
+}
+
+class ReportData {
+  - summary: ReportSummary
+  - charts: ChartData[]
+  - tables: TableData[]
+  - insights: string[]
+  + getSummary(): ReportSummary
+  + getCharts(): ChartData[]
+  + getTables(): TableData[]
+  + getInsights(): string[]
+}
+
+class EventAnalytics {
+  - eventId: string
+  - averageRating: number
+  - totalFeedback: number
+  - attendanceRate: number
+  - sessionBreakdown: SessionAnalytics[]
+  - trends: EventTrends
+  + getEventId(): string
+  + getAverageRating(): number
+  + getTotalFeedback(): number
+  + getAttendanceRate(): number
+  + getSessionBreakdown(): SessionAnalytics[]
+  + getTrends(): EventTrends
+}
+
+class SessionAnalytics {
+  - sessionId: string
+  - sessionName: string
+  - averageRating: number
+  - feedbackCount: number
+  + getSessionId(): string
+  + getSessionName(): string
+  + getAverageRating(): number
+  + getFeedbackCount(): number
+}
+
+class EventTrends {
+  - ratingTrend: TrendData[]
+  - attendanceTrend: TrendData[]
+  - feedbackTrend: TrendData[]
+  + getRatingTrend(): TrendData[]
+  + getAttendanceTrend(): TrendData[]
+  + getFeedbackTrend(): TrendData[]
+}
+
+class TrendData {
+  - date: Date
+  - value: number
+  + getDate(): Date
+  + getValue(): number
+}
+
+class SessionRating {
+  - sessionId: string
+  - sessionName: string
+  - averageRating: number
+  - totalRatings: number
+  + getSessionId(): string
+  + getSessionName(): string
+  + getAverageRating(): number
+  + getTotalRatings(): number
+}
+
+class EventComparison {
+  - events: EventComparisonData[]
+  - bestPerforming: string
+  - worstPerforming: string
+  + getEvents(): EventComparisonData[]
+  + getBestPerforming(): string
+  + getWorstPerforming(): string
+}
+
+class EventComparisonData {
+  - eventId: string
+  - eventName: string
+  - averageRating: number
+  - attendanceRate: number
+  + getEventId(): string
+  + getEventName(): string
+  + getAverageRating(): number
+  + getAttendanceRate(): number
+}
+
+class FeedbackExportData {
+  - eventId: string
+  - exportedAt: Date
+  - data: Feedback[]
+  - format: string
+  + getEventId(): string
+  + getExportedAt(): Date
+  + getData(): Feedback[]
+  + getFormat(): string
+}
+
+class ReportFilters {
+  - dateRange: DateRange
+  - sessionIds: string[]
+  - ratingRange: RatingRange
+  + getDateRange(): DateRange
+  + getSessionIds(): string[]
+  + getRatingRange(): RatingRange
+}
+
+class RatingRange {
+  - minRating: number
+  - maxRating: number
+  + getMinRating(): number
+  + getMaxRating(): number
+}
+
+class DateRange {
+  - startDate: Date
+  - endDate: Date
+  + getStartDate(): Date
+  + getEndDate(): Date
+}
+
+class RatingDistribution {
+  - oneStar: number
+  - twoStar: number
+  - threeStar: number
+  - fourStar: number
+  - fiveStar: number
+  + getOneStar(): number
+  + getTwoStar(): number
+  + getThreeStar(): number
+  + getFourStar(): number
+  + getFiveStar(): number
+}
+
+class ReportSummary {
+  - totalEvents: number
+  - totalFeedback: number
+  - averageRating: number
+  - totalAttendance: number
+  + getTotalEvents(): number
+  + getTotalFeedback(): number
+  + getAverageRating(): number
+  + getTotalAttendance(): number
+}
+
+class ChartData {
+  - type: string
+  - title: string
+  - data: any
+  + getType(): string
+  + getTitle(): string
+  + getData(): any
+}
+
+class TableData {
+  - title: string
+  - headers: string[]
+  - rows: string[][]
+  + getTitle(): string
+  + getHeaders(): string[]
+  + getRows(): string[][]
+}
+
+' Relationships
+Feedback ||--|| User : "submitted by"
+Feedback ||--|| Event : "for event"
+Report ||--|| Event : "for event"
+Report ||--|| User : "generated by"
+Report ||--|| ReportType : "has"
+Report ||--|| ReportStatus : "has"
+
+FeedbackCollectionService --> FeedbackRepository : "uses"
+FeedbackCollectionService --> EventRepository : "uses"
+FeedbackCollectionService --> UserRepository : "uses"
+FeedbackCollectionService --> NotificationService : "uses"
+
+ReportGenerationService --> ReportRepository : "uses"
+ReportGenerationService --> FeedbackRepository : "uses"
+ReportGenerationService --> AttendanceRepository : "uses"
+ReportGenerationService --> EventRepository : "uses"
+
+AnalyticsService --> FeedbackRepository : "uses"
+AnalyticsService --> AttendanceRepository : "uses"
+AnalyticsService --> EventRepository : "uses"
+
+CollectFeedbackHandler --> FeedbackCollectionService : "uses"
+GenerateReportHandler --> ReportGenerationService : "uses"
+ViewAnalyticsHandler --> ReportGenerationService : "uses"
+ViewAnalyticsHandler --> AnalyticsService : "uses"
+
+CollectFeedbackHandler --> CollectFeedbackRequest : "handles"
+GenerateReportHandler --> GenerateReportRequest : "handles"
+ViewAnalyticsHandler --> ViewAnalyticsRequest : "handles"
+
+FeedbackCollectionService --> Feedback : "creates"
+ReportGenerationService --> Report : "creates"
+FeedbackCollectionService --> CollectFeedbackResponse : "returns"
+ReportGenerationService --> GenerateReportResponse : "returns"
+ViewAnalyticsHandler --> ViewAnalyticsResponse : "returns"
+
+@enduml

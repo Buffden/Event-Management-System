@@ -1,0 +1,244 @@
+@startuml SpeakerEventAssignmentUseCase
+title Speaker-Event Assignment Use Case - Class Diagram
+
+' Core Domain Entities
+class SpeakerAssignment {
+  - id: string
+  - eventId: string
+  - sessionId: string
+  - speakerId: string
+  - status: AssignmentStatus
+  - assignedAt: Date
+  - acceptedAt: Date
+  - rejectedAt: Date
+  + getId(): string
+  + getEventId(): string
+  + getSessionId(): string
+  + getSpeakerId(): string
+  + getStatus(): AssignmentStatus
+  + accept(speakerId: string): void
+  + reject(speakerId: string): void
+  + isAccepted(): boolean
+  + isRejected(): boolean
+  + isPending(): boolean
+}
+
+class Event {
+  - id: string
+  - title: string
+  - startDate: Date
+  - endDate: Date
+  - status: EventStatus
+  + getId(): string
+  + getTitle(): string
+  + getStartDate(): Date
+  + getEndDate(): Date
+  + getStatus(): EventStatus
+  + isActive(): boolean
+}
+
+class SessionSlot {
+  - id: string
+  - eventId: string
+  - title: string
+  - startTime: Date
+  - endTime: Date
+  - speakerId: string
+  + getId(): string
+  + getEventId(): string
+  + getTitle(): string
+  + getStartTime(): Date
+  + getEndTime(): Date
+  + getSpeakerId(): string
+  + assignSpeaker(speakerId: string): void
+  + removeSpeaker(): void
+  + hasSpeaker(): boolean
+}
+
+class SpeakerProfile {
+  - id: string
+  - userId: string
+  - bio: string
+  - expertise: string[]
+  - availability: DateRange[]
+  + getId(): string
+  + getUserId(): string
+  + getBio(): string
+  + getExpertise(): string[]
+  + getAvailability(): DateRange[]
+  + isAvailable(dateRange: DateRange): boolean
+  + updateAvailability(availability: DateRange[]): void
+}
+
+enum AssignmentStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+' Domain Services
+class SpeakerAssignmentService {
+  - assignmentRepository: SpeakerAssignmentRepository
+  - eventRepository: EventRepository
+  - sessionRepository: SessionRepository
+  - speakerRepository: SpeakerRepository
+  - notificationService: NotificationService
+  + assignSpeakerToEvent(eventId: string, speakerId: string): SpeakerAssignment
+  + assignSpeakerToSession(sessionId: string, speakerId: string): SpeakerAssignment
+  + acceptAssignment(assignmentId: string, speakerId: string): void
+  + rejectAssignment(assignmentId: string, speakerId: string): void
+  + removeSpeakerAssignment(assignmentId: string): void
+  + getSpeakerAssignments(speakerId: string): SpeakerAssignment[]
+  + getEventAssignments(eventId: string): SpeakerAssignment[]
+}
+
+class AssignmentValidationService {
+  - speakerRepository: SpeakerRepository
+  - assignmentRepository: SpeakerAssignmentRepository
+  + validateSpeakerAvailability(speakerId: string, dateRange: DateRange): boolean
+  + validateNoConflictingAssignments(speakerId: string, sessionId: string): boolean
+  + validateAssignmentOwnership(assignmentId: string, speakerId: string): boolean
+}
+
+' Application Handlers
+class AssignSpeakerHandler {
+  - speakerAssignmentService: SpeakerAssignmentService
+  - assignmentValidationService: AssignmentValidationService
+  + handle(request: AssignSpeakerRequest): AssignSpeakerResponse
+}
+
+class AcceptAssignmentHandler {
+  - speakerAssignmentService: SpeakerAssignmentService
+  - assignmentValidationService: AssignmentValidationService
+  + handle(request: AcceptAssignmentRequest): AcceptAssignmentResponse
+}
+
+class RejectAssignmentHandler {
+  - speakerAssignmentService: SpeakerAssignmentService
+  - assignmentValidationService: AssignmentValidationService
+  + handle(request: RejectAssignmentRequest): RejectAssignmentResponse
+}
+
+' Infrastructure Layer
+interface SpeakerAssignmentRepository {
+  + findById(id: string): SpeakerAssignment | null
+  + findBySpeakerId(speakerId: string): SpeakerAssignment[]
+  + findByEventId(eventId: string): SpeakerAssignment[]
+  + findBySessionId(sessionId: string): SpeakerAssignment[]
+  + save(assignment: SpeakerAssignment): void
+  + update(assignment: SpeakerAssignment): void
+  + delete(id: string): void
+}
+
+interface EventRepository {
+  + findById(id: string): Event | null
+  + save(event: Event): void
+}
+
+interface SessionRepository {
+  + findById(id: string): SessionSlot | null
+  + findByEventId(eventId: string): SessionSlot[]
+  + save(session: SessionSlot): void
+  + update(session: SessionSlot): void
+}
+
+interface SpeakerRepository {
+  + findById(id: string): SpeakerProfile | null
+  + findByUserId(userId: string): SpeakerProfile | null
+  + save(speaker: SpeakerProfile): void
+  + update(speaker: SpeakerProfile): void
+}
+
+interface NotificationService {
+  + sendAssignmentNotification(assignmentId: string, speakerId: string): void
+  + sendAssignmentReminder(assignmentId: string): void
+}
+
+' DTOs
+class AssignSpeakerRequest {
+  + eventId: string
+  + sessionId: string
+  + speakerId: string
+  + assignedBy: string
+}
+
+class AcceptAssignmentRequest {
+  + assignmentId: string
+  + speakerId: string
+}
+
+class RejectAssignmentRequest {
+  + assignmentId: string
+  + speakerId: string
+  + reason: string
+}
+
+class AssignSpeakerResponse {
+  + assignmentId: string
+  + status: AssignmentStatus
+  + message: string
+}
+
+class AcceptAssignmentResponse {
+  + assignmentId: string
+  + status: AssignmentStatus
+  + message: string
+}
+
+class RejectAssignmentResponse {
+  + assignmentId: string
+  + status: AssignmentStatus
+  + message: string
+}
+
+class DateRange {
+  - startDate: Date
+  - endDate: Date
+  + getStartDate(): Date
+  + getEndDate(): Date
+  + overlaps(other: DateRange): boolean
+}
+
+' Relationships
+SpeakerAssignment ||--|| Event : "assigned to"
+SpeakerAssignment ||--|| SessionSlot : "for session"
+SpeakerAssignment ||--|| SpeakerProfile : "assigned to"
+SpeakerAssignment ||--|| AssignmentStatus : "has"
+
+SessionSlot ||--|| Event : "belongs to"
+SessionSlot ||--o| SpeakerProfile : "assigned speaker"
+
+SpeakerAssignmentService --> SpeakerAssignmentRepository : "uses"
+SpeakerAssignmentService --> EventRepository : "uses"
+SpeakerAssignmentService --> SessionRepository : "uses"
+SpeakerAssignmentService --> SpeakerRepository : "uses"
+SpeakerAssignmentService --> NotificationService : "uses"
+
+AssignmentValidationService --> SpeakerRepository : "uses"
+AssignmentValidationService --> SpeakerAssignmentRepository : "uses"
+
+AssignSpeakerHandler --> SpeakerAssignmentService : "uses"
+AssignSpeakerHandler --> AssignmentValidationService : "uses"
+AcceptAssignmentHandler --> SpeakerAssignmentService : "uses"
+AcceptAssignmentHandler --> AssignmentValidationService : "uses"
+RejectAssignmentHandler --> SpeakerAssignmentService : "uses"
+RejectAssignmentHandler --> AssignmentValidationService : "uses"
+
+AssignSpeakerHandler --> AssignSpeakerRequest : "handles"
+AcceptAssignmentHandler --> AcceptAssignmentRequest : "handles"
+RejectAssignmentHandler --> RejectAssignmentRequest : "handles"
+
+SpeakerAssignmentService --> SpeakerAssignment : "creates"
+SpeakerAssignmentService --> AssignSpeakerResponse : "returns"
+SpeakerAssignmentService --> AcceptAssignmentResponse : "returns"
+SpeakerAssignmentService --> RejectAssignmentResponse : "returns"
+
+@enduml

@@ -1,0 +1,219 @@
+@startuml SpeakerProfileManagementUseCase
+title Speaker Profile & Materials Management Use Case - Class Diagram
+
+' Core Domain Entities
+class SpeakerProfile {
+  - id: string
+  - userId: string
+  - bio: string
+  - expertise: string[]
+  - socialLinks: string[]
+  - profileImage: string
+  - createdAt: Date
+  - updatedAt: Date
+  + getId(): string
+  + getUserId(): string
+  + getBio(): string
+  + getExpertise(): string[]
+  + getSocialLinks(): string[]
+  + getProfileImage(): string
+  + updateProfile(profileData: ProfileData): void
+  + addExpertise(expertise: string): void
+  + removeExpertise(expertise: string): void
+}
+
+class PresentationMaterial {
+  - id: string
+  - speakerId: string
+  - sessionId: string
+  - fileName: string
+  - filePath: string
+  - fileSize: number
+  - fileType: string
+  - uploadDate: Date
+  - isPublic: boolean
+  + getId(): string
+  + getSpeakerId(): string
+  + getSessionId(): string
+  + getFileName(): string
+  + getFilePath(): string
+  + getFileSize(): number
+  + getFileType(): string
+  + getUploadDate(): Date
+  + isPublic(): boolean
+  + setPublic(isPublic: boolean): void
+  + updateMaterial(fileData: FileData): void
+}
+
+class User {
+  - id: string
+  - email: string
+  - name: string
+  - role: Role
+  + getId(): string
+  + getEmail(): string
+  + getName(): string
+  + getRole(): Role
+  + isSpeaker(): boolean
+}
+
+enum Role {
+  ADMIN
+  SPEAKER
+  ATTENDEE
+}
+
+' Domain Services
+class SpeakerProfileService {
+  - speakerRepository: SpeakerRepository
+  - materialRepository: PresentationMaterialRepository
+  - fileStorageService: FileStorageService
+  + createProfile(userId: string, profileData: CreateProfileRequest): SpeakerProfile
+  + updateProfile(speakerId: string, profileData: UpdateProfileRequest): SpeakerProfile
+  + getProfile(speakerId: string): SpeakerProfile | null
+  + uploadMaterial(speakerId: string, sessionId: string, fileData: FileData): PresentationMaterial
+  + organizeMaterials(speakerId: string, sessionId: string): PresentationMaterial[]
+  + deleteMaterial(materialId: string, speakerId: string): void
+}
+
+class MaterialValidationService {
+  - materialRepository: PresentationMaterialRepository
+  + validateFileType(fileType: string): boolean
+  + validateFileSize(fileSize: number): boolean
+  + validateMaterialOwnership(materialId: string, speakerId: string): boolean
+  + validateSessionAssignment(speakerId: string, sessionId: string): boolean
+}
+
+' Application Handlers
+class CreateProfileHandler {
+  - speakerProfileService: SpeakerProfileService
+  + handle(request: CreateProfileRequest): CreateProfileResponse
+}
+
+class UpdateProfileHandler {
+  - speakerProfileService: SpeakerProfileService
+  + handle(request: UpdateProfileRequest): UpdateProfileResponse
+}
+
+class UploadMaterialHandler {
+  - speakerProfileService: SpeakerProfileService
+  - materialValidationService: MaterialValidationService
+  + handle(request: UploadMaterialRequest): UploadMaterialResponse
+}
+
+' Infrastructure Layer
+interface SpeakerRepository {
+  + findById(id: string): SpeakerProfile | null
+  + findByUserId(userId: string): SpeakerProfile | null
+  + save(profile: SpeakerProfile): void
+  + update(profile: SpeakerProfile): void
+  + delete(id: string): void
+}
+
+interface PresentationMaterialRepository {
+  + findById(id: string): PresentationMaterial | null
+  + findBySpeakerId(speakerId: string): PresentationMaterial[]
+  + findBySessionId(sessionId: string): PresentationMaterial[]
+  + save(material: PresentationMaterial): void
+  + update(material: PresentationMaterial): void
+  + delete(id: string): void
+}
+
+interface FileStorageService {
+  + uploadFile(fileData: FileData): string
+  + deleteFile(filePath: string): void
+  + getFileUrl(filePath: string): string
+}
+
+' DTOs
+class CreateProfileRequest {
+  + userId: string
+  + bio: string
+  + expertise: string[]
+  + socialLinks: string[]
+  + profileImage: string
+}
+
+class UpdateProfileRequest {
+  + speakerId: string
+  + bio: string
+  + expertise: string[]
+  + socialLinks: string[]
+  + profileImage: string
+}
+
+class UploadMaterialRequest {
+  + speakerId: string
+  + sessionId: string
+  + fileName: string
+  + fileData: FileData
+  + isPublic: boolean
+}
+
+class CreateProfileResponse {
+  + profileId: string
+  + profile: SpeakerProfile
+  + message: string
+}
+
+class UpdateProfileResponse {
+  + profileId: string
+  + profile: SpeakerProfile
+  + message: string
+}
+
+class UploadMaterialResponse {
+  + materialId: string
+  + material: PresentationMaterial
+  + message: string
+}
+
+class FileData {
+  - fileName: string
+  - fileSize: number
+  - fileType: string
+  - content: Buffer
+  + getFileName(): string
+  + getFileSize(): number
+  + getFileType(): string
+  + getContent(): Buffer
+}
+
+class ProfileData {
+  - bio: string
+  - expertise: string[]
+  - socialLinks: string[]
+  - profileImage: string
+  + getBio(): string
+  + getExpertise(): string[]
+  + getSocialLinks(): string[]
+  + getProfileImage(): string
+}
+
+' Relationships
+SpeakerProfile ||--|| User : "belongs to"
+SpeakerProfile ||--o{ PresentationMaterial : "uploads"
+User ||--|| Role : "has"
+
+SpeakerProfileService --> SpeakerRepository : "uses"
+SpeakerProfileService --> PresentationMaterialRepository : "uses"
+SpeakerProfileService --> FileStorageService : "uses"
+
+MaterialValidationService --> PresentationMaterialRepository : "uses"
+
+CreateProfileHandler --> SpeakerProfileService : "uses"
+UpdateProfileHandler --> SpeakerProfileService : "uses"
+UploadMaterialHandler --> SpeakerProfileService : "uses"
+UploadMaterialHandler --> MaterialValidationService : "uses"
+
+CreateProfileHandler --> CreateProfileRequest : "handles"
+UpdateProfileHandler --> UpdateProfileRequest : "handles"
+UploadMaterialHandler --> UploadMaterialRequest : "handles"
+
+SpeakerProfileService --> SpeakerProfile : "creates"
+SpeakerProfileService --> PresentationMaterial : "creates"
+SpeakerProfileService --> CreateProfileResponse : "returns"
+SpeakerProfileService --> UpdateProfileResponse : "returns"
+SpeakerProfileService --> UploadMaterialResponse : "returns"
+
+@enduml

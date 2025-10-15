@@ -1,0 +1,257 @@
+@startuml ScheduleManagementUseCase
+title Schedule Management Use Case - Class Diagram
+
+' Core Domain Entities
+class SessionSlot {
+  - id: string
+  - eventId: string
+  - trackId: string
+  - title: string
+  - description: string
+  - startTime: Date
+  - endTime: Date
+  - room: string
+  - capacity: number
+  - speakerId: string
+  - createdAt: Date
+  + getId(): string
+  + getEventId(): string
+  + getTrackId(): string
+  + getTitle(): string
+  + getStartTime(): Date
+  + getEndTime(): Date
+  + getRoom(): string
+  + getCapacity(): number
+  + getSpeakerId(): string
+  + updateTiming(startTime: Date, endTime: Date): void
+  + updateRoom(room: string): void
+  + updateCapacity(capacity: number): void
+  + assignSpeaker(speakerId: string): void
+  + removeSpeaker(): void
+  + hasSpeaker(): boolean
+}
+
+class Event {
+  - id: string
+  - title: string
+  - startDate: Date
+  - endDate: Date
+  - status: EventStatus
+  - isMultiTrack: boolean
+  + getId(): string
+  + getTitle(): string
+  + getStartDate(): Date
+  + getEndDate(): Date
+  + getStatus(): EventStatus
+  + isMultiTrack(): boolean
+  + isActive(): boolean
+}
+
+class EventTrack {
+  - id: string
+  - eventId: string
+  - name: string
+  - startTime: Date
+  - endTime: Date
+  + getId(): string
+  + getEventId(): string
+  + getName(): string
+  + getStartTime(): Date
+  + getEndTime(): Date
+  + updateTiming(startTime: Date, endTime: Date): void
+}
+
+class SpeakerProfile {
+  - id: string
+  - userId: string
+  - name: string
+  - availability: DateRange[]
+  + getId(): string
+  + getUserId(): string
+  + getName(): string
+  + getAvailability(): DateRange[]
+  + isAvailable(dateRange: DateRange): boolean
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+' Domain Services
+class ScheduleManagementService {
+  - sessionRepository: SessionRepository
+  - eventRepository: EventRepository
+  - trackRepository: EventTrackRepository
+  - speakerRepository: SpeakerRepository
+  + createSession(eventId: string, sessionData: CreateSessionRequest): SessionSlot
+  + updateSessionTiming(sessionId: string, startTime: Date, endTime: Date): SessionSlot
+  + manageSchedule(eventId: string, scheduleData: ScheduleData): SessionSlot[]
+  + validateAvailability(speakerId: string, timeSlot: DateRange): boolean
+  + checkRoomAvailability(room: string, timeSlot: DateRange): boolean
+  + getEventSchedule(eventId: string): SessionSlot[]
+  + getTrackSchedule(trackId: string): SessionSlot[]
+}
+
+class ScheduleValidationService {
+  - sessionRepository: SessionRepository
+  - speakerRepository: SpeakerRepository
+  + validateNoOverlappingSessions(room: string, timeSlot: DateRange): boolean
+  + validateSpeakerAvailability(speakerId: string, timeSlot: DateRange): boolean
+  + validateSessionTiming(startTime: Date, endTime: Date, eventDuration: DateRange): boolean
+  + validateRoomCapacity(room: string, capacity: number): boolean
+}
+
+' Application Handlers
+class CreateSessionHandler {
+  - scheduleManagementService: ScheduleManagementService
+  - scheduleValidationService: ScheduleValidationService
+  + handle(request: CreateSessionRequest): CreateSessionResponse
+}
+
+class UpdateSessionHandler {
+  - scheduleManagementService: ScheduleManagementService
+  - scheduleValidationService: ScheduleValidationService
+  + handle(request: UpdateSessionRequest): UpdateSessionResponse
+}
+
+class ManageScheduleHandler {
+  - scheduleManagementService: ScheduleManagementService
+  + handle(request: ManageScheduleRequest): ManageScheduleResponse
+}
+
+' Infrastructure Layer
+interface SessionRepository {
+  + findById(id: string): SessionSlot | null
+  + findByEventId(eventId: string): SessionSlot[]
+  + findByTrackId(trackId: string): SessionSlot[]
+  + findBySpeakerId(speakerId: string): SessionSlot[]
+  + findByRoomAndTimeRange(room: string, startTime: Date, endTime: Date): SessionSlot[]
+  + save(session: SessionSlot): void
+  + update(session: SessionSlot): void
+  + delete(id: string): void
+}
+
+interface EventRepository {
+  + findById(id: string): Event | null
+  + save(event: Event): void
+}
+
+interface EventTrackRepository {
+  + findById(id: string): EventTrack | null
+  + findByEventId(eventId: string): EventTrack[]
+  + save(track: EventTrack): void
+}
+
+interface SpeakerRepository {
+  + findById(id: string): SpeakerProfile | null
+  + findByUserId(userId: string): SpeakerProfile | null
+  + save(speaker: SpeakerProfile): void
+}
+
+' DTOs
+class CreateSessionRequest {
+  + eventId: string
+  + trackId: string
+  + title: string
+  + description: string
+  + startTime: Date
+  + endTime: Date
+  + room: string
+  + capacity: number
+  + speakerId: string
+}
+
+class UpdateSessionRequest {
+  + sessionId: string
+  + title: string
+  + description: string
+  + startTime: Date
+  + endTime: Date
+  + room: string
+  + capacity: number
+  + speakerId: string
+}
+
+class ManageScheduleRequest {
+  + eventId: string
+  + trackId: string
+  + sessions: SessionData[]
+}
+
+class CreateSessionResponse {
+  + sessionId: string
+  + session: SessionSlot
+  + message: string
+}
+
+class UpdateSessionResponse {
+  + sessionId: string
+  + session: SessionSlot
+  + message: string
+}
+
+class ManageScheduleResponse {
+  + eventId: string
+  + trackId: string
+  + sessions: SessionSlot[]
+  + message: string
+}
+
+class SessionData {
+  + title: string
+  + description: string
+  + startTime: Date
+  + endTime: Date
+  + room: string
+  + capacity: number
+  + speakerId: string
+}
+
+class ScheduleData {
+  + eventId: string
+  + trackId: string
+  + sessions: SessionData[]
+  + createdAt: Date
+}
+
+class DateRange {
+  - startDate: Date
+  - endDate: Date
+  + getStartDate(): Date
+  + getEndDate(): Date
+  + overlaps(other: DateRange): boolean
+  + contains(date: Date): boolean
+}
+
+' Relationships
+SessionSlot ||--|| Event : "belongs to"
+SessionSlot ||--o| EventTrack : "belongs to"
+SessionSlot ||--o| SpeakerProfile : "assigned to"
+
+ScheduleManagementService --> SessionRepository : "uses"
+ScheduleManagementService --> EventRepository : "uses"
+ScheduleManagementService --> EventTrackRepository : "uses"
+ScheduleManagementService --> SpeakerRepository : "uses"
+
+ScheduleValidationService --> SessionRepository : "uses"
+ScheduleValidationService --> SpeakerRepository : "uses"
+
+CreateSessionHandler --> ScheduleManagementService : "uses"
+CreateSessionHandler --> ScheduleValidationService : "uses"
+UpdateSessionHandler --> ScheduleManagementService : "uses"
+UpdateSessionHandler --> ScheduleValidationService : "uses"
+ManageScheduleHandler --> ScheduleManagementService : "uses"
+
+CreateSessionHandler --> CreateSessionRequest : "handles"
+UpdateSessionHandler --> UpdateSessionRequest : "handles"
+ManageScheduleHandler --> ManageScheduleRequest : "handles"
+
+ScheduleManagementService --> SessionSlot : "creates"
+ScheduleManagementService --> CreateSessionResponse : "returns"
+ScheduleManagementService --> UpdateSessionResponse : "returns"
+ScheduleManagementService --> ManageScheduleResponse : "returns"
+
+@enduml
