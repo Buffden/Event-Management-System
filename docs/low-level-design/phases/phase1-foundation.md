@@ -205,11 +205,4 @@ DELETE /events/:id - Delete event (Admin only)
 
 ---
 
-## Next Phase Preview
-
-**Phase 2** will build on this foundation to implement:
-- Event discovery and registration
-- Payment processing
-- Digital ticketing system
-
 The authentication system from Phase 1 will be used throughout the application, and the event management system will be extended with registration capabilities.
