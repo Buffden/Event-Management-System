@@ -1,0 +1,186 @@
+@startuml EventManagementUseCase
+title Event Management Use Case - Class Diagram
+
+' Core Domain Entities
+class Event {
+  - id: string
+  - title: string
+  - description: string
+  - startDate: Date
+  - endDate: Date
+  - venueId: string
+  - capacity: number
+  - status: EventStatus
+  - createdBy: string
+  - createdAt: Date
+  - updatedAt: Date
+  + getId(): string
+  + getTitle(): string
+  + getCapacity(): number
+  + getStatus(): EventStatus
+  + isPublished(): boolean
+  + canBeEdited(): boolean
+  + updateDetails(details: EventDetails): void
+  + publish(): void
+  + archive(): void
+}
+
+class Venue {
+  - id: string
+  - name: string
+  - address: string
+  - city: string
+  - state: string
+  - zipCode: string
+  - coordinates: Coordinates
+  - capacity: number
+  - amenities: string[]
+  + getId(): string
+  + getName(): string
+  + getCapacity(): number
+  + getAddress(): string
+  + isAvailable(dateRange: DateRange): boolean
+}
+
+class SessionSlot {
+  - id: string
+  - eventId: string
+  - title: string
+  - description: string
+  - startTime: Date
+  - endTime: Date
+  - room: string
+  - capacity: number
+  - speakerId: string
+  - createdAt: Date
+  + getId(): string
+  + getEventId(): string
+  + getTitle(): string
+  + getTimeRange(): TimeRange
+  + getCapacity(): number
+  + assignSpeaker(speakerId: string): void
+  + updateDetails(details: SessionDetails): void
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  CANCELLED
+}
+
+' Domain Services
+class EventService {
+  - eventRepository: EventRepository
+  - venueRepository: VenueRepository
+  - sessionRepository: SessionRepository
+  - eventValidator: EventValidator
+  - clock: Clock
+  + createEvent(eventData: CreateEventRequest): Event
+  + updateEvent(eventId: string, eventData: UpdateEventRequest): Event
+  + publishEvent(eventId: string): void
+  + archiveEvent(eventId: string): void
+  + deleteEvent(eventId: string): void
+  + getEventById(eventId: string): Event
+  + listEvents(filters: EventFilters): Event[]
+  + manageCapacity(eventId: string, newCapacity: number): void
+}
+
+class SessionService {
+  - sessionRepository: SessionRepository
+  - eventRepository: EventRepository
+  - speakerRepository: SpeakerRepository
+  + createSession(eventId: string, sessionData: CreateSessionRequest): SessionSlot
+  + updateSession(sessionId: string, sessionData: UpdateSessionRequest): SessionSlot
+  + assignSpeaker(sessionId: string, speakerId: string): void
+  + deleteSession(sessionId: string): void
+  + getSessionsByEvent(eventId: string): SessionSlot[]
+}
+
+' Application Handlers
+class CreateEventHandler {
+  - eventService: EventService
+  + handle(request: CreateEventRequest): CreateEventResponse
+}
+
+class UpdateEventHandler {
+  - eventService: EventService
+  + handle(request: UpdateEventRequest): UpdateEventResponse
+}
+
+class PublishEventHandler {
+  - eventService: EventService
+  + handle(request: PublishEventRequest): PublishEventResponse
+}
+
+' Infrastructure Layer
+interface EventRepository {
+  + findById(id: string): Event | null
+  + findByStatus(status: EventStatus): Event[]
+  + findByDateRange(startDate: Date, endDate: Date): Event[]
+  + save(event: Event): void
+  + delete(id: string): void
+}
+
+interface VenueRepository {
+  + findById(id: string): Venue | null
+  + findByName(name: string): Venue[]
+  + findByCity(city: string): Venue[]
+  + save(venue: Venue): void
+  + delete(id: string): void
+}
+
+interface SessionRepository {
+  + findById(id: string): SessionSlot | null
+  + findByEventId(eventId: string): SessionSlot[]
+  + findBySpeakerId(speakerId: string): SessionSlot[]
+  + save(session: SessionSlot): void
+  + delete(id: string): void
+}
+
+' DTOs
+class CreateEventRequest {
+  + title: string
+  + description: string
+  + startDate: Date
+  + endDate: Date
+  + venueId: string
+  + capacity: number
+}
+
+class UpdateEventRequest {
+  + title?: string
+  + description?: string
+  + startDate?: Date
+  + endDate?: Date
+  + capacity?: number
+}
+
+class EventFilters {
+  + status?: EventStatus
+  + startDate?: Date
+  + endDate?: Date
+  + venueId?: string
+  + createdBy?: string
+}
+
+' Relationships
+Event ||--o{ SessionSlot : "contains"
+Event ||--|| Venue : "held at"
+Event ||--|| EventStatus : "has"
+
+EventService --> EventRepository : "uses"
+EventService --> VenueRepository : "uses"
+EventService --> SessionRepository : "uses"
+
+SessionService --> SessionRepository : "uses"
+SessionService --> EventRepository : "uses"
+
+CreateEventHandler --> EventService : "uses"
+UpdateEventHandler --> EventService : "uses"
+PublishEventHandler --> EventService : "uses"
+
+CreateEventHandler --> CreateEventRequest : "handles"
+UpdateEventHandler --> UpdateEventRequest : "handles"
+
+@enduml
