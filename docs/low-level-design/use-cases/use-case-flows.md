@@ -97,11 +97,16 @@ Ticket contains event details, QR code, user information →
 System tracks ticket status → Updates status when scanned
 ```
 
-**Core Entities Identified:**
-- Ticket (id, bookingId, qrCodeData, status, issuedAt, scannedAt, expiresAt, userId, eventId, createdAt, updatedAt)
-- QRCode (id, ticketId, data, format, expiresAt, scanCount, createdAt, updatedAt)
+**Core Entities Identified (Normalized Schema):**
+- Ticket (id, bookingId, status, issuedAt, scannedAt, expiresAt, createdAt, updatedAt)
+- QRCode (id, ticketId, data, format, scanCount, createdAt, updatedAt)
 - AttendanceRecord (id, ticketId, scanTime, scanLocation, scannedBy, scanMethod, createdAt)
 - Booking (id, userId, eventId, status, createdAt, updatedAt)
+
+**Data Access Patterns:**
+- Access userId/eventId via: `ticket.booking.userId`, `ticket.booking.eventId`
+- Access QR code data via: `ticket.qrCode.data`
+- Access expiration via: `ticket.expiresAt` (single source of truth)
 
 **Core Methods:**
 - generateTicket(bookingId)
