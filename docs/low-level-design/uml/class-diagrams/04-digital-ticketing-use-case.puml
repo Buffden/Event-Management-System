@@ -15,7 +15,7 @@ class Ticket {
   + getBookingId(): string
   + getStatus(): TicketStatus
   + isScanned(): boolean
-  + isExpired(): boolean
+  + isExpired(): boolean // Own expiration logic
   + markAsScanned(): void
   + updateStatus(newStatus: TicketStatus): void
   + getUserId(): string // Access via booking.userId
@@ -35,7 +35,6 @@ class QRCode {
   + getData(): string
   + getFormat(): string
   + getScanCount(): number
-  + isExpired(): boolean // Access via ticket.expiresAt
   + incrementScanCount(): void
   + generateData(ticketId: string): string
 }
