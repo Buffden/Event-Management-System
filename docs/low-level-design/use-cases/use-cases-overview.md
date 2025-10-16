@@ -61,9 +61,11 @@ Following the LLD approach, these use cases are prioritized for implementation b
 **Business Rules**:
 - One ticket per booking
 - Unique QR code per ticket
-- Tickets expire 2 hours after event ends
+- Tickets expire 2 hours after event ends (single source of truth)
 - QR codes are non-reusable after scanning
 - Email delivery confirmation required
+- Normalized schema: Access userId/eventId via booking relationship
+- Single expiration source: Only ticket.expiresAt (no QR code expiration)
 
 ---
 

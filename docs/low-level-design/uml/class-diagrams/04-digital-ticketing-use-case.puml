@@ -5,23 +5,22 @@ title Digital Ticketing System Use Case - Class Diagram
 class Ticket {
   - id: string
   - bookingId: string
-  - qrCodeData: string
   - status: TicketStatus
   - issuedAt: Date
   - scannedAt: Date
   - expiresAt: Date
-  - userId: string
-  - eventId: string
   - createdAt: Date
   - updatedAt: Date
   + getId(): string
   + getBookingId(): string
-  + getQRCodeData(): string
   + getStatus(): TicketStatus
   + isScanned(): boolean
-  + isExpired(): boolean
+  + isExpired(): boolean // Own expiration logic
   + markAsScanned(): void
   + updateStatus(newStatus: TicketStatus): void
+  + getUserId(): string // Access via booking.userId
+  + getEventId(): string // Access via booking.eventId
+  + getQRCodeData(): string // Access via qrCode.data
 }
 
 class QRCode {
@@ -29,7 +28,6 @@ class QRCode {
   - ticketId: string
   - data: string
   - format: string
-  - expiresAt: Date
   - scanCount: number
   - createdAt: Date
   - updatedAt: Date
@@ -37,7 +35,6 @@ class QRCode {
   + getData(): string
   + getFormat(): string
   + getScanCount(): number
-  + isExpired(): boolean
   + incrementScanCount(): void
   + generateData(ticketId: string): string
 }
