@@ -83,19 +83,22 @@ Admin can view attendance reports → Admin can generate attendance analytics
 ```
 
 ### **Core Entities**
-- **Ticket**: `id, registrationId, qrCode, status, issuedAt, eventId, userId`
-- **QRCode**: `id, ticketId, data, createdAt, scanCount`
+- **Ticket**: `id, bookingId, qrCodeData, status, issuedAt, scannedAt, expiresAt, userId, eventId, createdAt, updatedAt`
+- **QRCode**: `id, ticketId, data, format, expiresAt, scanCount, createdAt, updatedAt`
 - **TicketStatus**: `ISSUED, SCANNED, REVOKED, EXPIRED`
-- **AttendanceRecord**: `id, ticketId, scanTime, scanLocation, scannedBy`
+- **ScanMethod**: `QR_CODE, MANUAL`
+- **AttendanceRecord**: `id, ticketId, scanTime, scanLocation, scannedBy, scanMethod, createdAt`
 
 ### **Core Methods**
-- `generateTicket(registrationId)` - Create ticket with QR code
+- `generateTicket(bookingId)` - Create ticket with QR code
 - `sendTicketEmail(ticketId)` - Email ticket to user
-- `validateTicket(qrCode)` - Check ticket validity
-- `scanTicket(qrCode, location)` - Record attendance
+- `validateTicket(qrCodeData)` - Check ticket validity
+- `scanTicket(qrCodeData, location, scannedBy)` - Record attendance
 - `revokeTicket(ticketId)` - Invalidate ticket
 - `generateAttendanceReport(eventId)` - Create attendance analytics
 - `resendTicket(ticketId)` - Resend ticket to user
+- `updateTicketStatus(ticketId, newStatus)` - Update ticket status
+- `isTicketExpired(ticketId)` - Check if ticket is expired
 
 ### **Design Patterns to Use**
 - **Factory**: TicketFactory for ticket generation
@@ -151,25 +154,49 @@ CREATE TABLE waitlist (
 
 -- Tickets table
 CREATE TABLE tickets (
-    id UUID PRIMARY KEY,
-    registration_id UUID REFERENCES registrations(id),
-    qr_code VARCHAR(500) UNIQUE NOT NULL,
-    status VARCHAR(50) DEFAULT 'ISSUED',
+    id TEXT PRIMARY KEY,
+    booking_id TEXT UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
+    qr_code_data TEXT UNIQUE NOT NULL,
+    status "TicketStatus" DEFAULT 'ISSUED',
     issued_at TIMESTAMP DEFAULT NOW(),
-    event_id UUID REFERENCES events(id),
-    user_id UUID REFERENCES users(id),
-    created_at TIMESTAMP DEFAULT NOW()
+    scanned_at TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    user_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- QR Codes table
+CREATE TABLE qr_codes (
+    id TEXT PRIMARY KEY,
+    ticket_id TEXT UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
+    data TEXT UNIQUE NOT NULL,
+    format TEXT DEFAULT 'PNG',
+    expires_at TIMESTAMP NOT NULL,
+    scan_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Attendance records table
 CREATE TABLE attendance_records (
-    id UUID PRIMARY KEY,
-    ticket_id UUID REFERENCES tickets(id),
+    id TEXT PRIMARY KEY,
+    ticket_id TEXT REFERENCES tickets(id) ON DELETE CASCADE,
     scan_time TIMESTAMP DEFAULT NOW(),
-    scan_location VARCHAR(255),
-    scanned_by UUID REFERENCES users(id),
+    scan_location TEXT,
+    scanned_by TEXT,
+    scan_method "ScanMethod" DEFAULT 'QR_CODE',
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Create indexes for performance
+CREATE INDEX tickets_qr_code_data_idx ON tickets(qr_code_data);
+CREATE INDEX tickets_user_id_idx ON tickets(user_id);
+CREATE INDEX tickets_event_id_idx ON tickets(event_id);
+CREATE INDEX qr_codes_data_idx ON qr_codes(data);
+CREATE INDEX attendance_records_ticket_id_idx ON attendance_records(ticket_id);
+CREATE INDEX attendance_records_scan_time_idx ON attendance_records(scan_time);
 
 -- Event categories table
 CREATE TABLE event_categories (

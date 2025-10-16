@@ -4,56 +4,90 @@ title Digital Ticketing System Use Case - Class Diagram
 ' Core Domain Entities
 class Ticket {
   - id: string
-  - registrationId: string
-  - qrCode: string
+  - bookingId: string
+  - qrCodeData: string
   - status: TicketStatus
   - issuedAt: Date
   - scannedAt: Date
+  - expiresAt: Date
+  - userId: string
+  - eventId: string
+  - createdAt: Date
+  - updatedAt: Date
   + getId(): string
-  + getRegistrationId(): string
-  + getQRCode(): string
+  + getBookingId(): string
+  + getQRCodeData(): string
   + getStatus(): TicketStatus
   + isScanned(): boolean
+  + isExpired(): boolean
   + markAsScanned(): void
   + updateStatus(newStatus: TicketStatus): void
 }
 
 class QRCode {
   - id: string
+  - ticketId: string
   - data: string
   - format: string
   - expiresAt: Date
+  - scanCount: number
   - createdAt: Date
+  - updatedAt: Date
   + getId(): string
   + getData(): string
   + getFormat(): string
+  + getScanCount(): number
   + isExpired(): boolean
+  + incrementScanCount(): void
   + generateData(ticketId: string): string
 }
 
-class Registration {
+class Booking {
   - id: string
   - userId: string
   - eventId: string
-  - status: RegistrationStatus
+  - status: BookingStatus
   - createdAt: Date
+  - updatedAt: Date
   + getId(): string
   + getUserId(): string
   + getEventId(): string
-  + getStatus(): RegistrationStatus
+  + getStatus(): BookingStatus
   + isConfirmed(): boolean
   + confirm(): void
+}
+
+class AttendanceRecord {
+  - id: string
+  - ticketId: string
+  - scanTime: Date
+  - scanLocation: string
+  - scannedBy: string
+  - scanMethod: ScanMethod
+  - createdAt: Date
+  + getId(): string
+  + getTicketId(): string
+  + getScanTime(): Date
+  + getScanLocation(): string
+  + getScannedBy(): string
+  + getScanMethod(): ScanMethod
 }
 
 enum TicketStatus {
   ISSUED
   SCANNED
   REVOKED
+  EXPIRED
 }
 
-enum RegistrationStatus {
+enum BookingStatus {
   CONFIRMED
   CANCELLED
+}
+
+enum ScanMethod {
+  QR_CODE
+  MANUAL
 }
 
 ' Domain Services
@@ -143,14 +177,15 @@ class TicketValidationResult {
 class Attendance {
   - id: string
   - ticketId: string
-  - eventId: string
-  - staffId: string
   - scanTime: Date
+  - scanLocation: string
+  - scannedBy: string
   - scanMethod: ScanMethod
   + getId(): string
   + getTicketId(): string
-  + getEventId(): string
   + getScanTime(): Date
+  + getScanLocation(): string
+  + getScannedBy(): string
 }
 
 enum ScanMethod {
@@ -159,10 +194,12 @@ enum ScanMethod {
 }
 
 ' Relationships
-Ticket ||--|| Registration : "belongs to"
+Ticket ||--|| Booking : "belongs to"
 Ticket ||--|| QRCode : "has"
+Ticket ||--o{ AttendanceRecord : "has many"
 Ticket ||--|| TicketStatus : "has"
-Registration ||--|| RegistrationStatus : "has"
+Booking ||--|| BookingStatus : "has"
+AttendanceRecord ||--|| ScanMethod : "has"
 
 TicketIssuanceService --> TicketRepository : "uses"
 TicketIssuanceService --> QRCodeGenerator : "uses"

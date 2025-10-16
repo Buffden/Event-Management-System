@@ -98,15 +98,18 @@ System tracks ticket status → Updates status when scanned
 ```
 
 **Core Entities Identified:**
-- Ticket (id, registrationId, qrCode, status, issuedAt, scannedAt)
-- QRCode (id, data, format, expiresAt)
-- Registration (id, userId, eventId, status)
+- Ticket (id, bookingId, qrCodeData, status, issuedAt, scannedAt, expiresAt, userId, eventId, createdAt, updatedAt)
+- QRCode (id, ticketId, data, format, expiresAt, scanCount, createdAt, updatedAt)
+- AttendanceRecord (id, ticketId, scanTime, scanLocation, scannedBy, scanMethod, createdAt)
+- Booking (id, userId, eventId, status, createdAt, updatedAt)
 
 **Core Methods:**
-- generateTicket(registrationId)
-- sendTicket(ticketId, userEmail)
+- generateTicket(bookingId)
+- sendTicketEmail(ticketId)
 - updateTicketStatus(ticketId, newStatus)
 - validateQRCode(qrCodeData)
+- scanTicket(qrCodeData, location, scannedBy)
+- generateAttendanceReport(eventId)
 
 ---
 
