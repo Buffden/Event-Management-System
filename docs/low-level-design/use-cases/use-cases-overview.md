@@ -55,13 +55,15 @@ Following the LLD approach, these use cases are prioritized for implementation b
 ### 4. Digital Ticketing System
 **Description**: Automated ticket generation with QR codes and email delivery.
 
-**Core Entities**: Ticket, Registration, QRCode
-**Core Methods**: generateTicket(), sendTicket(), updateTicketStatus()
-**Design Patterns**: Factory (TicketFactory), Template Method (TicketGeneration)
+**Core Entities**: Ticket, Booking, QRCode, AttendanceRecord
+**Core Methods**: generateTicket(), sendTicketEmail(), updateTicketStatus(), validateTicket(), scanTicket()
+**Design Patterns**: Factory (TicketFactory), Template Method (TicketTemplate), Strategy (QRCodeGeneration)
 **Business Rules**:
+- One ticket per booking
 - Unique QR code per ticket
-- Ticket generated after registration confirmation
-- Email delivery confirmation
+- Tickets expire 2 hours after event ends
+- QR codes are non-reusable after scanning
+- Email delivery confirmation required
 
 ---
 
