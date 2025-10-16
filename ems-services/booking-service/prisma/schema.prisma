@@ -66,15 +66,10 @@ model Booking {
 model Ticket {
   id             String       @id @default(cuid())
   bookingId      String       @unique // One ticket per booking
-  qrCodeData     String       @unique // Unique QR code data
   status         TicketStatus @default(ISSUED)
   issuedAt       DateTime     @default(now())
   scannedAt      DateTime?
   expiresAt      DateTime     // Tickets expire 2 hours after event ends
-  
-  // Foreign keys
-  userId         String       // User who owns the ticket
-  eventId        String       // Event this ticket is for
   
   // Relationships
   booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
@@ -84,9 +79,6 @@ model Ticket {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  @@index([qrCodeData]) // Index for fast QR code lookups
-  @@index([userId]) // Index for user ticket queries
-  @@index([eventId]) // Index for event ticket queries
   @@map("tickets")
 }
 
@@ -96,7 +88,6 @@ model QRCode {
   ticketId    String   @unique
   data        String   @unique // The actual QR code data
   format      String   @default("PNG") // Image format
-  expiresAt   DateTime // QR code expiration
   scanCount   Int      @default(0) // Track how many times it's been scanned
   
   // Relationships
