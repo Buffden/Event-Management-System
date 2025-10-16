@@ -83,11 +83,13 @@ Admin can view attendance reports → Admin can generate attendance analytics
 ```
 
 ### **Core Entities**
-- **Ticket**: `id, bookingId, qrCodeData, status, issuedAt, scannedAt, expiresAt, userId, eventId, createdAt, updatedAt`
-- **QRCode**: `id, ticketId, data, format, expiresAt, scanCount, createdAt, updatedAt`
+- **Ticket**: `id, bookingId, status, issuedAt, scannedAt, expiresAt, createdAt, updatedAt`
+- **QRCode**: `id, ticketId, data, format, scanCount, createdAt, updatedAt`
 - **TicketStatus**: `ISSUED, SCANNED, REVOKED, EXPIRED`
 - **ScanMethod**: `QR_CODE, MANUAL`
 - **AttendanceRecord**: `id, ticketId, scanTime, scanLocation, scannedBy, scanMethod, createdAt`
+
+**Note**: Access `userId` and `eventId` via `booking.userId` and `booking.eventId`. Access QR code data via `qrCode.data`. Single source of truth for expiration via `ticket.expiresAt`.
 
 ### **Core Methods**
 - `generateTicket(bookingId)` - Create ticket with QR code
@@ -152,28 +154,24 @@ CREATE TABLE waitlist (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Tickets table
+-- Tickets table (normalized - no redundant fields)
 CREATE TABLE tickets (
     id TEXT PRIMARY KEY,
     booking_id TEXT UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
-    qr_code_data TEXT UNIQUE NOT NULL,
     status "TicketStatus" DEFAULT 'ISSUED',
     issued_at TIMESTAMP DEFAULT NOW(),
     scanned_at TIMESTAMP,
     expires_at TIMESTAMP NOT NULL,
-    user_id TEXT NOT NULL,
-    event_id TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- QR Codes table
+-- QR Codes table (normalized - no expiresAt, access via ticket.expires_at)
 CREATE TABLE qr_codes (
     id TEXT PRIMARY KEY,
     ticket_id TEXT UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
     data TEXT UNIQUE NOT NULL,
     format TEXT DEFAULT 'PNG',
-    expires_at TIMESTAMP NOT NULL,
     scan_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -190,10 +188,7 @@ CREATE TABLE attendance_records (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Create indexes for performance
-CREATE INDEX tickets_qr_code_data_idx ON tickets(qr_code_data);
-CREATE INDEX tickets_user_id_idx ON tickets(user_id);
-CREATE INDEX tickets_event_id_idx ON tickets(event_id);
+-- Create indexes for performance (only essential indexes)
 CREATE INDEX qr_codes_data_idx ON qr_codes(data);
 CREATE INDEX attendance_records_ticket_id_idx ON attendance_records(ticket_id);
 CREATE INDEX attendance_records_scan_time_idx ON attendance_records(scan_time);
