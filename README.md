@@ -75,7 +75,7 @@ The EMS follows a **3-tier architecture** for scalability and maintainability:
 - **auth-service**: NestJS microservice with health endpoints
 - **user-service**: NestJS microservice with health endpoints
 - **event-service**: NestJS microservice with health endpoints
-- **registration-service**: NestJS microservice with health endpoints
+- **booking-service**: NestJS microservice with health endpoints
 - **ticketing-service**: NestJS microservice with health endpoints
 - **speaker-service**: NestJS microservice with health endpoints
 - **feedback-service**: NestJS microservice with health endpoints
@@ -102,7 +102,7 @@ docker-compose up -d
     ├── auth-service/
     ├── user-service/
     ├── event-service/
-    ├── registration-service/
+    ├── booking-service/
     ├── ticketing-service/
     ├── speaker-service/
     ├── feedback-service/
