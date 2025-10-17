@@ -39,6 +39,22 @@ export interface LoginRequest {
 }
 
 /**
+ * Defines the shape of the request body for forgot password.
+ */
+export interface ForgotPasswordRequest {
+    email: string;
+}
+
+export interface ResetPasswordRequest {
+    token: string;
+    newPassword: string;
+}
+
+export interface VerifyResetTokenRequest {
+    token: string;
+}
+
+/**
  * Defines the shape of a successful authentication response.
  * It includes the access token and the full user object.
  */
@@ -56,33 +72,20 @@ export interface VerifyTokenResponse {
 
 export enum MESSAGE_TYPE {
     ACCOUNT_VERIFICATION_EMAIL = 'ACCOUNT_VERIFICATION_EMAIL',
+    PASSWORD_RESET_EMAIL = 'PASSWORD_RESET_EMAIL',
 }
 
-export interface EmailPayload {
-    to: string;
-    subject: string;
-    body: string;
-}
-
-export interface Notification {
+// Unified Email Notification Interface
+export interface EmailNotification {
     type: MESSAGE_TYPE;
-    message: unknown;
-}
-
-// Account Verification Email
-export interface AccountVerificationEmail extends Notification {
-    type: MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL;
     message: {
         to: string;
         subject: string;
-        verificationLink: string;
+        body: string;
+        link: string;
         userName: string;
+        expiryTime: string;
     };
-}
-
-export interface EmailNotification extends Notification {
-    type: MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL;
-    message: EmailPayload; // Use the new type here
 }
 
 export type AnyNotification = EmailNotification;

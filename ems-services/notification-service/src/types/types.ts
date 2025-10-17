@@ -24,14 +24,16 @@ export interface Notification {
     message: unknown;
 }
 
-// Account Verification Email
-export interface AccountVerificationEmail extends Notification {
-    type: MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL;
+// Unified Email Notification Interface
+export interface EmailNotification {
+    type: MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL | MESSAGE_TYPE.PASSWORD_RESET_EMAIL;
     message: {
         to: string;
         subject: string;
-        verificationLink: string;
+        body: string;
+        link: string;
         userName: string;
+        expiryTime: string;
     };
 }
 
@@ -151,18 +153,6 @@ export interface EventReminderNotification extends Notification {
     };
 }
 
-// Password Reset Email
-export interface PasswordResetEmail extends Notification {
-    type: MESSAGE_TYPE.PASSWORD_RESET_EMAIL;
-    message: {
-        to: string;
-        subject: string;
-        body: string;
-        resetLink: string;
-        userName: string;
-        expiryTime: string;
-    };
-}
 
 // Welcome Email
 export interface WelcomeEmail extends Notification {
@@ -179,7 +169,7 @@ export interface WelcomeEmail extends Notification {
 
 // Union type for all notification types
 export type AnyNotification =
-    | AccountVerificationEmail
+    | EmailNotification
     | EventApprovedNotification
     | EventCancelledNotification
     | EventUpdatedNotification
@@ -187,5 +177,4 @@ export type AnyNotification =
     | BookingConfirmedNotification
     | BookingCancelledNotification
     | EventReminderNotification
-    | PasswordResetEmail
     | WelcomeEmail;

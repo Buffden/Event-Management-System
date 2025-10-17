@@ -4,7 +4,7 @@ import {AuthService} from '../services/auth.service';
 import {contextMiddleware} from '../middleware/context.middleware';
 import {authMiddleware} from '../middleware/auth.middleware';
 import {Request, Response} from 'express';
-import {UpdateProfileRequest} from "../types/types";
+import {UpdateProfileRequest, ResetPasswordRequest, VerifyResetTokenRequest} from "../types/types";
 import {contextService} from '../services/context.service';
 import {logger} from '../utils/logger';
 
@@ -48,6 +48,56 @@ export function registerRoutes(app: Express, authService: AuthService) {
             });
         } catch (error: any) {
             logger.error("/login - Login failed", error, {email: req.body.email});
+            res.status(400).json({error: error.message});
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/forgot-password
+     * @desc    Sends a password reset email to the user.
+     */
+    app.post('/forgot-password', async (req: Request, res: Response) => {
+        try {
+            logger.info("/forgot-password - Password reset request", {email: req.body.email});
+            await authService.forgotPassword(req.body);
+            logger.info("/forgot-password - Password reset email sent successfully", {email: req.body.email});
+            res.json({
+                message: 'If an account with that email exists, a password reset link has been sent.'
+            });
+        } catch (error: any) {
+            logger.error("/forgot-password - Password reset failed", error, {email: req.body.email});
+            res.status(400).json({error: error.message});
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/verify-reset-token
+     * @desc    Verifies a password reset token.
+     */
+    app.post('/verify-reset-token', async (req: Request, res: Response) => {
+        try {
+            logger.info("/verify-reset-token - Token verification request", {token: req.body.token});
+            const result = await authService.verifyResetToken(req.body);
+            logger.info("/verify-reset-token - Token verification completed", {valid: result.valid});
+            res.json(result);
+        } catch (error: any) {
+            logger.error("/verify-reset-token - Token verification failed", error, {token: req.body.token});
+            res.status(400).json({error: error.message});
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/reset-password
+     * @desc    Resets the user's password using a valid reset token.
+     */
+    app.post('/reset-password', async (req: Request, res: Response) => {
+        try {
+            logger.info("/reset-password - Password reset request", {token: req.body.token});
+            const result = await authService.resetPassword(req.body);
+            logger.info("/reset-password - Password reset completed successfully");
+            res.json(result);
+        } catch (error: any) {
+            logger.error("/reset-password - Password reset failed", error, {token: req.body.token});
             res.status(400).json({error: error.message});
         }
     });

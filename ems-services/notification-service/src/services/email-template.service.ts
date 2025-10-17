@@ -1,5 +1,5 @@
 import {
-    AccountVerificationEmail,
+    EmailNotification,
     EventApprovedNotification,
     EventCancelledNotification,
     EventUpdatedNotification,
@@ -7,7 +7,6 @@ import {
     BookingConfirmedNotification,
     BookingCancelledNotification,
     EventReminderNotification,
-    PasswordResetEmail,
     WelcomeEmail,
     MESSAGE_TYPE
 } from '../types/types';
@@ -27,7 +26,8 @@ export class EmailTemplateService {
     generateEmailContent(notification: any): { subject: string; body: string } {
         switch (notification.type) {
             case MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL:
-                return this.generateAccountVerificationEmail(notification);
+            case MESSAGE_TYPE.PASSWORD_RESET_EMAIL:
+                return this.generateEmailNotification(notification);
             case MESSAGE_TYPE.EVENT_APPROVED_NOTIFICATION:
                 return this.generateEventApprovedEmail(notification);
             case MESSAGE_TYPE.EVENT_CANCELLED_NOTIFICATION:
@@ -42,8 +42,6 @@ export class EmailTemplateService {
                 return this.generateBookingCancelledEmail(notification);
             case MESSAGE_TYPE.EVENT_REMINDER_NOTIFICATION:
                 return this.generateEventReminderEmail(notification);
-            case MESSAGE_TYPE.PASSWORD_RESET_EMAIL:
-                return this.generatePasswordResetEmail(notification);
             case MESSAGE_TYPE.WELCOME_EMAIL:
                 return this.generateWelcomeEmail(notification);
             default:
@@ -51,39 +49,63 @@ export class EmailTemplateService {
         }
     }
 
-    private generateAccountVerificationEmail(notification: AccountVerificationEmail) {
-        const { message } = notification;
+    private generateEmailNotification(notification: EmailNotification) {
+        const { message, type } = notification;
+
+        const isPasswordReset = type === MESSAGE_TYPE.PASSWORD_RESET_EMAIL;
+        const title = isPasswordReset ? '🔐 Password Reset' : 'Welcome to ' + this.appName + '!';
+        const headerColor = isPasswordReset ? 'linear-gradient(135deg, #607D8B 0%, #455A64 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        const buttonColor = isPasswordReset ? '#607D8B' : '#667eea';
+        const buttonText = isPasswordReset ? 'Reset My Password' : 'Verify My Email';
+
+        const mainText = isPasswordReset
+            ? `We received a request to reset your password for your ${this.appName} account.`
+            : `Thank you for registering with ${this.appName}. To complete your registration and start using our platform, please verify your email address by clicking the button below:`;
+
+        const secondaryText = isPasswordReset
+            ? `Click the button below to reset your password:`
+            : '';
+
+        const expiryText = isPasswordReset
+            ? `This password reset link will expire at ${message.expiryTime} for security reasons.`
+            : `This verification link will expire at ${message.expiryTime} for security reasons.`;
+
+        const footerText = isPasswordReset
+            ? `If you didn't request a password reset, please ignore this email. Your password will remain unchanged.`
+            : `If you didn't create an account with us, please ignore this email.`;
+
         return {
-            subject: `${this.appName} - Verify Your Email Address`,
+            subject: message.subject,
             body: `
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <meta charset="utf-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Email Verification</title>
+                    <title>${isPasswordReset ? 'Password Reset' : 'Email Verification'}</title>
                     <style>
                         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
                         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                        .header { background: ${headerColor}; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
                         .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+                        .button { display: inline-block; background: ${buttonColor}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
                         .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
                     </style>
                 </head>
                 <body>
                     <div class="container">
                         <div class="header">
-                            <h1>Welcome to ${this.appName}!</h1>
+                            <h1>${title}</h1>
                         </div>
                         <div class="content">
                             <h2>Hello ${message.userName}!</h2>
-                            <p>Thank you for registering with ${this.appName}. To complete your registration and start using our platform, please verify your email address by clicking the button below:</p>
+                            <p>${mainText}</p>
+                            ${secondaryText ? `<p>${secondaryText}</p>` : ''}
                             <div style="text-align: center;">
-                                <a href="${message.verificationLink}" class="button">Verify My Email</a>
+                                <a href="${message.link}" class="button">${buttonText}</a>
                             </div>
-                            <p><strong>Important:</strong> This verification link will expire in 1 hour for security reasons.</p>
-                            <p>If you didn't create an account with us, please ignore this email.</p>
+                            <p><strong>Important:</strong> ${expiryText}</p>
+                            <p>${footerText}</p>
                         </div>
                         <div class="footer">
                             <p>© 2024 ${this.appName}. All rights reserved.</p>
@@ -468,52 +490,6 @@ export class EmailTemplateService {
         };
     }
 
-    private generatePasswordResetEmail(notification: PasswordResetEmail) {
-        const { message } = notification;
-        return {
-            subject: `${this.appName} - Password Reset Request`,
-            body: `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="utf-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Password Reset</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                        .header { background: linear-gradient(135deg, #607D8B 0%, #455A64 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                        .button { display: inline-block; background: #607D8B; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-                        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="header">
-                            <h1>🔐 Password Reset</h1>
-                        </div>
-                        <div class="content">
-                            <h2>Hello ${message.userName},</h2>
-                            <p>We received a request to reset your password for your ${this.appName} account.</p>
-                            <p>Click the button below to reset your password:</p>
-
-                            <div style="text-align: center;">
-                                <a href="${message.resetLink}" class="button">Reset My Password</a>
-                            </div>
-
-                            <p><strong>Important:</strong> This password reset link will expire at ${message.expiryTime} for security reasons.</p>
-                            <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
-                        </div>
-                        <div class="footer">
-                            <p>© 2024 ${this.appName}. All rights reserved.</p>
-                        </div>
-                    </div>
-                </body>
-                </html>
-            `
-        };
-    }
 
     private generateWelcomeEmail(notification: WelcomeEmail) {
         const { message } = notification;

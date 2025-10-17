@@ -11,6 +11,28 @@ export interface RegisterRequest {
     role?: string;
 }
 
+export interface ForgotPasswordRequest {
+    email: string;
+}
+
+export interface ResetPasswordRequest {
+    token: string;
+    newPassword: string;
+}
+
+export interface VerifyResetTokenRequest {
+    token: string;
+}
+
+export interface VerifyResetTokenResponse {
+    valid: boolean;
+    message: string;
+}
+
+export interface ResetPasswordResponse {
+    message: string;
+}
+
 export interface AuthResponse {
     success?: boolean;
     message?: string;
