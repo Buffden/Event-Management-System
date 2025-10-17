@@ -1,0 +1,213 @@
+@startuml MultiTrackSessionManagementUseCase
+title Multi-Track Session Management Use Case - Class Diagram
+
+' Core Domain Entities
+class EventTrack {
+  - id: string
+  - eventId: string
+  - name: string
+  - description: string
+  - capacity: number
+  - startTime: Date
+  - endTime: Date
+  - createdAt: Date
+  + getId(): string
+  + getEventId(): string
+  + getName(): string
+  + getDescription(): string
+  + getCapacity(): number
+  + getStartTime(): Date
+  + getEndTime(): Date
+  + updateCapacity(newCapacity: number): void
+  + updateTiming(startTime: Date, endTime: Date): void
+}
+
+class SessionSlot {
+  - id: string
+  - eventId: string
+  - trackId: string
+  - title: string
+  - description: string
+  - startTime: Date
+  - endTime: Date
+  - room: string
+  - capacity: number
+  - speakerId: string
+  + getId(): string
+  + getEventId(): string
+  + getTrackId(): string
+  + getTitle(): string
+  + getStartTime(): Date
+  + getEndTime(): Date
+  + getRoom(): string
+  + getCapacity(): number
+  + assignToTrack(trackId: string): void
+  + updateTiming(startTime: Date, endTime: Date): void
+}
+
+class TrackAssignment {
+  - id: string
+  - trackId: string
+  - sessionId: string
+  - assignedAt: Date
+  + getId(): string
+  + getTrackId(): string
+  + getSessionId(): string
+  + getAssignedAt(): Date
+}
+
+class Event {
+  - id: string
+  - title: string
+  - startDate: Date
+  - endDate: Date
+  - isMultiTrack: boolean
+  + getId(): string
+  + getTitle(): string
+  + getStartDate(): Date
+  + getEndDate(): Date
+  + isMultiTrack(): boolean
+  + enableMultiTrack(): void
+}
+
+' Domain Services
+class MultiTrackManagementService {
+  - trackRepository: EventTrackRepository
+  - sessionRepository: SessionRepository
+  - trackAssignmentRepository: TrackAssignmentRepository
+  - eventRepository: EventRepository
+  + createTrack(eventId: string, trackData: CreateTrackRequest): EventTrack
+  + assignSessionToTrack(sessionId: string, trackId: string): TrackAssignment
+  + manageTrackSchedule(eventId: string, trackId: string): SessionSlot[]
+  + updateTrackCapacity(trackId: string, newCapacity: number): void
+  + removeTrack(trackId: string): void
+  + getTracksByEvent(eventId: string): EventTrack[]
+  + getSessionsByTrack(trackId: string): SessionSlot[]
+}
+
+class TrackValidationService {
+  - trackRepository: EventTrackRepository
+  - sessionRepository: SessionRepository
+  + validateTrackTiming(trackId: string, startTime: Date, endTime: Date): boolean
+  + validateSessionAssignment(sessionId: string, trackId: string): boolean
+  + validateNoOverlappingSessions(trackId: string, sessionId: string): boolean
+  + validateTrackCapacity(trackId: string, totalSessions: number): boolean
+}
+
+' Application Handlers
+class CreateTrackHandler {
+  - multiTrackManagementService: MultiTrackManagementService
+  - trackValidationService: TrackValidationService
+  + handle(request: CreateTrackRequest): CreateTrackResponse
+}
+
+class AssignSessionToTrackHandler {
+  - multiTrackManagementService: MultiTrackManagementService
+  - trackValidationService: TrackValidationService
+  + handle(request: AssignSessionToTrackRequest): AssignSessionToTrackResponse
+}
+
+class ManageTrackScheduleHandler {
+  - multiTrackManagementService: MultiTrackManagementService
+  + handle(request: ManageTrackScheduleRequest): ManageTrackScheduleResponse
+}
+
+' Infrastructure Layer
+interface EventTrackRepository {
+  + findById(id: string): EventTrack | null
+  + findByEventId(eventId: string): EventTrack[]
+  + save(track: EventTrack): void
+  + update(track: EventTrack): void
+  + delete(id: string): void
+}
+
+interface SessionRepository {
+  + findById(id: string): SessionSlot | null
+  + findByEventId(eventId: string): SessionSlot[]
+  + findByTrackId(trackId: string): SessionSlot[]
+  + save(session: SessionSlot): void
+  + update(session: SessionSlot): void
+}
+
+interface TrackAssignmentRepository {
+  + findById(id: string): TrackAssignment | null
+  + findByTrackId(trackId: string): TrackAssignment[]
+  + findBySessionId(sessionId: string): TrackAssignment | null
+  + save(assignment: TrackAssignment): void
+  + delete(id: string): void
+}
+
+interface EventRepository {
+  + findById(id: string): Event | null
+  + update(event: Event): void
+}
+
+' DTOs
+class CreateTrackRequest {
+  + eventId: string
+  + name: string
+  + description: string
+  + capacity: number
+  + startTime: Date
+  + endTime: Date
+}
+
+class AssignSessionToTrackRequest {
+  + sessionId: string
+  + trackId: string
+}
+
+class ManageTrackScheduleRequest {
+  + eventId: string
+  + trackId: string
+}
+
+class CreateTrackResponse {
+  + trackId: string
+  + track: EventTrack
+  + message: string
+}
+
+class AssignSessionToTrackResponse {
+  + assignmentId: string
+  + trackAssignment: TrackAssignment
+  + message: string
+}
+
+class ManageTrackScheduleResponse {
+  + trackId: string
+  + sessions: SessionSlot[]
+  + message: string
+}
+
+' Relationships
+EventTrack ||--|| Event : "belongs to"
+EventTrack ||--o{ TrackAssignment : "has"
+SessionSlot ||--|| Event : "belongs to"
+SessionSlot ||--o| TrackAssignment : "assigned to"
+
+MultiTrackManagementService --> EventTrackRepository : "uses"
+MultiTrackManagementService --> SessionRepository : "uses"
+MultiTrackManagementService --> TrackAssignmentRepository : "uses"
+MultiTrackManagementService --> EventRepository : "uses"
+
+TrackValidationService --> EventTrackRepository : "uses"
+TrackValidationService --> SessionRepository : "uses"
+
+CreateTrackHandler --> MultiTrackManagementService : "uses"
+CreateTrackHandler --> TrackValidationService : "uses"
+AssignSessionToTrackHandler --> MultiTrackManagementService : "uses"
+AssignSessionToTrackHandler --> TrackValidationService : "uses"
+ManageTrackScheduleHandler --> MultiTrackManagementService : "uses"
+
+CreateTrackHandler --> CreateTrackRequest : "handles"
+AssignSessionToTrackHandler --> AssignSessionToTrackRequest : "handles"
+ManageTrackScheduleHandler --> ManageTrackScheduleRequest : "handles"
+
+MultiTrackManagementService --> EventTrack : "creates"
+MultiTrackManagementService --> TrackAssignment : "creates"
+MultiTrackManagementService --> CreateTrackResponse : "returns"
+MultiTrackManagementService --> AssignSessionToTrackResponse : "returns"
+MultiTrackManagementService --> ManageTrackScheduleResponse : "returns"
+
+@enduml

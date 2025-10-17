@@ -1,0 +1,161 @@
+@startuml AuthenticationUseCase
+title Authentication Use Case - Class Diagram
+
+' Core Domain Entities
+class User {
+  - id: string
+  - email: string
+  - passwordHash: string
+  - role: Role
+  - isActive: boolean
+  - createdAt: Date
+  + getId(): string
+  + getEmail(): string
+  + getRole(): Role
+  + isActive(): boolean
+  + setPasswordHash(hash: string): void
+  + verifyPassword(password: string): boolean
+}
+
+class AuthSession {
+  - id: string
+  - userId: string
+  - refreshToken: string
+  - expiresAt: Date
+  - userAgent: string
+  - ipAddress: string
+  - createdAt: Date
+  + getId(): string
+  + getUserId(): string
+  + getRefreshToken(): string
+  + isExpired(): boolean
+  + rotate(newToken: string, newExpiry: Date): void
+  + revoke(): void
+}
+
+class UserProfile {
+  - id: string
+  - userId: string
+  - firstName: string
+  - lastName: string
+  - bio: string
+  - phone: string
+  - avatar: string
+  - updatedAt: Date
+  + getId(): string
+  + getUserId(): string
+  + getFullName(): string
+  + updateProfile(data: ProfileData): void
+}
+
+enum Role {
+  ADMIN
+  SPEAKER
+  ATTENDEE
+}
+
+' Domain Services
+class AuthService {
+  - userRepository: UserRepository
+  - sessionRepository: AuthSessionRepository
+  - passwordHasher: PasswordHasher
+  - jwtSigner: JwtSigner
+  - clock: Clock
+  + register(email: string, password: string, role: Role): AuthResult
+  + login(email: string, password: string): AuthResult
+  + logout(sessionId: string): void
+  + refreshToken(refreshToken: string): AuthResult
+  + validateToken(token: string): TokenValidation
+  + me(userId: string): UserInfo
+}
+
+' Application Handlers (Use Case Controllers)
+class RegisterHandler {
+  - authService: AuthService
+  + handle(request: RegisterRequest): RegisterResponse
+}
+
+class LoginHandler {
+  - authService: AuthService
+  + handle(request: LoginRequest): LoginResponse
+}
+
+class LogoutHandler {
+  - authService: AuthService
+  + handle(request: LogoutRequest): LogoutResponse
+}
+
+' Infrastructure Layer (Repositories & Adapters)
+interface UserRepository {
+  + findById(id: string): User | null
+  + findByEmail(email: string): User | null
+  + save(user: User): void
+  + delete(id: string): void
+}
+
+interface AuthSessionRepository {
+  + findById(id: string): AuthSession | null
+  + findByRefreshToken(token: string): AuthSession | null
+  + findByUserId(userId: string): AuthSession[]
+  + save(session: AuthSession): void
+  + delete(id: string): void
+  + deleteExpired(): void
+}
+
+interface PasswordHasher {
+  + hash(password: string): string
+  + verify(password: string, hash: string): boolean
+}
+
+interface JwtSigner {
+  + sign(payload: object): string
+  + verify(token: string): object | null
+}
+
+' DTOs (Data Transfer Objects)
+class RegisterRequest {
+  + email: string
+  + password: string
+  + role: Role
+}
+
+class LoginRequest {
+  + email: string
+  + password: string
+}
+
+class AuthResult {
+  + accessToken: string
+  + refreshToken: string
+  + user: UserInfo
+  + expiresIn: number
+}
+
+class UserInfo {
+  + id: string
+  + email: string
+  + role: Role
+  + profile: UserProfile
+}
+
+' Relationships
+User ||--o{ AuthSession : "has"
+User ||--o| UserProfile : "has"
+User ||--|| Role : "has"
+
+AuthService --> UserRepository : "uses"
+AuthService --> AuthSessionRepository : "uses"
+AuthService --> PasswordHasher : "uses"
+AuthService --> JwtSigner : "uses"
+
+RegisterHandler --> AuthService : "uses"
+LoginHandler --> AuthService : "uses"
+LogoutHandler --> AuthService : "uses"
+
+RegisterHandler --> RegisterRequest : "handles"
+LoginHandler --> LoginRequest : "handles"
+
+AuthService --> AuthResult : "returns"
+AuthService --> UserInfo : "returns"
+
+@enduml

@@ -15,6 +15,20 @@ enum BookingStatus {
   CANCELLED
 }
 
+// Enum to represent the state of a ticket.
+enum TicketStatus {
+  ISSUED
+  SCANNED
+  REVOKED
+  EXPIRED
+}
+
+// Enum to represent the scan method used.
+enum ScanMethod {
+  QR_CODE
+  MANUAL
+}
+
 // A simplified, local representation of an event.
 // This data is populated by consuming 'event.published' messages
 // and is used for quick capacity checks.
@@ -37,10 +51,70 @@ model Booking {
 
   status    BookingStatus @default(CONFIRMED)
   event     Event         @relation(fields: [eventId], references: [id])
+  
+  // Ticket relationship
+  ticket    Ticket?
 
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
   @@unique([userId, eventId]) // A user can only book an event once
   @@map("bookings")
+}
+
+// Represents a digital ticket generated for a booking.
+model Ticket {
+  id             String       @id @default(cuid())
+  bookingId      String       @unique // One ticket per booking
+  status         TicketStatus @default(ISSUED)
+  issuedAt       DateTime     @default(now())
+  scannedAt      DateTime?
+  expiresAt      DateTime     // Tickets expire 2 hours after event ends
+  
+  // Relationships
+  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  qrCode         QRCode?
+  attendanceRecords AttendanceRecord[]
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("tickets")
+}
+
+// Represents QR code data and metadata.
+model QRCode {
+  id          String   @id @default(cuid())
+  ticketId    String   @unique
+  data        String   @unique // The actual QR code data
+  format      String   @default("PNG") // Image format
+  scanCount   Int      @default(0) // Track how many times it's been scanned
+  
+  // Relationships
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([data]) // Index for fast QR code data lookups
+  @@map("qr_codes")
+}
+
+// Represents attendance records when tickets are scanned.
+model AttendanceRecord {
+  id           String     @id @default(cuid())
+  ticketId     String
+  scanTime     DateTime   @default(now())
+  scanLocation String?    // Where the ticket was scanned
+  scannedBy    String?    // Staff member who scanned the ticket
+  scanMethod   ScanMethod @default(QR_CODE)
+  
+  // Relationships
+  ticket       Ticket     @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime   @default(now())
+
+  @@index([ticketId]) // Index for ticket attendance queries
+  @@index([scanTime]) // Index for time-based queries
+  @@map("attendance_records")
 }

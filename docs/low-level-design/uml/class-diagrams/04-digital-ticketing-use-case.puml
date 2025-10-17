@@ -1,0 +1,220 @@
+@startuml DigitalTicketingUseCase
+title Digital Ticketing System Use Case - Class Diagram
+
+' Core Domain Entities
+class Ticket {
+  - id: string
+  - bookingId: string
+  - status: TicketStatus
+  - issuedAt: Date
+  - scannedAt: Date
+  - expiresAt: Date
+  - createdAt: Date
+  - updatedAt: Date
+  + getId(): string
+  + getBookingId(): string
+  + getStatus(): TicketStatus
+  + isScanned(): boolean
+  + isExpired(): boolean // Own expiration logic
+  + markAsScanned(): void
+  + updateStatus(newStatus: TicketStatus): void
+  + getUserId(): string // Access via booking.userId
+  + getEventId(): string // Access via booking.eventId
+  + getQRCodeData(): string // Access via qrCode.data
+}
+
+class QRCode {
+  - id: string
+  - ticketId: string
+  - data: string
+  - format: string
+  - scanCount: number
+  - createdAt: Date
+  - updatedAt: Date
+  + getId(): string
+  + getData(): string
+  + getFormat(): string
+  + getScanCount(): number
+  + incrementScanCount(): void
+  + generateData(ticketId: string): string
+}
+
+class Booking {
+  - id: string
+  - userId: string
+  - eventId: string
+  - status: BookingStatus
+  - createdAt: Date
+  - updatedAt: Date
+  + getId(): string
+  + getUserId(): string
+  + getEventId(): string
+  + getStatus(): BookingStatus
+  + isConfirmed(): boolean
+  + confirm(): void
+}
+
+class AttendanceRecord {
+  - id: string
+  - ticketId: string
+  - scanTime: Date
+  - scanLocation: string
+  - scannedBy: string
+  - scanMethod: ScanMethod
+  - createdAt: Date
+  + getId(): string
+  + getTicketId(): string
+  + getScanTime(): Date
+  + getScanLocation(): string
+  + getScannedBy(): string
+  + getScanMethod(): ScanMethod
+}
+
+enum TicketStatus {
+  ISSUED
+  SCANNED
+  REVOKED
+  EXPIRED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum ScanMethod {
+  QR_CODE
+  MANUAL
+}
+
+' Domain Services
+class TicketIssuanceService {
+  - ticketRepository: TicketRepository
+  - qrCodeGenerator: QRCodeGenerator
+  - emailService: EmailService
+  - clock: Clock
+  + generateTicket(registrationId: string): Ticket
+  + sendTicket(ticketId: string, userEmail: string): void
+  + updateTicketStatus(ticketId: string, newStatus: TicketStatus): void
+  + validateQRCode(qrCodeData: string): boolean
+}
+
+class TicketValidationService {
+  - ticketRepository: TicketRepository
+  - attendanceRepository: AttendanceRepository
+  - clock: Clock
+  + validateTicket(qrCodeData: string): TicketValidationResult
+  + recordAttendance(ticketId: string, staffId: string): Attendance
+  + checkTicketStatus(ticketId: string): TicketStatus
+}
+
+' Application Handlers
+class GenerateTicketHandler {
+  - ticketIssuanceService: TicketIssuanceService
+  + handle(request: GenerateTicketRequest): GenerateTicketResponse
+}
+
+class SendTicketHandler {
+  - ticketIssuanceService: TicketIssuanceService
+  + handle(request: SendTicketRequest): SendTicketResponse
+}
+
+class ValidateTicketHandler {
+  - ticketValidationService: TicketValidationService
+  + handle(request: ValidateTicketRequest): ValidateTicketResponse
+}
+
+' Infrastructure Layer
+interface TicketRepository {
+  + findById(id: string): Ticket | null
+  + findByRegistrationId(registrationId: string): Ticket | null
+  + findByQRCode(qrCode: string): Ticket | null
+  + save(ticket: Ticket): void
+  + update(ticket: Ticket): void
+}
+
+interface QRCodeGenerator {
+  + generate(ticketId: string): QRCode
+  + validate(qrCodeData: string): boolean
+}
+
+interface EmailService {
+  + sendTicketEmail(ticketId: string, userEmail: string, ticketData: TicketData): void
+  + sendTicketReminder(ticketId: string, userEmail: string): void
+}
+
+interface AttendanceRepository {
+  + save(attendance: Attendance): void
+  + findByTicketId(ticketId: string): Attendance[]
+}
+
+' DTOs
+class GenerateTicketRequest {
+  + registrationId: string
+  + userId: string
+  + eventId: string
+}
+
+class SendTicketRequest {
+  + ticketId: string
+  + userEmail: string
+}
+
+class ValidateTicketRequest {
+  + qrCodeData: string
+  + staffId: string
+}
+
+class TicketValidationResult {
+  + isValid: boolean
+  + ticket: Ticket | null
+  + message: string
+}
+
+class Attendance {
+  - id: string
+  - ticketId: string
+  - scanTime: Date
+  - scanLocation: string
+  - scannedBy: string
+  - scanMethod: ScanMethod
+  + getId(): string
+  + getTicketId(): string
+  + getScanTime(): Date
+  + getScanLocation(): string
+  + getScannedBy(): string
+}
+
+enum ScanMethod {
+  QR_CODE
+  MANUAL
+}
+
+' Relationships
+Ticket ||--|| Booking : "belongs to"
+Ticket ||--|| QRCode : "has"
+Ticket ||--o{ AttendanceRecord : "has many"
+Ticket ||--|| TicketStatus : "has"
+Booking ||--|| BookingStatus : "has"
+AttendanceRecord ||--|| ScanMethod : "has"
+
+TicketIssuanceService --> TicketRepository : "uses"
+TicketIssuanceService --> QRCodeGenerator : "uses"
+TicketIssuanceService --> EmailService : "uses"
+
+TicketValidationService --> TicketRepository : "uses"
+TicketValidationService --> AttendanceRepository : "uses"
+
+GenerateTicketHandler --> TicketIssuanceService : "uses"
+SendTicketHandler --> TicketIssuanceService : "uses"
+ValidateTicketHandler --> TicketValidationService : "uses"
+
+GenerateTicketHandler --> GenerateTicketRequest : "handles"
+SendTicketHandler --> SendTicketRequest : "handles"
+ValidateTicketHandler --> ValidateTicketRequest : "handles"
+
+TicketIssuanceService --> Ticket : "creates"
+TicketValidationService --> Attendance : "creates"
+TicketValidationService --> TicketValidationResult : "returns"
+
+@enduml

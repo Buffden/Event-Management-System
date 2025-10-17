@@ -1,0 +1,192 @@
+@startuml EventDiscoveryRegistrationUseCase
+title Event Discovery & Registration Use Case - Class Diagram
+
+' Core Domain Entities
+class Event {
+  - id: string
+  - title: string
+  - description: string
+  - startDate: Date
+  - endDate: Date
+  - venueId: string
+  - capacity: number
+  - currentRegistrations: number
+  - status: EventStatus
+  + getId(): string
+  + getTitle(): string
+  + getCapacity(): number
+  + getCurrentRegistrations(): number
+  + isAvailable(): boolean
+  + hasCapacity(): boolean
+  + getAvailableSpots(): number
+}
+
+class Registration {
+  - id: string
+  - userId: string
+  - eventId: string
+  - status: RegistrationStatus
+  - createdAt: Date
+  - confirmedAt: Date
+  - waitlistPosition: number
+  + getId(): string
+  + getUserId(): string
+  + getEventId(): string
+  + getStatus(): RegistrationStatus
+  + isConfirmed(): boolean
+  + isWaitlisted(): boolean
+  + confirm(): void
+  + moveToWaitlist(position: number): void
+  + cancel(): void
+}
+
+class User {
+  - id: string
+  - email: string
+  - role: Role
+  - isActive: boolean
+  + getId(): string
+  + getEmail(): string
+  + getRole(): Role
+  + canRegister(): boolean
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  WAITLISTED
+  CANCELLED
+}
+
+' Domain Services
+class EventDiscoveryService {
+  - eventRepository: EventRepository
+  - searchStrategy: SearchStrategy
+  + browseEvents(filters: EventFilters): Event[]
+  + searchEvents(query: string, filters: EventFilters): Event[]
+  + getEventDetails(eventId: string): EventDetails
+  + getAvailableEvents(): Event[]
+  + getUpcomingEvents(): Event[]
+}
+
+class RegistrationService {
+  - registrationRepository: RegistrationRepository
+  - eventRepository: EventRepository
+  - userRepository: UserRepository
+  - capacityManager: CapacityManager
+  - waitlistManager: WaitlistManager
+  + registerForEvent(userId: string, eventId: string): RegistrationResult
+  + cancelRegistration(registrationId: string): void
+  + getRegistrationStatus(registrationId: string): RegistrationStatus
+  + getUserRegistrations(userId: string): Registration[]
+  + handleWaitlistPromotion(eventId: string): void
+}
+
+class CapacityManager {
+  - eventRepository: EventRepository
+  - registrationRepository: RegistrationRepository
+  + checkCapacity(eventId: string): CapacityStatus
+  + getAvailableSpots(eventId: string): number
+  + isAtCapacity(eventId: string): boolean
+  + updateCapacity(eventId: string, newCapacity: number): void
+}
+
+class WaitlistManager {
+  - registrationRepository: RegistrationRepository
+  + addToWaitlist(userId: string, eventId: string): Registration
+  + getWaitlistPosition(registrationId: string): number
+  + promoteFromWaitlist(eventId: string): Registration[]
+  + getWaitlistForEvent(eventId: string): Registration[]
+}
+
+' Application Handlers
+class BrowseEventsHandler {
+  - eventDiscoveryService: EventDiscoveryService
+  + handle(request: BrowseEventsRequest): BrowseEventsResponse
+}
+
+class RegisterForEventHandler {
+  - registrationService: RegistrationService
+  + handle(request: RegisterForEventRequest): RegisterForEventResponse
+}
+
+class CancelRegistrationHandler {
+  - registrationService: RegistrationService
+  + handle(request: CancelRegistrationRequest): CancelRegistrationResponse
+}
+
+' Infrastructure Layer
+interface EventRepository {
+  + findById(id: string): Event | null
+  + findByStatus(status: EventStatus): Event[]
+  + findByDateRange(startDate: Date, endDate: Date): Event[]
+  + searchByTitle(title: string): Event[]
+  + findAvailableEvents(): Event[]
+}
+
+interface RegistrationRepository {
+  + findById(id: string): Registration | null
+  + findByUserId(userId: string): Registration[]
+  + findByEventId(eventId: string): Registration[]
+  + findByUserAndEvent(userId: string, eventId: string): Registration | null
+  + countByEventId(eventId: string): number
+  + findWaitlistedByEventId(eventId: string): Registration[]
+  + save(registration: Registration): void
+  + delete(id: string): void
+}
+
+interface SearchStrategy {
+  + search(query: string, filters: EventFilters): Event[]
+}
+
+' DTOs
+class BrowseEventsRequest {
+  + filters: EventFilters
+  + page: number
+  + limit: number
+}
+
+class RegisterForEventRequest {
+  + userId: string
+  + eventId: string
+}
+
+class RegistrationResult {
+  + registration: Registration
+  + status: RegistrationStatus
+  + message: string
+  + waitlistPosition?: number
+}
+
+class EventFilters {
+  + startDate?: Date
+  + endDate?: Date
+  + venueId?: string
+  + status?: EventStatus
+  + hasCapacity?: boolean
+}
+
+' Relationships
+Event ||--o{ Registration : "has"
+User ||--o{ Registration : "creates"
+Registration ||--|| RegistrationStatus : "has"
+
+EventDiscoveryService --> EventRepository : "uses"
+EventDiscoveryService --> SearchStrategy : "uses"
+
+RegistrationService --> RegistrationRepository : "uses"
+RegistrationService --> EventRepository : "uses"
+RegistrationService --> UserRepository : "uses"
+RegistrationService --> CapacityManager : "uses"
+RegistrationService --> WaitlistManager : "uses"
+
+CapacityManager --> EventRepository : "uses"
+CapacityManager --> RegistrationRepository : "uses"
+
+WaitlistManager --> RegistrationRepository : "uses"
+
+BrowseEventsHandler --> EventDiscoveryService : "uses"
+RegisterForEventHandler --> RegistrationService : "uses"
+CancelRegistrationHandler --> RegistrationService : "uses"
+
+@enduml
