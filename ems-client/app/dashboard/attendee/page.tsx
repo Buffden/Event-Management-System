@@ -238,7 +238,7 @@ function AttendeeDashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <Button
                   className="h-20 flex flex-col items-center justify-center space-y-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
-                  onClick={() => router.push('/events')}
+                  onClick={() => router.push('/dashboard/attendee/events')}
                 >
                   <Search className="h-5 w-5" />
                   <span className="text-sm">Browse Events</span>

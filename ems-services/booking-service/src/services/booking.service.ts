@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { BookingStatus } from '../../generated/prisma';
 import { eventPublisherService } from './event-publisher.service';
+import { ticketService } from './ticket.service';
 
 class BookingService {
   /**
@@ -73,6 +74,19 @@ class BookingService {
         eventId: booking.eventId,
         createdAt: booking.createdAt.toISOString()
       });
+
+      // AC1: Automatically generate ticket when user registers for event
+      try {
+        await ticketService.generateTicket({
+          bookingId: booking.id,
+          userId: booking.userId,
+          eventId: booking.eventId
+        });
+        logger.info('Ticket generated successfully for booking', { bookingId: booking.id });
+      } catch (ticketError) {
+        logger.error('Failed to generate ticket for booking', ticketError as Error, { bookingId: booking.id });
+        // Don't fail the booking if ticket generation fails - ticket can be generated later
+      }
 
       return this.mapBookingToResponse(booking);
     } catch (error) {

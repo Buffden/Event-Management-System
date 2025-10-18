@@ -10,7 +10,7 @@ import {
 class EventConsumerService {
   private connection: ChannelModel | undefined;
   private channel: Channel | undefined;
-  private readonly exchangeName = 'event_events';
+  private readonly exchangeName = 'event.exchange';
   private readonly queueName = 'booking_service_event_queue';
   private readonly routingKeys = {
     eventPublished: 'event.published',

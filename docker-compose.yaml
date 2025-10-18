@@ -28,6 +28,7 @@ services:
       - ems-client
       - auth-service
       - event-service
+      - booking-service
       - notification-service
 
   #########################################
@@ -130,8 +131,6 @@ services:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=event_db
-    ports:
-      - "5432:5432"
     volumes:
       - event-service-data:/var/lib/postgresql/data
 
@@ -141,7 +140,7 @@ services:
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=event_db
+      - POSTGRES_DB=booking_db
     volumes:
       - booking-service-data:/var/lib/postgresql/data
 

@@ -5,9 +5,7 @@ import { logger } from './utils/logger';
 import { eventPublisherService } from './services/event-publisher.service';
 import { eventConsumerService } from './services/event-consumer.service';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
-import bookingRoutes from './routes/booking.routes';
-import adminRoutes from './routes/admin.routes';
-import speakerRoutes from './routes/speaker.routes';
+import routes from './routes';
 
 // Load environment variables based on NODE_ENV
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
@@ -29,10 +27,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Register routes
-app.use('/', bookingRoutes);
-app.use('/admin', adminRoutes);
-app.use('/', speakerRoutes);
+// Register routes (maintaining original paths)
+app.use('/', routes);
 
 // Error handling middleware
 app.use(notFoundHandler);

@@ -17,7 +17,8 @@ import {
   Plus,
   Eye,
   Edit,
-  Trash2
+  Trash2,
+  Ticket
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -278,6 +279,15 @@ function AdminDashboard() {
                 >
                   <BarChart3 className="h-5 w-5" />
                   <span className="text-sm">View Reports</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
+                  onClick={() => router.push('/dashboard/admin/tickets')}
+                >
+                  <Ticket className="h-5 w-5" />
+                  <span className="text-sm">Manage Tickets</span>
                 </Button>
               </div>
             </CardContent>

@@ -1,16 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { bookingService } from '../services/booking.service';
+import { ticketService } from '../services/ticket.service';
 import { logger } from '../utils/logger';
-import { authenticateToken, requireAdmin } from '../middleware/auth.middleware';
+import { requireAdmin } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
 import { validateQuery, validatePagination, validateBookingStatus, validateUUID } from '../middleware/validation.middleware';
 import { BookingFilters, AuthRequest } from '../types';
-import { BookingStatus } from '../../generated/prisma';
+import { BookingStatus, TicketStatus } from '../../generated/prisma';
+import { prisma } from '../database';
 
 const router = Router();
 
 // Apply authentication and admin role to all routes
-router.use(authenticateToken);
 router.use(requireAdmin);
 
 /**
@@ -214,5 +215,249 @@ router.delete('/admin/bookings/:id',
     });
   })
 );
+
+// ==================== TICKET MANAGEMENT ROUTES ====================
+
+/**
+ * Get attendance report for an event
+ * AC7: Admin can view attendance reports for events
+ */
+router.get('/events/:eventId/attendance', async (req: AuthRequest, res: Response) => {
+  try {
+    const { eventId } = req.params;
+
+    const attendance = await ticketService.getEventAttendance(eventId);
+
+    return res.json({
+      success: true,
+      data: attendance
+    });
+  } catch (error) {
+    logger.error('Get event attendance failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Get all tickets for an event
+ */
+router.get('/events/:eventId/tickets', async (req: AuthRequest, res: Response) => {
+  try {
+    const { eventId } = req.params;
+    const { page = '1', limit = '10', status } = req.query;
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: {
+      booking: {
+        eventId: string;
+      };
+      status?: TicketStatus;
+    } = {
+      booking: {
+        eventId: eventId
+      }
+    };
+
+    if (status) {
+      where.status = status as TicketStatus;
+    }
+
+    const [tickets, total] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        include: {
+          qrCode: true,
+          booking: {
+            include: {
+              event: true
+            }
+          },
+          attendanceRecords: true
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        skip,
+        take: limitNum
+      }),
+      prisma.ticket.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    return res.json({
+      success: true,
+      data: {
+        tickets: tickets.map(ticket => ({
+          id: ticket.id,
+          bookingId: ticket.bookingId,
+          userId: ticket.booking.userId,
+          status: ticket.status,
+          issuedAt: ticket.issuedAt.toISOString(),
+          expiresAt: ticket.expiresAt.toISOString(),
+          scannedAt: ticket.scannedAt?.toISOString(),
+          qrCode: ticket.qrCode ? {
+            id: ticket.qrCode.id,
+            data: ticket.qrCode.data,
+            format: ticket.qrCode.format,
+            scanCount: ticket.qrCode.scanCount
+          } : null,
+          attendanceRecords: ticket.attendanceRecords.map(record => ({
+            id: record.id,
+            scanTime: record.scanTime.toISOString(),
+            scanLocation: record.scanLocation,
+            scannedBy: record.scannedBy,
+            scanMethod: record.scanMethod
+          }))
+        })),
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages
+      }
+    });
+  } catch (error) {
+    logger.error('Get event tickets failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Get ticket statistics for an event
+ */
+router.get('/events/:eventId/stats', async (req: AuthRequest, res: Response) => {
+  try {
+    const { eventId } = req.params;
+
+    const [
+      totalTickets,
+      issuedTickets,
+      scannedTickets,
+      revokedTickets,
+      expiredTickets
+    ] = await Promise.all([
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          }
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          },
+          status: 'ISSUED'
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          },
+          status: 'SCANNED'
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          },
+          status: 'REVOKED'
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          },
+          status: 'EXPIRED'
+        }
+      })
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        totalTickets,
+        issuedTickets,
+        scannedTickets,
+        revokedTickets,
+        expiredTickets,
+        attendanceRate: totalTickets > 0 ? (scannedTickets / totalTickets) * 100 : 0
+      }
+    });
+  } catch (error) {
+    logger.error('Get ticket stats failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Revoke a ticket (Admin only)
+ */
+router.put('/:ticketId/revoke', async (req: AuthRequest, res: Response) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        booking: {
+          include: {
+            event: true
+          }
+        }
+      }
+    });
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ticket not found'
+      });
+    }
+
+    if (ticket.status === 'REVOKED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Ticket is already revoked'
+      });
+    }
+
+    await prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        status: 'REVOKED'
+      }
+    });
+
+    logger.info('Ticket revoked by admin', { ticketId, adminId: req.user?.userId });
+
+    return res.json({
+      success: true,
+      message: 'Ticket revoked successfully'
+    });
+  } catch (error) {
+    logger.error('Revoke ticket failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
 
 export default router;

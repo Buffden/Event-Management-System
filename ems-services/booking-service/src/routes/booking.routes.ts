@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { bookingService } from '../services/booking.service';
 import { logger } from '../utils/logger';
-import { authenticateToken, requireUser } from '../middleware/auth.middleware';
+import { requireUser } from '../middleware/auth.middleware';
 import { asyncHandler, errorHandler } from '../middleware/error.middleware';
 import { validateRequest, validateQuery, validatePagination, validateBookingStatus, validateUUID } from '../middleware/validation.middleware';
 import { CreateBookingRequest, BookingFilters, AuthRequest } from '../types';
@@ -10,7 +10,6 @@ import { BookingStatus } from '../../generated/prisma';
 const router = Router();
 
 // Apply authentication to all routes
-router.use(authenticateToken);
 router.use(requireUser);
 
 /**
