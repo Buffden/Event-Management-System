@@ -13,9 +13,9 @@ router.use(authenticateToken);
 router.use(requireSpeaker);
 
 /**
- * GET /:eventId/num-registered - Get number of registered users for a specific event
+ * GET /speaker/:eventId/num-registered - Get number of registered users for a specific event
  */
-router.get('/:eventId/num-registered',
+router.get('/speaker/:eventId/num-registered',
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { eventId } = req.params;
 
