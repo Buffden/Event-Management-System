@@ -6,7 +6,7 @@ import { requireAdmin } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
 import { validateQuery, validatePagination, validateBookingStatus, validateUUID } from '../middleware/validation.middleware';
 import { BookingFilters, AuthRequest } from '../types';
-import { BookingStatus } from '../../generated/prisma';
+import { BookingStatus, TicketStatus } from '../../generated/prisma';
 import { prisma } from '../database';
 
 const router = Router();
@@ -253,14 +253,19 @@ router.get('/events/:eventId/tickets', async (req: AuthRequest, res: Response) =
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
 
-    const where: any = {
+    const where: {
+      booking: {
+        eventId: string;
+      };
+      status?: TicketStatus;
+    } = {
       booking: {
         eventId: eventId
       }
     };
 
     if (status) {
-      where.status = status;
+      where.status = status as TicketStatus;
     }
 
     const [tickets, total] = await Promise.all([

@@ -3,8 +3,40 @@ import { logger } from '../utils/logger';
 import { TicketStatus } from '../../generated/prisma';
 import { eventPublisherService } from './event-publisher.service';
 import { TicketGenerationRequest, TicketResponse } from '../types/ticket.types';
+import axios from 'axios';
 
 class TicketService {
+  private readonly eventServiceUrl: string;
+
+  constructor() {
+    this.eventServiceUrl = process.env.GATEWAY_URL ? 
+      `${process.env.GATEWAY_URL}/api/event` : 'http://ems-gateway/api/event';
+  }
+
+  /**
+   * Get event details from event service
+   */
+  private async getEventDetails(eventId: string): Promise<{ bookingEndDate: string } | null> {
+    try {
+      const response = await axios.get(`${this.eventServiceUrl}/events/${eventId}`, {
+        timeout: 5000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.status === 200 && response.data.success) {
+        return {
+          bookingEndDate: response.data.data.bookingEndDate
+        };
+      }
+      return null;
+    } catch (error) {
+      logger.warn('Failed to get event details from event service', { eventId, error: (error as Error).message });
+      return null;
+    }
+  }
+
   /**
    * Generate a ticket for a confirmed booking
    * AC1: When a user registers for an event, a digital ticket is automatically generated
@@ -41,11 +73,30 @@ class TicketService {
         return this.mapTicketToResponse(existingTicket);
       }
 
-      // Calculate expiration time (2 hours after event ends)
-      // For now, we'll set it to 24 hours from now since we don't have event end time
-      // TODO: Get actual event end time from event service
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 24); // Temporary: 24 hours from now
+      // Calculate expiration time (2 hours after event ends) - AC5
+      let expiresAt: Date;
+      try {
+        const eventDetails = await this.getEventDetails(request.eventId);
+        if (eventDetails) {
+          // Set expiration to 2 hours after event ends
+          const eventEndDate = new Date(eventDetails.bookingEndDate);
+          expiresAt = new Date(eventEndDate.getTime() + (2 * 60 * 60 * 1000)); // 2 hours in milliseconds
+          logger.info('Ticket expiration set based on event end time', { 
+            eventEndDate: eventDetails.bookingEndDate, 
+            expiresAt: expiresAt.toISOString() 
+          });
+        } else {
+          // Fallback: 24 hours from now if event service is unavailable
+          expiresAt = new Date();
+          expiresAt.setHours(expiresAt.getHours() + 24);
+          logger.warn('Using fallback expiration time (24h) - event service unavailable', { eventId: request.eventId });
+        }
+      } catch (error) {
+        // Fallback: 24 hours from now if there's an error
+        expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24);
+        logger.error('Error getting event details, using fallback expiration', error as Error, { eventId: request.eventId });
+      }
 
       // Create ticket
       const ticket = await prisma.ticket.create({
@@ -293,7 +344,22 @@ class TicketService {
   /**
    * Helper method to map ticket to response format
    */
-  private mapTicketToResponse(ticket: any, qrCode?: any): TicketResponse {
+  private mapTicketToResponse(
+    ticket: {
+      id: string;
+      bookingId: string;
+      status: TicketStatus;
+      issuedAt: Date;
+      expiresAt: Date;
+      scannedAt?: Date | null;
+      booking?: { eventId: string } | null;
+    },
+    qrCode?: {
+      id: string;
+      data: string;
+      format: string;
+    } | null
+  ): TicketResponse {
     return {
       id: ticket.id,
       bookingId: ticket.bookingId,
