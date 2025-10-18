@@ -88,6 +88,7 @@ export const authMiddleware = (options: AuthMiddlewareOptions = {}) => {
 // Convenience middleware functions
 export const requireAuth = authMiddleware({ required: true });
 export const requireAdmin = authMiddleware({ required: true, roles: ['ADMIN'] });
+export const requireUser = authMiddleware({ required: true, roles: ['USER', 'ADMIN'] });
 export const requireSpeaker = authMiddleware({ required: true, roles: ['SPEAKER'] });
 export const requireAdminOrSpeaker = authMiddleware({ required: true, roles: ['ADMIN', 'SPEAKER'] });
 export const optionalAuth = authMiddleware({ required: false });

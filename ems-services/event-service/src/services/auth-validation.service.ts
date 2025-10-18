@@ -44,13 +44,13 @@ class AuthValidationService {
       if (response.status === 200 && response.data.valid && response.data.user) {
         const user = response.data.user;
 
-        // Map auth-service role to event-service role
-        const role = user.role === 'USER' ? 'ATTENDEE' : user.role;
+        // Use auth-service roles directly (no mapping needed)
+        const role = user.role;
 
         const authContext: AuthContext = {
           userId: user.id,
           email: user.email,
-          role: role as 'ADMIN' | 'SPEAKER' | 'ATTENDEE'
+          role: role as 'ADMIN' | 'SPEAKER' | 'USER'
         };
 
         logger.debug('Token validation successful', {
