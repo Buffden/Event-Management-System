@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { useLogger } from '@/lib/logger/LoggerProvider';
 import { TicketResponse } from '@/lib/api/types/booking.types';
+import { QRCodeSVG } from 'qrcode.react';
 
 const LOGGER_COMPONENT_NAME = 'AttendeeTicketsPage';
 
@@ -65,17 +66,6 @@ export default function AttendeeTicketsPage() {
     return new Date(expiresAt) < new Date();
   };
 
-  const generateQRCodeImage = (qrCodeData: string) => {
-    // Simple QR code placeholder - in production, use a proper QR code library
-    return `data:image/svg+xml;base64,${btoa(`
-      <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
-        <rect width="200" height="200" fill="white"/>
-        <text x="100" y="100" text-anchor="middle" font-family="monospace" font-size="12">
-          QR: ${qrCodeData.substring(0, 20)}...
-        </text>
-      </svg>
-    `)}`;
-  };
 
   if (loading) {
     return (
@@ -147,12 +137,14 @@ export default function AttendeeTicketsPage() {
                 <div className="mb-4">
                   {ticket.qrCode ? (
                     <div className="text-center">
-                      <img 
-                        src={generateQRCodeImage(ticket.qrCode.data)}
-                        alt="QR Code"
-                        className="mx-auto mb-2 border rounded"
-                        style={{ width: '200px', height: '200px' }}
-                      />
+                      <div className="mx-auto mb-2 border rounded p-2 bg-white" style={{ width: '200px', height: '200px' }}>
+                        <QRCodeSVG
+                          value={ticket.qrCode.data}
+                          size={184}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      </div>
                       <p className="text-xs text-gray-500">Scan this QR code at the event</p>
                     </div>
                   ) : (

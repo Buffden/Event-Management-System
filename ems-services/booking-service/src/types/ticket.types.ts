@@ -96,8 +96,3 @@ export class QRCodeGenerationError extends TicketError {
   }
 }
 
-export class ResendLimitExceededError extends TicketError {
-  constructor(ticketId: string, maxResends: number) {
-    super(`Resend limit exceeded for ticket ${ticketId}. Maximum: ${maxResends}`, 'RESEND_LIMIT_EXCEEDED', 429);
-  }
-}

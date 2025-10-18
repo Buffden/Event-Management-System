@@ -360,10 +360,14 @@ class TicketService {
       format: string;
     } | null
   ): TicketResponse {
+    if (!ticket.booking || !ticket.booking.eventId) {
+      throw new Error('Cannot map ticket to response: missing booking or eventId');
+    }
+    
     return {
       id: ticket.id,
       bookingId: ticket.bookingId,
-      eventId: ticket.booking?.eventId || '',
+      eventId: ticket.booking.eventId,
       status: ticket.status,
       issuedAt: ticket.issuedAt.toISOString(),
       expiresAt: ticket.expiresAt.toISOString(),
