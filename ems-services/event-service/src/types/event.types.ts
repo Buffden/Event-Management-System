@@ -88,6 +88,10 @@ export interface EventCancelledMessage {
   eventId: string;
 }
 
+export interface EventDeletedMessage {
+  eventId: string;
+}
+
 export interface EventApprovedMessage {
   eventId: string;
   speakerId: string;

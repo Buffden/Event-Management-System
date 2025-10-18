@@ -3,7 +3,8 @@ import { logger } from '../utils/logger';
 import {
   EventPublishedMessage,
   EventUpdatedMessage,
-  EventCancelledMessage
+  EventCancelledMessage,
+  EventDeletedMessage
 } from '../types';
 
 class EventPublisherService {
@@ -11,7 +12,8 @@ class EventPublisherService {
   private readonly ROUTING_KEYS = {
     EVENT_PUBLISHED: 'event.published',
     EVENT_UPDATED: 'event.updated',
-    EVENT_CANCELLED: 'event.cancelled'
+    EVENT_CANCELLED: 'event.cancelled',
+    EVENT_DELETED: 'event.deleted'
   };
 
   /**
@@ -125,6 +127,45 @@ class EventPublisherService {
       });
     } catch (error) {
       logger.error('Failed to publish event.cancelled message', error as Error, {
+        eventId: message.eventId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Publish event.deleted message
+   */
+  async publishEventDeleted(message: EventDeletedMessage): Promise<void> {
+    try {
+      logger.info('Publishing event.deleted message', { eventId: message.eventId });
+
+      const channel = rabbitMQService.getChannel();
+      if (!channel) {
+        throw new Error('RabbitMQ channel is not available');
+      }
+
+      // Declare exchange
+      await channel.assertExchange(this.EXCHANGE_NAME, 'topic', { durable: true });
+
+      // Publish message
+      const published = channel.publish(
+        this.EXCHANGE_NAME,
+        this.ROUTING_KEYS.EVENT_DELETED,
+        Buffer.from(JSON.stringify(message)),
+        { persistent: true }
+      );
+
+      if (!published) {
+        throw new Error('Failed to publish event.deleted message');
+      }
+
+      logger.info('Event.deleted message published successfully', {
+        eventId: message.eventId,
+        routingKey: this.ROUTING_KEYS.EVENT_DELETED
+      });
+    } catch (error) {
+      logger.error('Failed to publish event.deleted message', error as Error, {
         eventId: message.eventId
       });
       throw error;

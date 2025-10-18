@@ -2,7 +2,8 @@ import { connect, Connection, Channel, ChannelModel } from 'amqplib';
 import { logger } from '../utils/logger';
 import {
   BookingConfirmedMessage,
-  BookingCancelledMessage
+  BookingCancelledMessage,
+  TicketGeneratedMessage
 } from '../types';
 
 class EventPublisherService {
@@ -11,7 +12,8 @@ class EventPublisherService {
   private readonly exchangeName = 'booking_events';
   private readonly routingKeys = {
     bookingConfirmed: 'booking.confirmed',
-    bookingCancelled: 'booking.cancelled'
+    bookingCancelled: 'booking.cancelled',
+    ticketGenerated: 'ticket.generated'
   };
 
   /**
@@ -109,6 +111,44 @@ class EventPublisherService {
       throw error;
     }
   }
+
+  /**
+   * Publish ticket generated event
+   * AC3: Tickets are automatically sent to users via email with QR code
+   */
+  async publishTicketGenerated(message: TicketGeneratedMessage): Promise<void> {
+    try {
+      if (!this.channel) {
+        throw new Error('RabbitMQ channel not initialized');
+      }
+
+      const messageBuffer = Buffer.from(JSON.stringify(message));
+
+      const published = this.channel.publish(
+        this.exchangeName,
+        this.routingKeys.ticketGenerated,
+        messageBuffer,
+        {
+          persistent: true,
+          timestamp: Date.now()
+        }
+      );
+
+      if (published) {
+        logger.info('Published ticket generated event', {
+          ticketId: message.ticketId,
+          userId: message.userId,
+          eventId: message.eventId
+        });
+      } else {
+        logger.warn('Failed to publish ticket generated event - channel buffer full');
+      }
+    } catch (error) {
+      logger.error('Failed to publish ticket generated event', error as Error, message);
+      throw error;
+    }
+  }
+
 
   /**
    * Close RabbitMQ connection
