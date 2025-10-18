@@ -142,7 +142,7 @@ router.get('/bookings/:id',
     }
 
     // Check if user owns the booking or is admin
-    if (booking.userId !== userId && req.user!.role !== 'admin') {
+    if (booking.userId !== userId && req.user!.role !== 'ADMIN') {
       return res.status(403).json({
         success: false,
         error: 'Access denied: You can only view your own bookings'

@@ -43,13 +43,11 @@ class AuthValidationService {
       if (response.status === 200 && response.data.valid && response.data.user) {
         const user = response.data.user;
 
-        // Map auth-service role to booking-service role
-        const role = user.role === 'USER' ? 'USER' : user.role;
-
+        // Use auth-service roles directly (no mapping needed)
         const authUser: AuthUser = {
           userId: user.id,
           email: user.email,
-          role: role as 'ADMIN' | 'USER' | 'SPEAKER'
+          role: user.role as 'ADMIN' | 'USER' | 'SPEAKER'
         };
 
         logger.debug('Token validation successful', {

@@ -1,7 +1,7 @@
 // Authentication and authorization types
 export interface AuthContext {
   userId: string;
-  role: 'ADMIN' | 'SPEAKER' | 'ATTENDEE';
+  role: 'ADMIN' | 'SPEAKER' | 'USER';
   email: string;
 }
 
