@@ -1,6 +1,6 @@
-// src/consumers/BookingEventConsumer.ts
+// src/consumers/booking-event.consumer.ts
 
-import { connect, Channel, Connection, ConsumeMessage } from 'amqplib';
+import { connect, ChannelModel, Channel, ConsumeMessage } from 'amqplib';
 import axios from 'axios';
 import { MESSAGE_TYPE, BookingConfirmedNotification } from '../types/types';
 
@@ -12,10 +12,12 @@ interface BookingConfirmedMessage {
 }
 
 export class BookingEventConsumer {
-  private connection: any = null;
+  private connection: ChannelModel | null = null;
   private channel: Channel | null = null;
   private readonly rabbitmqUrl: string;
-  private readonly bookingEventQueueName = 'booking-service.event.queue';
+  private readonly exchangeName = 'booking_events';
+  private readonly queueName = 'notification.booking.events';
+  private readonly routingKey = 'booking.confirmed';
   private readonly notificationQueueName = 'notification.email';
   private readonly authServiceUrl: string;
   private readonly eventServiceUrl: string;
@@ -34,15 +36,23 @@ export class BookingEventConsumer {
       this.connection = await connect(this.rabbitmqUrl);
       this.channel = await this.connection.createChannel();
 
-      // Assert both queues
       if (this.channel) {
-        await this.channel.assertQueue(this.bookingEventQueueName, { durable: true });
+        // Assert exchange (should already exist from booking service)
+        await this.channel.assertExchange(this.exchangeName, 'topic', { durable: true });
+        
+        // Assert our queue
+        await this.channel.assertQueue(this.queueName, { durable: true });
+        
+        // Bind queue to exchange with routing key
+        await this.channel.bindQueue(this.queueName, this.exchangeName, this.routingKey);
+        
+        // Assert notification queue
         await this.channel.assertQueue(this.notificationQueueName, { durable: true });
 
         this.channel.prefetch(1);
 
-        console.log(`👂 Worker listening for booking events on queue "${this.bookingEventQueueName}"`);
-        this.channel.consume(this.bookingEventQueueName, this.handleMessage.bind(this), { noAck: false });
+        console.log(`👂 Worker listening for booking events on exchange "${this.exchangeName}" with routing key "${this.routingKey}"`);
+        this.channel.consume(this.queueName, this.handleMessage.bind(this), { noAck: false });
       }
     } catch (error) {
       console.error('❌ Error starting booking event consumer:', error);
@@ -56,13 +66,11 @@ export class BookingEventConsumer {
     if (!msg || !this.channel) return;
 
     try {
-      const bookingEvent = JSON.parse(msg.content.toString());
-      console.log('📧 Processing booking event:', bookingEvent);
+      const bookingData = JSON.parse(msg.content.toString());
+      console.log('📧 Processing booking confirmed event:', bookingData);
 
-      // Check if this is a booking confirmed event
-      if (bookingEvent.type === 'booking.confirmed') {
-        await this.processBookingConfirmedEvent(bookingEvent.data);
-      }
+      // Process the booking confirmed event directly
+      await this.processBookingConfirmedEvent(bookingData);
 
       // Acknowledge the message
       this.channel.ack(msg);

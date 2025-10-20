@@ -11,7 +11,6 @@ import {
 import { BookingStatus } from '../../generated/prisma';
 import { eventPublisherService } from './event-publisher.service';
 import { ticketService } from './ticket.service';
-import { notificationService } from './notification.service';
 
 class BookingService {
   /**
@@ -78,14 +77,7 @@ class BookingService {
       
       await eventPublisherService.publishBookingConfirmed(bookingMessage);
 
-      // Send booking confirmation email
-      try {
-        await notificationService.sendBookingConfirmationEmail(bookingMessage);
-        logger.info('Booking confirmation email sent successfully', { bookingId: booking.id });
-      } catch (emailError) {
-        logger.error('Failed to send booking confirmation email', emailError as Error, { bookingId: booking.id });
-        // Don't fail the booking if email fails - email can be sent later
-      }
+      // Booking confirmation email will be sent via notification-service pipeline triggered by booking.confirmed event
 
       // AC1: Automatically generate ticket when user registers for event
       try {

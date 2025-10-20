@@ -63,12 +63,27 @@ class TicketService {
 
       // Check if ticket already exists
       const existingTicket = await prisma.ticket.findUnique({
-        where: { bookingId: request.bookingId }
+        where: { bookingId: request.bookingId },
+        include: {
+          booking: true
+        }
       });
 
       if (existingTicket) {
         logger.info('Ticket already exists for booking', { bookingId: request.bookingId });
-        return this.mapTicketToResponse(existingTicket);
+        // Fetch event details for existing ticket
+        let eventDetails = null;
+        if (existingTicket.booking?.eventId) {
+          try {
+            eventDetails = await this.getEventDetails(existingTicket.booking.eventId);
+          } catch (error) {
+            logger.warn('Failed to fetch event details for existing ticket', { 
+              ticketId: existingTicket.id, 
+              eventId: existingTicket.booking.eventId 
+            });
+          }
+        }
+        return this.mapTicketToResponse(existingTicket, null, eventDetails);
       }
 
       // Calculate expiration time (2 hours after event ends) - AC5
@@ -121,7 +136,18 @@ class TicketService {
         createdAt: ticket.createdAt.toISOString()
       });
 
-      return this.mapTicketToResponse(ticket, qrCode);
+      // Fetch event details for the new ticket
+      let eventDetails = null;
+      try {
+        eventDetails = await this.getEventDetails(request.eventId);
+      } catch (error) {
+        logger.warn('Failed to fetch event details for new ticket', { 
+          ticketId: ticket.id, 
+          eventId: request.eventId 
+        });
+      }
+      
+      return this.mapTicketToResponse(ticket, qrCode, eventDetails);
     } catch (error) {
       logger.error('Failed to generate ticket', error as Error, request);
       throw error;
@@ -226,23 +252,35 @@ class TicketService {
         }
       });
 
-      // Fetch event details for all tickets
-      const ticketsWithEvents = await Promise.all(
-        tickets.map(async (ticket) => {
-          let eventDetails = null;
-          if (ticket.booking?.eventId) {
-            try {
-              eventDetails = await this.getEventDetails(ticket.booking.eventId);
-            } catch (error) {
-              logger.warn('Failed to fetch event details for ticket', { 
-                ticketId: ticket.id, 
-                eventId: ticket.booking.eventId 
-              });
-            }
+      // Deduplicate eventIds to avoid N+1 queries
+      const eventIds = Array.from(
+        new Set(
+          tickets
+            .map(ticket => ticket.booking?.eventId)
+            .filter((id): id is string => !!id)
+        )
+      );
+
+      // Fetch event details for each unique eventId
+      const eventDetailsMap = new Map<string, any>();
+      await Promise.all(
+        eventIds.map(async (eventId) => {
+          try {
+            const eventDetails = await this.getEventDetails(eventId);
+            eventDetailsMap.set(eventId, eventDetails);
+          } catch (error) {
+            logger.warn('Failed to fetch event details for event', { eventId });
+            eventDetailsMap.set(eventId, null);
           }
-          return this.mapTicketToResponse(ticket, ticket.qrCode, eventDetails);
         })
       );
+
+      // Map tickets to responses using cached event details
+      const ticketsWithEvents = tickets.map((ticket) => {
+        const eventId = ticket.booking?.eventId;
+        const eventDetails = eventId ? eventDetailsMap.get(eventId) : null;
+        return this.mapTicketToResponse(ticket, ticket.qrCode, eventDetails);
+      });
 
       return ticketsWithEvents;
     } catch (error) {
