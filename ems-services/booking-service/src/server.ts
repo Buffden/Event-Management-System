@@ -4,6 +4,7 @@ import { prisma } from './database';
 import { logger } from './utils/logger';
 import { eventPublisherService } from './services/event-publisher.service';
 import { eventConsumerService } from './services/event-consumer.service';
+import { notificationService } from './services/notification.service';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import routes from './routes';
 
@@ -47,6 +48,7 @@ const startServer = async () => {
         // Initialize RabbitMQ services
         await eventPublisherService.initialize();
         await eventConsumerService.initialize();
+        await notificationService.initialize();
         logger.info('RabbitMQ services initialized');
 
         const server = app.listen(PORT, () => {
@@ -61,6 +63,7 @@ const startServer = async () => {
                 await prisma.$disconnect();
                 await eventPublisherService.close();
                 await eventConsumerService.close();
+                await notificationService.close();
                 process.exit(0);
             });
         };
