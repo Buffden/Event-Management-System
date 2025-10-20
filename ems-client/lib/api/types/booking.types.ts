@@ -41,6 +41,18 @@ export interface TicketResponse {
     data: string;
     createdAt: string;
   };
+  event?: {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    venue: {
+      name: string;
+      address: string;
+    };
+    bookingStartDate: string;
+    bookingEndDate: string;
+  };
 }
 
 export interface TicketListResponse {

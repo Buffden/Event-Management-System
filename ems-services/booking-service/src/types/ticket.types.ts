@@ -1,5 +1,19 @@
 import { TicketStatus, ScanMethod } from '../../generated/prisma';
 
+// Event details interface for type safety
+export interface EventDetails {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  bookingStartDate: string;
+  bookingEndDate: string;
+  venue: {
+    name: string;
+    address: string;
+  };
+}
+
 // Ticket-related request/response types
 export interface TicketGenerationRequest {
   bookingId: string;
@@ -19,6 +33,18 @@ export interface TicketResponse {
     id: string;
     data: string;
     format: string;
+  };
+  event?: {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    venue: {
+      name: string;
+      address: string;
+    };
+    bookingStartDate: string;
+    bookingEndDate: string;
   };
 }
 

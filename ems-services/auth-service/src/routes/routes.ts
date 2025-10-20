@@ -326,7 +326,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
 
             // Check for internal service header
             const serviceHeader = req.headers['x-internal-service'];
-            if (serviceHeader !== 'event-service') {
+            if (serviceHeader !== 'event-service' && serviceHeader !== 'notification-service' && serviceHeader !== 'booking-service') {
                 return res.status(403).json({error: 'Access denied: Internal service only'});
             }
 

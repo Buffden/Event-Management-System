@@ -2,6 +2,7 @@ import { config } from 'dotenv';
 config();
 
 import { NotificationConsumer } from './consumers/notification.consumer';
+import { BookingEventConsumer } from './consumers/booking-event.consumer';
 
 async function startServer() {
     const rabbitmqUrl = process.env.RABBITMQ_URL;
@@ -11,13 +12,17 @@ async function startServer() {
 
     console.log(`Starting server on ${rabbitmqUrl}`);
 
-    const consumer = new NotificationConsumer(rabbitmqUrl);
-    await consumer.start();
+    const notificationConsumer = new NotificationConsumer(rabbitmqUrl);
+    const bookingEventConsumer = new BookingEventConsumer(rabbitmqUrl);
+    
+    await notificationConsumer.start();
+    await bookingEventConsumer.start();
 
     // Handle graceful shutdown
     const gracefulShutdown = async () => {
         console.log('Received shutdown signal.');
-        await consumer.stop();
+        await notificationConsumer.stop();
+        await bookingEventConsumer.stop();
         process.exit(0);
     };
 

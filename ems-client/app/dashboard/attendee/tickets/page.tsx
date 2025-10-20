@@ -125,10 +125,15 @@ export default function AttendeeTicketsPage() {
             <Card key={ticket.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  Event Ticket
+                  {ticket.event?.name || 'Event Ticket'}
                   {getStatusBadge(ticket.status)}
                 </CardTitle>
                 <CardDescription>
+                  {ticket.event?.category && (
+                    <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mr-2">
+                      {ticket.event.category}
+                    </span>
+                  )}
                   Ticket ID: {ticket.id.substring(0, 8)}...
                 </CardDescription>
               </CardHeader>
@@ -155,9 +160,26 @@ export default function AttendeeTicketsPage() {
                 </div>
 
                 <div className="space-y-2 mb-4">
-                  <p className="text-sm">
-                    <span className="font-medium">Event ID:</span> {ticket.eventId}
-                  </p>
+                  {ticket.event && (
+                    <>
+                      <p className="text-sm">
+                        <span className="font-medium">Event:</span> {ticket.event.name}
+                      </p>
+                      <p className="text-sm">
+                        <span className="font-medium">Venue:</span> {ticket.event.venue.name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {ticket.event.venue.address}
+                      </p>
+                      <p className="text-sm">
+                        <span className="font-medium">Event Date:</span> {
+                          ticket.event.bookingStartDate ? 
+                            new Date(ticket.event.bookingStartDate).toLocaleDateString() : 
+                            'Date not available'
+                        }
+                      </p>
+                    </>
+                  )}
                   <p className="text-sm">
                     <span className="font-medium">Issued:</span> {new Date(ticket.issuedAt).toLocaleString()}
                   </p>

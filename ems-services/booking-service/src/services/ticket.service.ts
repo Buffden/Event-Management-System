@@ -2,7 +2,7 @@ import { prisma } from '../database';
 import { logger } from '../utils/logger';
 import { TicketStatus } from '../../generated/prisma';
 import { eventPublisherService } from './event-publisher.service';
-import { TicketGenerationRequest, TicketResponse } from '../types/ticket.types';
+import { TicketGenerationRequest, TicketResponse, EventDetails } from '../types/ticket.types';
 import axios from 'axios';
 
 class TicketService {
@@ -16,7 +16,7 @@ class TicketService {
   /**
    * Get event details from event service
    */
-  private async getEventDetails(eventId: string): Promise<{ bookingEndDate: string } | null> {
+  private async getEventDetails(eventId: string): Promise<EventDetails | null> {
     try {
       const response = await axios.get(`${this.eventServiceUrl}/events/${eventId}`, {
         timeout: 5000,
@@ -26,9 +26,7 @@ class TicketService {
       });
 
       if (response.status === 200 && response.data.success) {
-        return {
-          bookingEndDate: response.data.data.bookingEndDate
-        };
+        return response.data.data;
       }
       return null;
     } catch (error) {
@@ -65,19 +63,34 @@ class TicketService {
 
       // Check if ticket already exists
       const existingTicket = await prisma.ticket.findUnique({
-        where: { bookingId: request.bookingId }
+        where: { bookingId: request.bookingId },
+        include: {
+          booking: true
+        }
       });
 
       if (existingTicket) {
         logger.info('Ticket already exists for booking', { bookingId: request.bookingId });
-        return this.mapTicketToResponse(existingTicket);
+        // Fetch event details for existing ticket
+        let eventDetails = null;
+        if (existingTicket.booking?.eventId) {
+          try {
+            eventDetails = await this.getEventDetails(existingTicket.booking.eventId);
+          } catch (error) {
+            logger.warn('Failed to fetch event details for existing ticket', { 
+              ticketId: existingTicket.id, 
+              eventId: existingTicket.booking.eventId 
+            });
+          }
+        }
+        return this.mapTicketToResponse(existingTicket, null, eventDetails);
       }
 
       // Calculate expiration time (2 hours after event ends) - AC5
       let expiresAt: Date;
       try {
         const eventDetails = await this.getEventDetails(request.eventId);
-        if (eventDetails) {
+        if (eventDetails && eventDetails.bookingEndDate) {
           // Set expiration to 2 hours after event ends
           const eventEndDate = new Date(eventDetails.bookingEndDate);
           expiresAt = new Date(eventEndDate.getTime() + (2 * 60 * 60 * 1000)); // 2 hours in milliseconds
@@ -123,7 +136,18 @@ class TicketService {
         createdAt: ticket.createdAt.toISOString()
       });
 
-      return this.mapTicketToResponse(ticket, qrCode);
+      // Fetch event details for the new ticket
+      let eventDetails = null;
+      try {
+        eventDetails = await this.getEventDetails(request.eventId);
+      } catch (error) {
+        logger.warn('Failed to fetch event details for new ticket', { 
+          ticketId: ticket.id, 
+          eventId: request.eventId 
+        });
+      }
+      
+      return this.mapTicketToResponse(ticket, qrCode, eventDetails);
     } catch (error) {
       logger.error('Failed to generate ticket', error as Error, request);
       throw error;
@@ -187,7 +211,17 @@ class TicketService {
         return null;
       }
 
-      return this.mapTicketToResponse(ticket, ticket.qrCode);
+      // Fetch event details from event service
+      let eventDetails = null;
+      if (ticket.booking?.eventId) {
+        try {
+          eventDetails = await this.getEventDetails(ticket.booking.eventId);
+        } catch (error) {
+          logger.warn('Failed to fetch event details for ticket', { ticketId, eventId: ticket.booking.eventId });
+        }
+      }
+
+      return this.mapTicketToResponse(ticket, ticket.qrCode, eventDetails);
     } catch (error) {
       logger.error('Failed to get ticket by ID', error as Error, { ticketId });
       throw error;
@@ -218,7 +252,37 @@ class TicketService {
         }
       });
 
-      return tickets.map(ticket => this.mapTicketToResponse(ticket, ticket.qrCode));
+      // Deduplicate eventIds to avoid N+1 queries
+      const eventIds = Array.from(
+        new Set(
+          tickets
+            .map(ticket => ticket.booking?.eventId)
+            .filter((id): id is string => !!id)
+        )
+      );
+
+      // Fetch event details for each unique eventId
+      const eventDetailsMap = new Map<string, EventDetails | null>();
+      await Promise.all(
+        eventIds.map(async (eventId) => {
+          try {
+            const eventDetails = await this.getEventDetails(eventId);
+            eventDetailsMap.set(eventId, eventDetails);
+          } catch (error) {
+            logger.warn('Failed to fetch event details for event', { eventId });
+            eventDetailsMap.set(eventId, null);
+          }
+        })
+      );
+
+      // Map tickets to responses using cached event details
+      const ticketsWithEvents = tickets.map((ticket) => {
+        const eventId = ticket.booking?.eventId;
+        const eventDetails = eventId ? eventDetailsMap.get(eventId) : null;
+        return this.mapTicketToResponse(ticket, ticket.qrCode, eventDetails);
+      });
+
+      return ticketsWithEvents;
     } catch (error) {
       logger.error('Failed to get user tickets', error as Error, { userId });
       throw error;
@@ -358,7 +422,8 @@ class TicketService {
       id: string;
       data: string;
       format: string;
-    } | null
+    } | null,
+    eventDetails?: EventDetails | null
   ): TicketResponse {
     if (!ticket.booking || !ticket.booking.eventId) {
       throw new Error('Cannot map ticket to response: missing booking or eventId');
@@ -371,6 +436,7 @@ class TicketService {
       status: ticket.status,
       issuedAt: ticket.issuedAt.toISOString(),
       expiresAt: ticket.expiresAt.toISOString(),
+      scannedAt: ticket.scannedAt?.toISOString(),
       qrCode: qrCode ? {
         id: qrCode.id,
         data: qrCode.data,
@@ -379,7 +445,19 @@ class TicketService {
         id: '',
         data: '',
         format: 'PNG'
-      }
+      },
+      event: eventDetails ? {
+        id: eventDetails.id,
+        name: eventDetails.name,
+        description: eventDetails.description,
+        category: eventDetails.category,
+        venue: {
+          name: eventDetails.venue?.name || 'Unknown Venue',
+          address: eventDetails.venue?.address || 'Unknown Address'
+        },
+        bookingStartDate: eventDetails.bookingStartDate,
+        bookingEndDate: eventDetails.bookingEndDate
+      } : undefined
     };
   }
 }

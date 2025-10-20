@@ -68,12 +68,16 @@ class BookingService {
       logger.info('Booking created successfully', { bookingId: booking.id, userId: data.userId, eventId: data.eventId });
 
       // Publish booking confirmed event
-      await eventPublisherService.publishBookingConfirmed({
+      const bookingMessage = {
         bookingId: booking.id,
         userId: booking.userId,
         eventId: booking.eventId,
         createdAt: booking.createdAt.toISOString()
-      });
+      };
+      
+      await eventPublisherService.publishBookingConfirmed(bookingMessage);
+
+      // Booking confirmation email will be sent via notification-service pipeline triggered by booking.confirmed event
 
       // AC1: Automatically generate ticket when user registers for event
       try {
