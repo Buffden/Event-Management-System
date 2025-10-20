@@ -2,7 +2,7 @@ import { prisma } from '../database';
 import { logger } from '../utils/logger';
 import { TicketStatus } from '../../generated/prisma';
 import { eventPublisherService } from './event-publisher.service';
-import { TicketGenerationRequest, TicketResponse } from '../types/ticket.types';
+import { TicketGenerationRequest, TicketResponse, EventDetails } from '../types/ticket.types';
 import axios from 'axios';
 
 class TicketService {
@@ -16,7 +16,7 @@ class TicketService {
   /**
    * Get event details from event service
    */
-  private async getEventDetails(eventId: string): Promise<any | null> {
+  private async getEventDetails(eventId: string): Promise<EventDetails | null> {
     try {
       const response = await axios.get(`${this.eventServiceUrl}/events/${eventId}`, {
         timeout: 5000,
@@ -262,7 +262,7 @@ class TicketService {
       );
 
       // Fetch event details for each unique eventId
-      const eventDetailsMap = new Map<string, any>();
+      const eventDetailsMap = new Map<string, EventDetails | null>();
       await Promise.all(
         eventIds.map(async (eventId) => {
           try {
@@ -423,7 +423,7 @@ class TicketService {
       data: string;
       format: string;
     } | null,
-    eventDetails?: any | null
+    eventDetails?: EventDetails | null
   ): TicketResponse {
     if (!ticket.booking || !ticket.booking.eventId) {
       throw new Error('Cannot map ticket to response: missing booking or eventId');

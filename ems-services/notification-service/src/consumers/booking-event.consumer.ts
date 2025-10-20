@@ -34,7 +34,9 @@ export class BookingEventConsumer {
     try {
       console.log('🚀 Starting Booking Event Consumer...');
       this.connection = await connect(this.rabbitmqUrl);
-      this.channel = await this.connection.createChannel();
+      if (this.connection) {
+        this.channel = await this.connection.createChannel();
+      }
 
       if (this.channel) {
         // Assert exchange (should already exist from booking service)
