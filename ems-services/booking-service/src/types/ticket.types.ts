@@ -20,6 +20,18 @@ export interface TicketResponse {
     data: string;
     format: string;
   };
+  event?: {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    venue: {
+      name: string;
+      address: string;
+    };
+    bookingStartDate: string;
+    bookingEndDate: string;
+  };
 }
 
 

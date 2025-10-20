@@ -16,7 +16,7 @@ class TicketService {
   /**
    * Get event details from event service
    */
-  private async getEventDetails(eventId: string): Promise<{ bookingEndDate: string } | null> {
+  private async getEventDetails(eventId: string): Promise<any | null> {
     try {
       const response = await axios.get(`${this.eventServiceUrl}/events/${eventId}`, {
         timeout: 5000,
@@ -26,9 +26,7 @@ class TicketService {
       });
 
       if (response.status === 200 && response.data.success) {
-        return {
-          bookingEndDate: response.data.data.bookingEndDate
-        };
+        return response.data.data;
       }
       return null;
     } catch (error) {
@@ -77,7 +75,7 @@ class TicketService {
       let expiresAt: Date;
       try {
         const eventDetails = await this.getEventDetails(request.eventId);
-        if (eventDetails) {
+        if (eventDetails && eventDetails.bookingEndDate) {
           // Set expiration to 2 hours after event ends
           const eventEndDate = new Date(eventDetails.bookingEndDate);
           expiresAt = new Date(eventEndDate.getTime() + (2 * 60 * 60 * 1000)); // 2 hours in milliseconds
@@ -187,7 +185,17 @@ class TicketService {
         return null;
       }
 
-      return this.mapTicketToResponse(ticket, ticket.qrCode);
+      // Fetch event details from event service
+      let eventDetails = null;
+      if (ticket.booking?.eventId) {
+        try {
+          eventDetails = await this.getEventDetails(ticket.booking.eventId);
+        } catch (error) {
+          logger.warn('Failed to fetch event details for ticket', { ticketId, eventId: ticket.booking.eventId });
+        }
+      }
+
+      return this.mapTicketToResponse(ticket, ticket.qrCode, eventDetails);
     } catch (error) {
       logger.error('Failed to get ticket by ID', error as Error, { ticketId });
       throw error;
@@ -218,7 +226,25 @@ class TicketService {
         }
       });
 
-      return tickets.map(ticket => this.mapTicketToResponse(ticket, ticket.qrCode));
+      // Fetch event details for all tickets
+      const ticketsWithEvents = await Promise.all(
+        tickets.map(async (ticket) => {
+          let eventDetails = null;
+          if (ticket.booking?.eventId) {
+            try {
+              eventDetails = await this.getEventDetails(ticket.booking.eventId);
+            } catch (error) {
+              logger.warn('Failed to fetch event details for ticket', { 
+                ticketId: ticket.id, 
+                eventId: ticket.booking.eventId 
+              });
+            }
+          }
+          return this.mapTicketToResponse(ticket, ticket.qrCode, eventDetails);
+        })
+      );
+
+      return ticketsWithEvents;
     } catch (error) {
       logger.error('Failed to get user tickets', error as Error, { userId });
       throw error;
@@ -358,7 +384,8 @@ class TicketService {
       id: string;
       data: string;
       format: string;
-    } | null
+    } | null,
+    eventDetails?: any | null
   ): TicketResponse {
     if (!ticket.booking || !ticket.booking.eventId) {
       throw new Error('Cannot map ticket to response: missing booking or eventId');
@@ -371,6 +398,7 @@ class TicketService {
       status: ticket.status,
       issuedAt: ticket.issuedAt.toISOString(),
       expiresAt: ticket.expiresAt.toISOString(),
+      scannedAt: ticket.scannedAt?.toISOString(),
       qrCode: qrCode ? {
         id: qrCode.id,
         data: qrCode.data,
@@ -379,7 +407,19 @@ class TicketService {
         id: '',
         data: '',
         format: 'PNG'
-      }
+      },
+      event: eventDetails ? {
+        id: eventDetails.id,
+        name: eventDetails.name,
+        description: eventDetails.description,
+        category: eventDetails.category,
+        venue: {
+          name: eventDetails.venue?.name || 'Unknown Venue',
+          address: eventDetails.venue?.address || 'Unknown Address'
+        },
+        bookingStartDate: eventDetails.bookingStartDate,
+        bookingEndDate: eventDetails.bookingEndDate
+      } : undefined
     };
   }
 }
