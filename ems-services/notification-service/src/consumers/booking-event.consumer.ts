@@ -11,19 +11,6 @@ interface BookingConfirmedMessage {
   createdAt: string;
 }
 
-interface EventInfo {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  bookingStartDate: string;
-  bookingEndDate: string;
-  venue: {
-    name: string;
-    address: string;
-  };
-}
-
 export class BookingEventConsumer {
   private connection: ChannelModel | null = null;
   private channel: Channel | null = null;
@@ -133,7 +120,6 @@ export class BookingEventConsumer {
       console.log(`✅ Booking confirmation notification queued for ${userInfo.email}`);
     } catch (error) {
       console.error('❌ Error processing booking confirmed event:', error);
-      throw error; // Re-throw to let handleMessage handle it properly
     }
   }
 
@@ -160,7 +146,7 @@ export class BookingEventConsumer {
     }
   }
 
-  private async getEventInfo(eventId: string): Promise<EventInfo | null> {
+  private async getEventInfo(eventId: string): Promise<any | null> {
     try {
       const response = await axios.get(`${this.eventServiceUrl}/events/${eventId}`, {
         timeout: 5000,
