@@ -35,12 +35,25 @@ jobs:
         run: npm test -- --coverageThreshold='{}'
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/ems_test
-          JWT_SECRET: 'test_jwt_secret_key_for_github_actions'
-          RABBITMQ_URL: 'amqp://localhost:5672'
-          REDIS_URL: 'redis://localhost:6379'
-          NEXT_PUBLIC_API_URL: 'http://localhost:3001'
-          NEXT_PUBLIC_APP_NAME: 'Event Management System'
+          # Database
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://test_user:test_password@localhost:5432/ems_test' }}
+          # JWT and Auth
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'test_jwt_secret_key_for_github_actions' }}
+          EMAIL_VERIFICATION_SECRET: ${{ secrets.EMAIL_VERIFICATION_SECRET || 'test_email_verification_secret_key' }}
+          # Message Queue
+          RABBITMQ_URL: ${{ secrets.RABBITMQ_URL || 'amqp://localhost:5672' }}
+          REDIS_URL: ${{ secrets.REDIS_URL || 'redis://localhost:6379' }}
+          # Server
+          PORT: ${{ vars.PORT || '3001' }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL || 'error' }}
+          # Frontend specific
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:3001' }}
+          NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME || 'Event Management System' }}
+          # Service URLs for inter-service communication
+          AUTH_SERVICE_URL: ${{ vars.AUTH_SERVICE_URL || 'http://localhost:3001' }}
+          EVENT_SERVICE_URL: ${{ vars.EVENT_SERVICE_URL || 'http://localhost:3002' }}
+          BOOKING_SERVICE_URL: ${{ vars.BOOKING_SERVICE_URL || 'http://localhost:3003' }}
+          NOTIFICATION_SERVICE_URL: ${{ vars.NOTIFICATION_SERVICE_URL || 'http://localhost:3004' }}
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
