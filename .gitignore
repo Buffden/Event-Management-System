@@ -61,6 +61,11 @@
 # Test Reports
 **/coverage/
 
+# Jest test outputs and cache
+**/.jest-cache/
+**/test-report.xml
+**/junit.xml
+
 # Credentials
 **/EventManangementSystem_GoogleCreds.json
 **/*-service/generated

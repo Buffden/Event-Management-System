@@ -714,4 +714,5 @@ class EventService {
     }
 }
 
+export { EventService };
 export const eventService = new EventService();

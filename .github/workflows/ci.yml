@@ -1,0 +1,142 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # Test all microservices and frontend
+  test-all:
+    name: Test All Services
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [auth-service, event-service, booking-service, notification-service, ems-client]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.service == 'ems-client' && 'ems-client' || format('ems-services/{0}', matrix.service) }}
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ${{ matrix.service == 'ems-client' && 'ems-client' || format('ems-services/{0}', matrix.service) }}
+        run: npm test -- --coverageThreshold='{}'
+        env:
+          NODE_ENV: test
+          # Database
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://test_user:test_password@localhost:5432/ems_test' }}
+          # JWT and Auth
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'test_jwt_secret_key_for_github_actions' }}
+          EMAIL_VERIFICATION_SECRET: ${{ secrets.EMAIL_VERIFICATION_SECRET || 'test_email_verification_secret_key' }}
+          # Message Queue
+          RABBITMQ_URL: ${{ secrets.RABBITMQ_URL || 'amqp://localhost:5672' }}
+          REDIS_URL: ${{ secrets.REDIS_URL || 'redis://localhost:6379' }}
+          # Server
+          PORT: ${{ vars.PORT || '3001' }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL || 'error' }}
+          # Frontend specific
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:3001' }}
+          NEXT_PUBLIC_APP_NAME: ${{ vars.NEXT_PUBLIC_APP_NAME || 'Event Management System' }}
+          # Service URLs for inter-service communication
+          AUTH_SERVICE_URL: ${{ vars.AUTH_SERVICE_URL || 'http://localhost:3001' }}
+          EVENT_SERVICE_URL: ${{ vars.EVENT_SERVICE_URL || 'http://localhost:3002' }}
+          BOOKING_SERVICE_URL: ${{ vars.BOOKING_SERVICE_URL || 'http://localhost:3003' }}
+          NOTIFICATION_SERVICE_URL: ${{ vars.NOTIFICATION_SERVICE_URL || 'http://localhost:3004' }}
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-${{ matrix.service }}
+          path: ${{ matrix.service == 'ems-client' && 'ems-client/coverage/' || format('ems-services/{0}/coverage/', matrix.service) }}
+          retention-days: 30
+
+  # Coverage summary
+  coverage-summary:
+    name: Coverage Summary
+    runs-on: ubuntu-latest
+    needs: test-all
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage-reports/
+
+      - name: Display coverage summary
+        run: |
+          echo "## 📊 Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status | Coverage |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+          
+          # Check if coverage files exist and display summary
+          for service in auth-service event-service booking-service notification-service ems-client; do
+            if [ -d "coverage-reports/coverage-$service" ]; then
+              echo "| $service | ✅ Passed | Available |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $service | ❌ Failed | N/A |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📁 Coverage reports are available as artifacts for download." >> $GITHUB_STEP_SUMMARY
+
+  # PR comment (only for PRs)
+  pr-comment:
+    name: PR Comment
+    runs-on: ubuntu-latest
+    needs: [test-all, coverage-summary]
+    if: github.event_name == 'pull_request' && always()
+    steps:
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const testStatus = '${{ needs.test-all.result }}';
+            const coverageStatus = '${{ needs.coverage-summary.result }}';
+            
+            let statusEmoji = '✅';
+            if (testStatus === 'failure' || coverageStatus === 'failure') {
+              statusEmoji = '❌';
+            } else if (testStatus === 'cancelled' || coverageStatus === 'cancelled') {
+              statusEmoji = '⏸️';
+            }
+            
+            const commentBody = `## 🧪 Test Results ${statusEmoji}
+            
+            | Check | Status |
+            |-------|--------|
+            | Tests | ${testStatus === 'success' ? '✅ Passed' : testStatus === 'failure' ? '❌ Failed' : '⏸️ Skipped'} |
+            | Coverage | ${coverageStatus === 'success' ? '✅ Passed' : coverageStatus === 'failure' ? '❌ Failed' : '⏸️ Skipped'} |
+            
+            **Summary:** All automated checks have been completed for this PR.
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            });

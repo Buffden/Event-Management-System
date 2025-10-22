@@ -462,4 +462,5 @@ class TicketService {
   }
 }
 
+export { TicketService };
 export const ticketService = new TicketService();

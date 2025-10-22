@@ -547,4 +547,5 @@ export class EmailTemplateService {
     }
 }
 
+export { EmailTemplateService };
 export const emailTemplateService = new EmailTemplateService();
