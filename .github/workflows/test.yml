@@ -28,8 +28,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ems-services/${{ matrix.service }}/package-lock.json
 
       - name: Install dependencies
         working-directory: ems-services/${{ matrix.service }}
@@ -37,7 +35,7 @@ jobs:
 
       - name: Run tests
         working-directory: ems-services/${{ matrix.service }}
-        run: npm test
+        run: npm test -- --coverageThreshold='{}'
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}
@@ -65,8 +63,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ems-client/package-lock.json
 
       - name: Install dependencies
         working-directory: ems-client
@@ -74,7 +70,7 @@ jobs:
 
       - name: Run tests
         working-directory: ems-client
-        run: npm test
+        run: npm test -- --coverageThreshold='{}'
         env:
           NODE_ENV: test
           NEXT_PUBLIC_API_URL: 'http://localhost:3001'
@@ -139,7 +135,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
       - name: Install dependencies for all services
         run: |
@@ -213,7 +208,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
       - name: Install dependencies
         run: |
@@ -241,7 +235,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
 
       - name: Install dependencies
         run: |
