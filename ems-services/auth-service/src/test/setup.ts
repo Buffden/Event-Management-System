@@ -1,17 +1,19 @@
 // src/test/setup.ts
-import 'jest';
-import { setupAllMocks, resetAllMocks } from './mocks';
+import '@jest/globals';
+import { setupAllMocks, resetAllMocks } from './mocks-simple';
 
 // Setup all common mocks before any tests run
 setupAllMocks();
 
 // Common Jest setup hooks shared across tests
 beforeAll(async () => {
+    console.log('🚀 Auth Service test suite starting...');
     // Note: For unit tests, we don't need real database connections
     // The mocks will handle all database interactions
 });
 
 afterAll(async () => {
+    console.log('✅ Auth Service test suite completed');
     // Global cleanup
     resetAllMocks();
 });
