@@ -58,11 +58,74 @@ export const createMockWelcomeEmail = (overrides: Partial<any> = {}) => ({
   ...overrides,
 });
 
+// Additional mock data factories for comprehensive testing
+export const createMockEventCancelledNotification = (overrides: Partial<any> = {}) => ({
+  type: MESSAGE_TYPE.EVENT_CANCELLED_NOTIFICATION,
+  message: {
+    eventName: 'Cancelled Event',
+    eventDate: '2024-12-01',
+    venueName: 'Test Venue',
+    cancellationReason: 'Due to unforeseen circumstances',
+    attendeeName: 'John Doe',
+    attendeeEmail: 'john@example.com',
+  },
+  ...overrides,
+});
+
+export const createMockEventUpdatedNotification = (overrides: Partial<any> = {}) => ({
+  type: MESSAGE_TYPE.EVENT_UPDATED_NOTIFICATION,
+  message: {
+    eventName: 'Updated Event',
+    eventDate: '2024-12-01',
+    updatedFields: ['Date changed', 'Venue updated'],
+    recipientName: 'Jane Smith',
+    recipientEmail: 'jane@example.com',
+  },
+  ...overrides,
+});
+
+export const createMockEventReminderNotification = (overrides: Partial<any> = {}) => ({
+  type: MESSAGE_TYPE.EVENT_REMINDER_NOTIFICATION,
+  message: {
+    eventName: 'Upcoming Event',
+    eventDate: '2024-12-15',
+    eventTime: '10:00',
+    venueName: 'Main Hall',
+    recipientName: 'Bob Wilson',
+    recipientEmail: 'bob@example.com',
+    reminderType: '1_HOUR',
+  },
+  ...overrides,
+});
+
+export const createMockPasswordResetEmail = (overrides: Partial<any> = {}) => ({
+  type: MESSAGE_TYPE.PASSWORD_RESET_EMAIL,
+  message: {
+    userName: 'Test User',
+    resetLink: 'https://example.com/reset?token=abc123',
+    expiryTime: '2024-12-31T23:59:59Z',
+  },
+  ...overrides,
+});
+
+export const createMockAccountVerificationEmail = (overrides: Partial<any> = {}) => ({
+  type: MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL,
+  message: {
+    userName: 'Test User',
+    verificationLink: 'https://example.com/verify?token=xyz789',
+    expiryTime: '2024-12-31T23:59:59Z',
+  },
+  ...overrides,
+});
+
 // ============================================================================
 // MOCK OBJECTS FOR EXTERNAL DEPENDENCIES
 // ============================================================================
 
-// nodemailer is now mocked at module level
+// Mock nodemailer at module level
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn(() => mockTransporter),
+}));
 
 export const mockTransporter = {
   sendMail: jest.fn() as jest.MockedFunction<any>,
