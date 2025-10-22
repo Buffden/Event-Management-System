@@ -259,3 +259,4 @@ jobs:
           cd ../booking-service && npm audit --audit-level moderate || true
           cd ../notification-service && npm audit --audit-level moderate || true
           cd ../../ems-client && npm audit --audit-level moderate || true
+# Testing GitHub Actions
