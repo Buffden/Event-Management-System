@@ -29,11 +29,11 @@ This directory contains class diagrams for each use case, following the LLD appr
 ## Class Diagrams by Use Case
 
 ### **Phase 1: Foundation**
-- [Authentication Use Case](./01-authentication-use-case.puml) - User registration, login, profile management
+- [Authentication Use Case](./01-authentication-use-case.puml) - User booking, login, profile management
 - [Event Management Use Case](./02-event-management-use-case.puml) - Event creation, updates, publishing
 
 ### **Phase 2: Core Business Logic**
-- [Event Discovery & Registration Use Case](./03-event-discovery-registration-use-case.puml) - Browse events, register, waitlist
+- [Event Discovery & Booking Use Case](./03-event-discovery-registration-use-case.puml) - Browse events, book, waitlist
 - [Digital Ticketing Use Case](./04-digital-ticketing-use-case.puml) - Generate tickets, QR codes, email delivery
 
 ### **Phase 3: Advanced Features**

@@ -1,0 +1,73 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../generated/prisma"
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Model to represent a feedback form for a specific event.
+// Its structure remains unchanged.
+model FeedbackForm {
+  id String @id @default(cuid())
+
+  // The unique identifier for the event this form is associated with.
+  eventId String @unique
+
+  title       String
+  description String? @db.Text
+  isPublished Boolean @default(false)
+
+  // Relation to all the responses submitted for this form.
+  responses FeedbackResponse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("feedback_forms")
+}
+
+// (UPDATED) Model to store an individual feedback submission from an attendee.
+// This model now links directly to a user's booking.
+model FeedbackResponse {
+  id     String @id @default(cuid())
+  formId String // The form this response is for.
+
+  // --- New & Updated Fields ---
+
+  // ID of the user submitting feedback (from Auth Service).
+  userId String
+
+  // ID of the event being reviewed (from Event Service).
+  // This is denormalized here for faster queries by the Analytics Service.
+  eventId String
+
+  // The unique booking ID (from Booking Service).
+  // This confirms the user was a registered attendee.
+  // The @unique constraint ensures one feedback submission per booking.
+  bookingId String @unique
+
+  // --- Core Feedback Fields ---
+
+  // Numeric rating (e.g., 1-5). Application-level validation is expected.
+  rating Int
+
+  // Optional text comments.
+  comment String? @db.Text
+
+  // --- Relations and Timestamps ---
+
+  form      FeedbackForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // --- Indexes for Performance ---
+
+  @@index([formId])
+  @@index([userId])
+  @@index([eventId]) // Added index for the new eventId field.
+  @@map("feedback_responses")
+}

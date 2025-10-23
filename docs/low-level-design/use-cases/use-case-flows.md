@@ -12,10 +12,10 @@ Following the LLD tutorial approach, these flows are written in plain English to
 
 **User Flow:**
 ```
-User visits website → Clicks "Register" → Fills registration form (email, password, role) → 
-System validates input → Creates user account → Sends confirmation email → 
-User clicks confirmation link → Account activated → User can login → 
-User enters credentials → System validates → Returns JWT token → 
+User visits website → Clicks "Register" → Fills booking form (email, password, role) →
+System validates input → Creates user account → Sends confirmation email →
+User clicks confirmation link → Account activated → User can login →
+User enters credentials → System validates → Returns JWT token →
 User accesses dashboard → Can update profile information
 ```
 
@@ -37,10 +37,10 @@ User accesses dashboard → Can update profile information
 
 **User Flow:**
 ```
-Admin logs in → Navigates to "Create Event" → Fills event form (title, description, dates, venue, capacity) → 
-System validates input → Creates event → Sets event status to "Draft" → 
-Admin reviews event → Clicks "Publish" → Event becomes visible to users → 
-Admin can edit event details → Admin can manage event capacity → 
+Admin logs in → Navigates to "Create Event" → Fills event form (title, description, dates, venue, capacity) →
+System validates input → Creates event → Sets event status to "Draft" →
+Admin reviews event → Clicks "Publish" → Event becomes visible to users →
+Admin can edit event details → Admin can manage event capacity →
 Admin can archive completed events
 ```
 
@@ -60,27 +60,27 @@ Admin can archive completed events
 
 ## **Phase 2: Core Business Logic Flows**
 
-### 3. Event Discovery & Registration
+### 3. Event Discovery & Booking
 
 **User Flow:**
 ```
-User visits homepage → Browses available events → Applies filters (date, location, category) → 
-Selects event → Views event details → Clicks "Register" → 
-System checks if user is logged in → If not, redirects to login → 
-User logs in → Returns to registration → System checks event capacity → 
-If capacity available: confirms registration → If full: adds to waitlist → 
-User receives confirmation → Registration status updated
+User visits homepage → Browses available events → Applies filters (date, location, category) →
+Selects event → Views event details → Clicks "Book" →
+System checks if user is logged in → If not, redirects to login →
+User logs in → Returns to booking → System checks event capacity →
+If capacity available: confirms booking → If full: adds to waitlist →
+User receives confirmation → Booking status updated
 ```
 
 **Core Entities Identified:**
 - Event (id, title, description, startDate, endDate, venue, capacity, status)
-- Registration (id, userId, eventId, status, createdAt)
+- Booking (id, userId, eventId, status, createdAt)
 - User (id, email, role)
 
 **Core Methods:**
 - browseEvents(filters)
 - searchEvents(query, filters)
-- registerForEvent(userId, eventId)
+- bookForEvent(userId, eventId)
 - handleWaitlist(userId, eventId)
 - checkCapacity(eventId)
 
@@ -90,10 +90,10 @@ User receives confirmation → Registration status updated
 
 **User Flow:**
 ```
-Registration confirmed → System generates unique ticket → Creates QR code → 
-Sends ticket via email → User receives email with ticket → 
-User can view ticket in dashboard → Downloads ticket for offline use → 
-Ticket contains event details, QR code, user information → 
+Booking confirmed → System generates unique ticket → Creates QR code →
+Sends ticket via email → User receives email with ticket →
+User can view ticket in dashboard → Downloads ticket for offline use →
+Ticket contains event details, QR code, user information →
 System tracks ticket status → Updates status when scanned
 ```
 
@@ -124,9 +124,9 @@ System tracks ticket status → Updates status when scanned
 
 **User Flow:**
 ```
-Speaker logs in → Navigates to "My Profile" → Updates speaker bio and expertise → 
-Uploads presentation materials → System validates file types and sizes → 
-Organizes materials by session → Speaker can view assigned sessions → 
+Speaker logs in → Navigates to "My Profile" → Updates speaker bio and expertise →
+Uploads presentation materials → System validates file types and sizes →
+Organizes materials by session → Speaker can view assigned sessions →
 Updates materials for specific sessions → System notifies admin of updates
 ```
 
@@ -147,10 +147,10 @@ Updates materials for specific sessions → System notifies admin of updates
 
 **User Flow:**
 ```
-Admin creates event → Navigates to speaker assignment → Selects speakers from available list → 
-Assigns speakers to specific sessions → System sends invitation to speakers → 
-Speaker receives notification → Reviews assignment details → Accepts or rejects assignment → 
-If accepted: Speaker is confirmed for session → If rejected: Admin can assign different speaker → 
+Admin creates event → Navigates to speaker assignment → Selects speakers from available list →
+Assigns speakers to specific sessions → System sends invitation to speakers →
+Speaker receives notification → Reviews assignment details → Accepts or rejects assignment →
+If accepted: Speaker is confirmed for session → If rejected: Admin can assign different speaker →
 Admin can modify assignments before event starts → System tracks assignment status
 ```
 
@@ -173,10 +173,10 @@ Admin can modify assignments before event starts → System tracks assignment st
 
 **User Flow:**
 ```
-Admin creates event → Decides to add multiple tracks → Creates track (e.g., "Technical Track", "Business Track") → 
-Adds sessions to each track → Assigns speakers to track-specific sessions → 
-Manages track capacity and timing → Ensures no conflicts between tracks → 
-Publishes multi-track event → Attendees can choose tracks during registration → 
+Admin creates event → Decides to add multiple tracks → Creates track (e.g., "Technical Track", "Business Track") →
+Adds sessions to each track → Assigns speakers to track-specific sessions →
+Manages track capacity and timing → Ensures no conflicts between tracks →
+Publishes multi-track event → Attendees can choose tracks during booking →
 System manages track-specific attendance and materials
 ```
 
@@ -199,10 +199,10 @@ System manages track-specific attendance and materials
 
 **User Flow:**
 ```
-Admin creates event → Adds session slots → Assigns speakers to sessions → 
-System checks speaker availability → Validates no scheduling conflicts → 
-Creates event schedule → Speakers receive notifications → 
-Admin can modify schedule → System updates all affected parties → 
+Admin creates event → Adds session slots → Assigns speakers to sessions →
+System checks speaker availability → Validates no scheduling conflicts →
+Creates event schedule → Speakers receive notifications →
+Admin can modify schedule → System updates all affected parties →
 Schedule published to attendees
 ```
 
@@ -223,15 +223,15 @@ Schedule published to attendees
 
 **User Flow:**
 ```
-Attendee arrives at venue → Presents QR code → Staff scans code → 
-System validates ticket → Checks if already scanned → 
-If valid: records attendance → Updates ticket status → 
-Shows confirmation to attendee → Tracks real-time attendance → 
+Attendee arrives at venue → Presents QR code → Staff scans code →
+System validates ticket → Checks if already scanned →
+If valid: records attendance → Updates ticket status →
+Shows confirmation to attendee → Tracks real-time attendance →
 Admin can view attendance dashboard → Generates attendance reports
 ```
 
 **Core Entities Identified:**
-- Ticket (id, registrationId, qrCode, status, scannedAt)
+- Ticket (id, bookingId, qrCode, status, scannedAt)
 - Attendance (id, ticketId, eventId, sessionId, scannedBy, scanTime)
 - StaffUser (id, userId, role, permissions)
 
@@ -249,10 +249,10 @@ Admin can view attendance dashboard → Generates attendance reports
 
 **User Flow:**
 ```
-System triggers notification event → Determines notification type → 
-Selects appropriate template → Personalizes message → 
-Sends via email/push → Tracks delivery status → 
-Handles delivery failures → Retries if necessary → 
+System triggers notification event → Determines notification type →
+Selects appropriate template → Personalizes message →
+Sends via email/push → Tracks delivery status →
+Handles delivery failures → Retries if necessary →
 Updates notification status → Logs delivery history
 ```
 
@@ -273,10 +273,10 @@ Updates notification status → Logs delivery history
 
 **User Flow:**
 ```
-Event ends → System sends feedback request → User clicks feedback link → 
-Fills feedback form (rating, comments) → Submits feedback → 
-System validates input → Stores feedback → 
-Admin views feedback dashboard → Generates reports → 
+Event ends → System sends feedback request → User clicks feedback link →
+Fills feedback form (rating, comments) → Submits feedback →
+System validates input → Stores feedback →
+Admin views feedback dashboard → Generates reports →
 Exports data for analysis → Tracks feedback trends
 ```
 
@@ -298,7 +298,7 @@ Exports data for analysis → Tracks feedback trends
 From these flows, the core entities are:
 - **User, AuthSession, UserProfile**
 - **Event, SessionSlot, Venue, EventTrack**
-- **Registration, Ticket, QRCode, Attendance**
+- **Booking, Ticket, QRCode, Attendance**
 - **SpeakerProfile, PresentationMaterial, SpeakerAssignment**
 - **TrackAssignment, Notification, EmailTemplate, Feedback, Report**
 
@@ -307,7 +307,7 @@ From these flows, the core entities are:
 Core methods identified:
 - **Authentication**: register(), login(), logout(), validateToken()
 - **Event Management**: createEvent(), updateEvent(), publishEvent()
-- **Registration**: registerForEvent(), handleWaitlist(), checkCapacity()
+- **Booking**: bookForEvent(), handleWaitlist(), checkCapacity()
 - **Ticketing**: generateTicket(), sendTicket(), validateTicket()
 - **Speaker Assignment**: assignSpeakerToEvent(), acceptAssignment(), rejectAssignment()
 - **Multi-Track**: createTrack(), assignSessionToTrack(), manageTrackSchedule()

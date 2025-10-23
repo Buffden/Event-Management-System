@@ -12,7 +12,7 @@ This directory contains the Low Level Design documentation for the Event Managem
 
 ### Implementation Phases
 - [Phase 1: Foundation](./phases/phase1-foundation.md) - Authentication & Event Management
-- [Phase 2: Core Business Logic](./phases/phase2-core-business.md) - Registration, Ticketing
+- [Phase 2: Core Business Logic](./phases/phase2-core-business.md) - Booking, Ticketing
 - [Phase 3: Advanced Features](./phases/phase3-advanced-features.md) - Speaker Management, Scheduling, Attendance
 - [Phase 4: Enhancement](./phases/phase4-enhancement.md) - Notifications, Feedback, Reporting
 
@@ -46,7 +46,7 @@ Following the systematic approach for Low Level Design:
 ## Implementation Order
 
 1. **Phase 1** (Weeks 1-2): User Authentication & Event Management
-2. **Phase 2** (Weeks 3-4): Registration, Ticketing
+2. **Phase 2** (Weeks 3-4): Booking, Ticketing
 3. **Phase 3** (Weeks 5-6): Speaker Management, Scheduling, Attendance
 4. **Phase 4** (Weeks 7-8): Notifications, Feedback, Reporting
 

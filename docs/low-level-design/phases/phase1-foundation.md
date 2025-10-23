@@ -21,10 +21,10 @@ Phase 1 focuses on establishing the foundational components of the Event Managem
 
 ### **User Flow (Plain English)**
 ```
-User visits website → Clicks "Register" → Fills registration form (email, password, role) → 
-System validates input → Creates user account → Sends confirmation email → 
-User clicks confirmation link → Account activated → User can login → 
-User enters credentials → System validates → Returns JWT token → 
+User visits website → Clicks "Register" → Fills booking form (email, password, role) →
+System validates input → Creates user account → Sends confirmation email →
+User clicks confirmation link → Account activated → User can login →
+User enters credentials → System validates → Returns JWT token →
 User accesses dashboard → Can update profile information
 ```
 
@@ -67,10 +67,10 @@ User accesses dashboard → Can update profile information
 
 ### **User Flow (Plain English)**
 ```
-Admin logs in → Navigates to "Create Event" → Fills event form (title, description, dates, venue, capacity) → 
-System validates input → Creates event → Sets event status to "Draft" → 
-Admin reviews event → Clicks "Publish" → Event becomes visible to users → 
-Admin can edit event details → Admin can manage event capacity → 
+Admin logs in → Navigates to "Create Event" → Fills event form (title, description, dates, venue, capacity) →
+System validates input → Creates event → Sets event status to "Draft" →
+Admin reviews event → Clicks "Publish" → Event becomes visible to users →
+Admin can edit event details → Admin can manage event capacity →
 Admin can archive completed events
 ```
 
@@ -205,4 +205,4 @@ DELETE /events/:id - Delete event (Admin only)
 
 ---
 
-The authentication system from Phase 1 will be used throughout the application, and the event management system will be extended with registration capabilities.
+The authentication system from Phase 1 will be used throughout the application, and the event management system will be extended with booking capabilities.
