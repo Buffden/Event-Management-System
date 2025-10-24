@@ -11,7 +11,7 @@ import {
     MESSAGE_TYPE
 } from '../types/types';
 
-export class EmailTemplateService {
+class EmailTemplateService {
     private readonly appName: string;
     private readonly baseUrl: string;
 

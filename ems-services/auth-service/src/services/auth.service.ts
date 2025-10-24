@@ -31,7 +31,7 @@ const userSelect = {
     emailVerified: true,
 };
 
-export class AuthService {
+class AuthService {
     private JWT_SECRET = process.env.JWT_SECRET!;
     private EMAIL_VERIFICATION_SECRET = process.env.EMAIL_VERIFICATION_SECRET!;
 
@@ -651,3 +651,6 @@ export class AuthService {
         }
     }
 }
+
+export { AuthService };
+export const authService = new AuthService();
