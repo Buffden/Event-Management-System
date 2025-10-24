@@ -39,7 +39,17 @@ afterEach(() => {
   console.warn = originalConsoleWarn;
 });
 
-// Custom Jest matchers (example)
+// Global test utilities
+declare global {
+  namespace jest {
+    interface Matchers<R> {
+      toBeValidEmail(): R;
+      toContainHTML(expectedHTML: string): R;
+    }
+  }
+}
+
+// Custom Jest matchers for Notification Service
 expect.extend({
   toBeValidEmail(received: string) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
