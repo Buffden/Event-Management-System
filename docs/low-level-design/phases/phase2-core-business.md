@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 2 builds upon the foundation established in Phase 1 to implement the core business logic that drives the Event Management System. This phase focuses on user registration, digital ticketing, and the essential workflows that make events functional.
+Phase 2 builds upon the foundation established in Phase 1 to implement the core business logic that drives the Event Management System. This phase focuses on user booking, digital ticketing, and the essential workflows that make events functional.
 
 **Priority**: CRITICAL - Core business functionality
 **Timeline**: Weeks 3-4
@@ -12,60 +12,60 @@ Phase 2 builds upon the foundation established in Phase 1 to implement the core 
 
 ## Use Cases in Phase 2
 
-### 3. Event Discovery & Registration
+### 3. Event Discovery & Booking
 ### 4. Digital Ticketing System
 
 ---
 
-## 3. Event Discovery & Registration
+## 3. Event Discovery & Booking
 
 ### **User Flow (Plain English)**
 ```
-User visits homepage → Browses available events → Filters by date/category/location → 
-Selects an event → Views event details (description, schedule, speaker info) → 
-Clicks "Register" → System checks availability → If available: User fills registration form → 
-System validates input → Creates registration → If full: User joins waitlist → 
-System sends confirmation email → User receives ticket via email → 
-Admin can view registration list → Admin can manage capacity → 
+User visits homepage → Browses available events → Filters by date/category/location →
+Selects an event → Views event details (description, schedule, speaker info) →
+Clicks "Book" → System checks availability → If available: User fills booking form →
+System validates input → Creates booking → If full: User joins waitlist →
+System sends confirmation email → User receives ticket via email →
+Admin can view booking list → Admin can manage capacity →
 Admin can approve/reject waitlist entries
 ```
 
 ### **Core Entities**
-- **Registration**: `id, userId, eventId, status, registrationDate, specialRequests, ticketId`
+- **Booking**: `id, userId, eventId, status, bookingDate, specialRequests, ticketId`
 - **Waitlist**: `id, userId, eventId, position, requestDate, status`
 - **EventCategory**: `id, name, description, color`
-- **RegistrationStatus**: `PENDING, CONFIRMED, CANCELLED, WAITLISTED`
+- **BookingStatus**: `PENDING, CONFIRMED, CANCELLED, WAITLISTED`
 
 ### **Core Methods**
 - `browseEvents(filters)` - Get events with filtering and pagination
-- `registerForEvent(userId, eventId, registrationData)` - Create new registration
+- `bookForEvent(userId, eventId, bookingData)` - Create new booking
 - `joinWaitlist(userId, eventId)` - Add user to waitlist
 - `approveWaitlist(waitlistId)` - Move waitlist entry to confirmed
-- `cancelRegistration(registrationId)` - Cancel existing registration
-- `getRegistrationStatus(registrationId)` - Check registration status
+- `cancelBooking(bookingId)` - Cancel existing booking
+- `getBookingStatus(bookingId)` - Check booking status
 - `manageEventCapacity(eventId, newCapacity)` - Update event capacity
 
 ### **Design Patterns to Use**
-- **Repository**: RegistrationRepository, WaitlistRepository
-- **Strategy**: RegistrationValidationStrategy for different event types
-- **Observer**: RegistrationObserver for notifications
-- **Factory**: RegistrationFactory for different registration types
-- **Command**: RegistrationCommand for undo/redo operations
+- **Repository**: BookingRepository, WaitlistRepository
+- **Strategy**: BookingValidationStrategy for different event types
+- **Observer**: BookingObserver for notifications
+- **Factory**: BookingFactory for different booking types
+- **Command**: BookingCommand for undo/redo operations
 
 ### **Business Rules**
-- Registration opens only for published events
-- Users can only register once per event
-- Registration closes 24 hours before event start
+- Booking opens only for published events
+- Users can only book once per event
+- Booking closes 24 hours before event start
 - Waitlist position based on first-come-first-served
 - Special requests limited to 200 characters
-- Maximum 10 active registrations per user
+- Maximum 10 active bookings per user
 
 ### **Implementation Priority**
 1. Event browsing and filtering
-2. Registration creation and validation
+2. Booking creation and validation
 3. Waitlist management
 4. Capacity checking and updates
-5. Registration status tracking
+5. Booking status tracking
 
 ---
 
@@ -73,12 +73,12 @@ Admin can approve/reject waitlist entries
 
 ### **User Flow (Plain English)**
 ```
-Registration confirmed → System automatically generates ticket → 
-Creates unique QR code → Associates QR with ticket → 
-Sends ticket via email to user → User receives email with ticket PDF → 
-User arrives at event → Staff scans QR code → 
-System validates ticket → Updates attendance status → 
-If valid: User gains entry → If invalid: Shows error message → 
+Booking confirmed → System automatically generates ticket →
+Creates unique QR code → Associates QR with ticket →
+Sends ticket via email to user → User receives email with ticket PDF →
+User arrives at event → Staff scans QR code →
+System validates ticket → Updates attendance status →
+If valid: User gains entry → If invalid: Shows error message →
 Admin can view attendance reports → Admin can generate attendance analytics
 ```
 
@@ -110,7 +110,7 @@ Admin can view attendance reports → Admin can generate attendance analytics
 - **Singleton**: QRCodeService for centralized QR management
 
 ### **Business Rules**
-- One ticket per registration
+- One ticket per booking
 - QR codes expire 2 hours after event end
 - Tickets cannot be transferred between users
 - Maximum 3 ticket resends per user
@@ -130,13 +130,13 @@ Admin can view attendance reports → Admin can generate attendance analytics
 
 ### **Database Schema**
 ```sql
--- Registrations table
-CREATE TABLE registrations (
+-- Bookings table
+CREATE TABLE bookings (
     id UUID PRIMARY KEY,
     user_id UUID REFERENCES users(id),
     event_id UUID REFERENCES events(id),
     status VARCHAR(50) DEFAULT 'PENDING',
-    registration_date TIMESTAMP DEFAULT NOW(),
+    booking_date TIMESTAMP DEFAULT NOW(),
     special_requests TEXT,
     ticket_id UUID REFERENCES tickets(id),
     created_at TIMESTAMP DEFAULT NOW(),
@@ -207,10 +207,10 @@ CREATE TABLE event_categories (
 ```
 GET /events/browse - Browse events with filters
 GET /events/:id/details - Get detailed event information
-POST /events/:id/register - Register for event
+POST /events/:id/book - Book for event
 POST /events/:id/waitlist - Join event waitlist
-GET /registrations - Get user's registrations
-PUT /registrations/:id/cancel - Cancel registration
+GET /bookings - Get user's bookings
+PUT /bookings/:id/cancel - Cancel booking
 
 GET /tickets/:id - Get ticket details
 POST /tickets/:id/resend - Resend ticket email
@@ -223,11 +223,11 @@ GET /events/:id/attendance - Get attendance report
 - **Email Service**: Send ticket emails and notifications
 - **QR Code Service**: Generate and validate QR codes
 - **File Storage**: Store ticket PDFs and QR images
-- **Notification Service**: Send registration confirmations
+- **Notification Service**: Send booking confirmations
 - **Event Service**: Update capacity and availability
 
 ### **Error Handling**
-- Registration conflicts and duplicates
+- Booking conflicts and duplicates
 - Capacity exceeded scenarios
 - Invalid QR code handling
 - Email delivery failures
@@ -237,8 +237,8 @@ GET /events/:id/attendance - Get attendance report
 ### **Security Considerations**
 - QR code encryption and validation
 - Ticket fraud prevention
-- Rate limiting on registration endpoints
-- Input validation for registration data
+- Rate limiting on booking endpoints
+- Input validation for booking data
 - Secure ticket storage and transmission
 
 ---
@@ -247,7 +247,7 @@ GET /events/:id/attendance - Get attendance report
 
 ### **Week 3 Goals**
 - [ ] Event browsing and filtering working
-- [ ] User registration system functional
+- [ ] User booking system functional
 - [ ] Waitlist management implemented
 - [ ] Basic ticket generation working
 
@@ -259,7 +259,7 @@ GET /events/:id/attendance - Get attendance report
 - [ ] Admin reporting features
 
 ### **Testing Requirements**
-- Registration flow testing
+- Booking flow testing
 - Ticket generation and validation testing
 - QR code scanning accuracy testing
 - Email delivery testing
@@ -270,8 +270,8 @@ GET /events/:id/attendance - Get attendance report
 
 ## Dependencies from Phase 1
 
-- **User Authentication**: All registration requires valid user accounts
-- **Event Management**: Registration depends on published events
+- **User Authentication**: All booking requires valid user accounts
+- **Event Management**: Booking depends on published events
 - **Database Schema**: Extends existing user and event tables
 - **API Infrastructure**: Builds upon established API patterns
 

@@ -93,7 +93,7 @@ class TicketIssuanceService {
   - qrCodeGenerator: QRCodeGenerator
   - emailService: EmailService
   - clock: Clock
-  + generateTicket(registrationId: string): Ticket
+  + generateTicket(bookingId: string): Ticket
   + sendTicket(ticketId: string, userEmail: string): void
   + updateTicketStatus(ticketId: string, newStatus: TicketStatus): void
   + validateQRCode(qrCodeData: string): boolean
@@ -127,7 +127,7 @@ class ValidateTicketHandler {
 ' Infrastructure Layer
 interface TicketRepository {
   + findById(id: string): Ticket | null
-  + findByRegistrationId(registrationId: string): Ticket | null
+  + findByBookingId(bookingId: string): Ticket | null
   + findByQRCode(qrCode: string): Ticket | null
   + save(ticket: Ticket): void
   + update(ticket: Ticket): void
@@ -150,7 +150,7 @@ interface AttendanceRepository {
 
 ' DTOs
 class GenerateTicketRequest {
-  + registrationId: string
+  + bookingId: string
   + userId: string
   + eventId: string
 }

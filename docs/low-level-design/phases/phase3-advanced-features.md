@@ -24,11 +24,11 @@ Phase 3 introduces advanced features that enhance the event management system wi
 
 ### **User Flow (Plain English)**
 ```
-Speaker logs in → Navigates to "My Profile" → Views current profile information → 
-Updates bio, expertise, social links → Uploads profile photo → 
-Navigates to "My Materials" → Uploads presentation files (PPT, PDF) → 
-Organizes materials by session → Sets access permissions → 
-Admin views speaker profiles → Admin can approve/reject materials → 
+Speaker logs in → Navigates to "My Profile" → Views current profile information →
+Updates bio, expertise, social links → Uploads profile photo →
+Navigates to "My Materials" → Uploads presentation files (PPT, PDF) →
+Organizes materials by session → Sets access permissions →
+Admin views speaker profiles → Admin can approve/reject materials →
 Attendees can view speaker profiles → Attendees can download approved materials
 ```
 
@@ -75,11 +75,11 @@ Attendees can view speaker profiles → Attendees can download approved material
 
 ### **User Flow (Plain English)**
 ```
-Admin logs in → Navigates to "Speaker Management" → Views available speakers → 
-Selects event → Assigns speaker to event → Sends invitation to speaker → 
-Speaker receives email notification → Speaker logs in → Views pending assignments → 
-Speaker accepts/declines assignment → Admin receives response → 
-Admin can reassign if declined → Admin manages speaker schedules → 
+Admin logs in → Navigates to "Speaker Management" → Views available speakers →
+Selects event → Assigns speaker to event → Sends invitation to speaker →
+Speaker receives email notification → Speaker logs in → Views pending assignments →
+Speaker accepts/declines assignment → Admin receives response →
+Admin can reassign if declined → Admin manages speaker schedules →
 System sends reminder notifications → Speaker confirms attendance
 ```
 
@@ -126,18 +126,18 @@ System sends reminder notifications → Speaker confirms attendance
 
 ### **User Flow (Plain English)**
 ```
-Admin creates event → Defines event tracks (e.g., "Technical", "Business") → 
-Creates sessions within each track → Assigns sessions to tracks → 
-Sets track-specific details (capacity, room, timing) → 
-Attendees browse events → View available tracks → 
-Register for specific track sessions → System manages track capacity → 
+Admin creates event → Defines event tracks (e.g., "Technical", "Business") →
+Creates sessions within each track → Assigns sessions to tracks →
+Sets track-specific details (capacity, room, timing) →
+Attendees browse events → View available tracks →
+Book for specific track sessions → System manages track capacity →
 During event: Track-specific check-ins → Track attendance reporting
 ```
 
 ### **Core Entities**
 - **EventTrack**: `id, eventId, name, description, capacity, room, startTime, endTime`
 - **TrackAssignment**: `id, sessionId, trackId, position, capacity`
-- **TrackRegistration**: `id, userId, trackId, registrationDate, status`
+- **TrackBooking**: `id, userId, trackId, bookingDate, status`
 - **TrackCapacity**: `id, trackId, currentCapacity, maxCapacity, waitlistCount`
 
 ### **Core Methods**
@@ -167,7 +167,7 @@ During event: Track-specific check-ins → Track attendance reporting
 ### **Implementation Priority**
 1. Track creation and management
 2. Session assignment to tracks
-3. Track-specific registration
+3. Track-specific booking
 4. Capacity management per track
 5. Track scheduling and conflict resolution
 
@@ -177,11 +177,11 @@ During event: Track-specific check-ins → Track attendance reporting
 
 ### **User Flow (Plain English)**
 ```
-Admin creates event → Defines event schedule → Creates session slots → 
-Assigns speakers to sessions → Sets session timing and duration → 
-Manages room assignments → Checks for scheduling conflicts → 
-Publishes event schedule → Attendees view detailed schedule → 
-During event: Real-time schedule updates → Session reminders → 
+Admin creates event → Defines event schedule → Creates session slots →
+Assigns speakers to sessions → Sets session timing and duration →
+Manages room assignments → Checks for scheduling conflicts →
+Publishes event schedule → Attendees view detailed schedule →
+During event: Real-time schedule updates → Session reminders →
 Post-event: Schedule adherence reporting
 ```
 
@@ -228,11 +228,11 @@ Post-event: Schedule adherence reporting
 
 ### **User Flow (Plain English)**
 ```
-Attendee arrives at event → Staff member opens scanning app → 
-Attendee presents QR code → Staff scans QR code → 
-System validates ticket → If valid: Records attendance → 
-Updates real-time attendance dashboard → If invalid: Shows error message → 
-Admin views live attendance → Generates attendance reports → 
+Attendee arrives at event → Staff member opens scanning app →
+Attendee presents QR code → Staff scans QR code →
+System validates ticket → If valid: Records attendance →
+Updates real-time attendance dashboard → If invalid: Shows error message →
+Admin views live attendance → Generates attendance reports →
 Tracks session-wise attendance → Monitors event capacity utilization
 ```
 
@@ -426,7 +426,7 @@ POST /attendance/export - Export attendance data
 ### **Testing Requirements**
 - Speaker workflow testing
 - Assignment management testing
-- Multi-track registration testing
+- Multi-track booking testing
 - Schedule conflict detection testing
 - Real-time attendance tracking testing
 - Performance testing for concurrent users
@@ -437,7 +437,7 @@ POST /attendance/export - Export attendance data
 
 - **User Authentication**: Speaker roles and permissions
 - **Event Management**: Base events for tracks and sessions
-- **Registration System**: Ticket generation for attendance tracking
+- **Booking System**: Ticket generation for attendance tracking
 - **Database Schema**: Extends existing tables with new relationships
 
 ## Next Phase Preview

@@ -10,12 +10,12 @@ Following the LLD approach, these use cases are prioritized for implementation b
 *Priority: CRITICAL - Foundation components*
 
 ### 1. User Authentication & Profile Management
-**Description**: Complete user lifecycle management including registration, authentication, and profile management.
+**Description**: Complete user lifecycle management including booking, authentication, and profile management.
 
 **Core Entities**: User, AuthSession, UserProfile
 **Core Methods**: register(), login(), logout(), updateProfile()
 **Design Patterns**: Singleton (AuthService), Strategy (PasswordHashing)
-**Business Rules**: 
+**Business Rules**:
 - Unique email per user
 - Password strength validation
 - JWT token management
@@ -39,16 +39,16 @@ Following the LLD approach, these use cases are prioritized for implementation b
 ## **Phase 2: Core Business Logic (Weeks 3-4)**
 *Priority: HIGH - Essential for MVP*
 
-### 3. Event Discovery & Registration
-**Description**: Attendee functionality to browse events and register for them with waitlist handling.
+### 3. Event Discovery & Booking
+**Description**: Attendee functionality to browse events and book them with waitlist handling.
 
-**Core Entities**: Event, Registration, User
-**Core Methods**: browseEvents(), searchEvents(), registerForEvent(), handleWaitlist()
+**Core Entities**: Event, Booking, User
+**Core Methods**: browseEvents(), searchEvents(), bookForEvent(), handleWaitlist()
 **Design Patterns**: Strategy (SearchStrategy), Observer (WaitlistNotification)
 **Business Rules**:
-- One active registration per user per event
+- One active booking per user per event
 - Waitlist when capacity reached
-- Registration window validation
+- Booking window validation
 
 ---
 

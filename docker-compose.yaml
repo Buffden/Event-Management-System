@@ -90,6 +90,24 @@ services:
       rabbitmq:
         condition: service_started
 
+  feedback-service:
+    <<: *base-service
+    build:
+      context: ./ems-services/feedback-service
+      dockerfile: Dockerfile
+      args:
+        - DATABASE_URL=postgresql://admin:password@feedback-service-db:5432/feedback_db
+    container_name: feedback-service
+    env_file:
+      ./ems-services/feedback-service/.env.production
+    networks:
+      - event-net
+    depends_on:
+      feedback-service-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
   notification-service:
     build:
       context: ./ems-services/notification-service
@@ -144,6 +162,16 @@ services:
     volumes:
       - booking-service-data:/var/lib/postgresql/data
 
+  feedback-service-db:
+    <<: *base-service-db
+    container_name: feedback-service-db
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=feedback_db
+    volumes:
+      - feedback-service-data:/var/lib/postgresql/data
+
   #########################################
   #   INFRASTRUCTURE SERVICES
   #########################################
@@ -178,5 +206,6 @@ volumes:
   auth-service-data:
   event-service-data:
   booking-service-data:
+  feedback-service-data:
   rabbitmq_data:
   rabbitmq_log:

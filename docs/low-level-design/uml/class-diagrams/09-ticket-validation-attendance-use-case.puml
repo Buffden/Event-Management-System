@@ -4,13 +4,13 @@ title Ticket Validation & Attendance Tracking Use Case - Class Diagram
 ' Core Domain Entities
 class Ticket {
   - id: string
-  - registrationId: string
+  - bookingId: string
   - qrCode: string
   - status: TicketStatus
   - issuedAt: Date
   - scannedAt: Date
   + getId(): string
-  + getRegistrationId(): string
+  + getBookingId(): string
   + getQRCode(): string
   + getStatus(): TicketStatus
   + getIssuedAt(): Date

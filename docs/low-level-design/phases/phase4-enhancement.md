@@ -21,12 +21,12 @@ Phase 4 completes the Event Management System with enhancement features that pro
 
 ### **User Flow (Plain English)**
 ```
-System triggers notification event (registration, event reminder, schedule change) → 
-Notification service receives event → Determines notification type and recipients → 
-Selects appropriate template → Personalizes message with user data → 
-Checks user notification preferences → Sends via chosen channels (email, SMS, push) → 
-Tracks delivery status → Retries failed deliveries → 
-User receives notification → User can manage preferences → 
+System triggers notification event (booking, event reminder, schedule change) →
+Notification service receives event → Determines notification type and recipients →
+Selects appropriate template → Personalizes message with user data →
+Checks user notification preferences → Sends via chosen channels (email, SMS, push) →
+Tracks delivery status → Retries failed deliveries →
+User receives notification → User can manage preferences →
 Admin views notification analytics and delivery reports
 ```
 
@@ -77,11 +77,11 @@ Admin views notification analytics and delivery reports
 
 ### **User Flow (Plain English)**
 ```
-Event ends → System sends feedback request email → User clicks feedback link → 
-User rates event (1-5 stars) → User provides written feedback → 
-User rates individual sessions → User submits feedback → 
-System stores feedback data → Admin views feedback dashboard → 
-Admin generates comprehensive reports → Admin exports data for analysis → 
+Event ends → System sends feedback request email → User clicks feedback link →
+User rates event (1-5 stars) → User provides written feedback →
+User rates individual sessions → User submits feedback →
+System stores feedback data → Admin views feedback dashboard →
+Admin generates comprehensive reports → Admin exports data for analysis →
 Admin identifies areas for improvement → System tracks feedback trends over time
 ```
 
@@ -269,7 +269,7 @@ GET /reports/dashboard - Get reporting dashboard
 - **Queue Service**: Handle notification delivery queues
 
 ### **Automation Features**
-- **Event-triggered notifications**: Registration, reminders, updates
+- **Event-triggered notifications**: Booking, reminders, updates
 - **Scheduled notifications**: Pre-event, post-event communications
 - **Feedback campaigns**: Automated feedback collection
 - **Report generation**: Scheduled analytics reports
@@ -309,7 +309,7 @@ GET /reports/dashboard - Get reporting dashboard
 
 - **User Authentication**: User management for notifications and feedback
 - **Event Management**: Events as notification triggers and feedback targets
-- **Registration System**: Registration events for notification triggers
+- **Booking System**: Booking events for notification triggers
 - **Speaker Management**: Speaker performance feedback
 - **Attendance Tracking**: Post-event feedback triggers
 

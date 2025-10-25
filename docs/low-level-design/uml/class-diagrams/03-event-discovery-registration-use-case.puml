@@ -1,5 +1,5 @@
-@startuml EventDiscoveryRegistrationUseCase
-title Event Discovery & Registration Use Case - Class Diagram
+@startuml EventDiscoveryBookingUseCase
+title Event Discovery & Booking Use Case - Class Diagram
 
 ' Core Domain Entities
 class Event {
@@ -10,29 +10,29 @@ class Event {
   - endDate: Date
   - venueId: string
   - capacity: number
-  - currentRegistrations: number
+  - currentBookings: number
   - status: EventStatus
   + getId(): string
   + getTitle(): string
   + getCapacity(): number
-  + getCurrentRegistrations(): number
+  + getCurrentBookings(): number
   + isAvailable(): boolean
   + hasCapacity(): boolean
   + getAvailableSpots(): number
 }
 
-class Registration {
+class Booking {
   - id: string
   - userId: string
   - eventId: string
-  - status: RegistrationStatus
+  - status: BookingStatus
   - createdAt: Date
   - confirmedAt: Date
   - waitlistPosition: number
   + getId(): string
   + getUserId(): string
   + getEventId(): string
-  + getStatus(): RegistrationStatus
+  + getStatus(): BookingStatus
   + isConfirmed(): boolean
   + isWaitlisted(): boolean
   + confirm(): void
@@ -48,10 +48,10 @@ class User {
   + getId(): string
   + getEmail(): string
   + getRole(): Role
-  + canRegister(): boolean
+  + canBook(): boolean
 }
 
-enum RegistrationStatus {
+enum BookingStatus {
   PENDING
   CONFIRMED
   WAITLISTED
@@ -69,22 +69,22 @@ class EventDiscoveryService {
   + getUpcomingEvents(): Event[]
 }
 
-class RegistrationService {
-  - registrationRepository: RegistrationRepository
+class BookingService {
+  - bookingRepository: BookingRepository
   - eventRepository: EventRepository
   - userRepository: UserRepository
   - capacityManager: CapacityManager
   - waitlistManager: WaitlistManager
-  + registerForEvent(userId: string, eventId: string): RegistrationResult
-  + cancelRegistration(registrationId: string): void
-  + getRegistrationStatus(registrationId: string): RegistrationStatus
-  + getUserRegistrations(userId: string): Registration[]
+  + bookForEvent(userId: string, eventId: string): BookingResult
+  + cancelBooking(bookingId: string): void
+  + getBookingStatus(bookingId: string): BookingStatus
+  + getUserBookings(userId: string): Booking[]
   + handleWaitlistPromotion(eventId: string): void
 }
 
 class CapacityManager {
   - eventRepository: EventRepository
-  - registrationRepository: RegistrationRepository
+  - bookingRepository: BookingRepository
   + checkCapacity(eventId: string): CapacityStatus
   + getAvailableSpots(eventId: string): number
   + isAtCapacity(eventId: string): boolean
@@ -92,11 +92,11 @@ class CapacityManager {
 }
 
 class WaitlistManager {
-  - registrationRepository: RegistrationRepository
-  + addToWaitlist(userId: string, eventId: string): Registration
-  + getWaitlistPosition(registrationId: string): number
-  + promoteFromWaitlist(eventId: string): Registration[]
-  + getWaitlistForEvent(eventId: string): Registration[]
+  - bookingRepository: BookingRepository
+  + addToWaitlist(userId: string, eventId: string): Booking
+  + getWaitlistPosition(bookingId: string): number
+  + promoteFromWaitlist(eventId: string): Booking[]
+  + getWaitlistForEvent(eventId: string): Booking[]
 }
 
 ' Application Handlers
@@ -105,14 +105,14 @@ class BrowseEventsHandler {
   + handle(request: BrowseEventsRequest): BrowseEventsResponse
 }
 
-class RegisterForEventHandler {
-  - registrationService: RegistrationService
-  + handle(request: RegisterForEventRequest): RegisterForEventResponse
+class BookForEventHandler {
+  - bookingService: BookingService
+  + handle(request: BookForEventRequest): BookForEventResponse
 }
 
-class CancelRegistrationHandler {
-  - registrationService: RegistrationService
-  + handle(request: CancelRegistrationRequest): CancelRegistrationResponse
+class CancelBookingHandler {
+  - bookingService: BookingService
+  + handle(request: CancelBookingRequest): CancelBookingResponse
 }
 
 ' Infrastructure Layer
@@ -124,14 +124,14 @@ interface EventRepository {
   + findAvailableEvents(): Event[]
 }
 
-interface RegistrationRepository {
-  + findById(id: string): Registration | null
-  + findByUserId(userId: string): Registration[]
-  + findByEventId(eventId: string): Registration[]
-  + findByUserAndEvent(userId: string, eventId: string): Registration | null
+interface BookingRepository {
+  + findById(id: string): Booking | null
+  + findByUserId(userId: string): Booking[]
+  + findByEventId(eventId: string): Booking[]
+  + findByUserAndEvent(userId: string, eventId: string): Booking | null
   + countByEventId(eventId: string): number
-  + findWaitlistedByEventId(eventId: string): Registration[]
-  + save(registration: Registration): void
+  + findWaitlistedByEventId(eventId: string): Booking[]
+  + save(booking: Booking): void
   + delete(id: string): void
 }
 
@@ -146,14 +146,14 @@ class BrowseEventsRequest {
   + limit: number
 }
 
-class RegisterForEventRequest {
+class BookForEventRequest {
   + userId: string
   + eventId: string
 }
 
-class RegistrationResult {
-  + registration: Registration
-  + status: RegistrationStatus
+class BookingResult {
+  + booking: Booking
+  + status: BookingStatus
   + message: string
   + waitlistPosition?: number
 }
@@ -167,26 +167,26 @@ class EventFilters {
 }
 
 ' Relationships
-Event ||--o{ Registration : "has"
-User ||--o{ Registration : "creates"
-Registration ||--|| RegistrationStatus : "has"
+Event ||--o{ Booking : "has"
+User ||--o{ Booking : "creates"
+Booking ||--|| BookingStatus : "has"
 
 EventDiscoveryService --> EventRepository : "uses"
 EventDiscoveryService --> SearchStrategy : "uses"
 
-RegistrationService --> RegistrationRepository : "uses"
-RegistrationService --> EventRepository : "uses"
-RegistrationService --> UserRepository : "uses"
-RegistrationService --> CapacityManager : "uses"
-RegistrationService --> WaitlistManager : "uses"
+BookingService --> BookingRepository : "uses"
+BookingService --> EventRepository : "uses"
+BookingService --> UserRepository : "uses"
+BookingService --> CapacityManager : "uses"
+BookingService --> WaitlistManager : "uses"
 
 CapacityManager --> EventRepository : "uses"
-CapacityManager --> RegistrationRepository : "uses"
+CapacityManager --> BookingRepository : "uses"
 
-WaitlistManager --> RegistrationRepository : "uses"
+WaitlistManager --> BookingRepository : "uses"
 
 BrowseEventsHandler --> EventDiscoveryService : "uses"
-RegisterForEventHandler --> RegistrationService : "uses"
-CancelRegistrationHandler --> RegistrationService : "uses"
+BookForEventHandler --> BookingService : "uses"
+CancelBookingHandler --> BookingService : "uses"
 
 @enduml

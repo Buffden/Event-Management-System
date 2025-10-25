@@ -15,9 +15,9 @@ This document outlines the design patterns implemented throughout the Event Mana
 ```typescript
 class AuthService {
     private static instance: AuthService;
-    
+
     private constructor() {}
-    
+
     public static getInstance(): AuthService {
         if (!AuthService.instance) {
             AuthService.instance = new AuthService();
@@ -54,22 +54,22 @@ class EventFactoryImpl implements EventFactory {
 ```typescript
 class EventBuilder {
     private event: Event;
-    
+
     constructor() {
         this.event = new Event();
     }
-    
+
     setTitle(title: string): EventBuilder {
         this.event.title = title;
         return this;
     }
-    
+
     setDates(startDate: Date, endDate: Date): EventBuilder {
         this.event.startDate = startDate;
         this.event.endDate = endDate;
         return this;
     }
-    
+
     build(): Event {
         return this.event;
     }
@@ -95,11 +95,11 @@ class PostgresUserRepository implements UserRepository {
     async findById(id: string): Promise<User | null> {
         // PostgreSQL implementation
     }
-    
+
     async save(user: User): Promise<User> {
         // PostgreSQL implementation
     }
-    
+
     async delete(id: string): Promise<void> {
         // PostgreSQL implementation
     }
@@ -146,7 +146,7 @@ class BCryptStrategy implements PasswordHashingStrategy {
     async hash(password: string): Promise<string> {
         return bcrypt.hash(password, 12);
     }
-    
+
     async verify(password: string, hash: string): Promise<boolean> {
         return bcrypt.compare(password, hash);
     }
@@ -156,7 +156,7 @@ class Argon2Strategy implements PasswordHashingStrategy {
     async hash(password: string): Promise<string> {
         return argon2.hash(password);
     }
-    
+
     async verify(password: string, hash: string): Promise<boolean> {
         return argon2.verify(hash, password);
     }
@@ -186,11 +186,11 @@ class SMSNotificationObserver implements EventObserver {
 
 class EventSubject {
     private observers: EventObserver[] = [];
-    
+
     attach(observer: EventObserver): void {
         this.observers.push(observer);
     }
-    
+
     notify(event: Event): void {
         this.observers.forEach(observer => observer.update(event));
     }
@@ -198,7 +198,7 @@ class EventSubject {
 ```
 
 ### **Command Pattern**
-**Used in**: RegistrationCommand, AssignmentCommand, ScheduleCommand, FeedbackCommand
+**Used in**: BookingCommand, AssignmentCommand, ScheduleCommand, FeedbackCommand
 **Purpose**: Encapsulate requests as objects
 **Implementation**:
 ```typescript
@@ -212,11 +212,11 @@ class RegisterUserCommand implements Command {
         private userService: UserService,
         private userData: UserData
     ) {}
-    
+
     async execute(): Promise<void> {
         await this.userService.register(this.userData);
     }
-    
+
     async undo(): Promise<void> {
         await this.userService.deleteUser(this.userData.email);
     }
@@ -224,12 +224,12 @@ class RegisterUserCommand implements Command {
 
 class CommandInvoker {
     private commands: Command[] = [];
-    
+
     execute(command: Command): Promise<void> {
         this.commands.push(command);
         return command.execute();
     }
-    
+
     undo(): Promise<void> {
         const command = this.commands.pop();
         if (command) {
@@ -251,11 +251,11 @@ abstract class NotificationTemplate {
         await this.deliver(formattedMessage);
         await this.logDelivery(user, message);
     }
-    
+
     protected abstract createMessage(user: User, data: any): string;
     protected abstract formatMessage(message: string): string;
     protected abstract deliver(message: string): Promise<void>;
-    
+
     private async logDelivery(user: User, message: string): Promise<void> {
         // Common logging logic
     }
@@ -265,11 +265,11 @@ class EmailNotificationTemplate extends NotificationTemplate {
     protected createMessage(user: User, data: any): string {
         return `Hello ${user.name}, ${data.message}`;
     }
-    
+
     protected formatMessage(message: string): string {
         return `<html><body>${message}</body></html>`;
     }
-    
+
     protected async deliver(message: string): Promise<void> {
         // Email delivery logic
     }
@@ -333,7 +333,7 @@ class GetEventsHandler {
 - **Event Management**: Factory (EventCreation), Builder (EventBuilder), Repository (EventRepository)
 
 ### **Phase 2: Core Business Logic**
-- **Registration**: Strategy (SearchStrategy), Observer (WaitlistNotification), Command (RegistrationCommand)
+- **Booking**: Strategy (SearchStrategy), Observer (WaitlistNotification), Command (BookingCommand)
 - **Ticketing**: Factory (TicketFactory), Template Method (TicketTemplate), Observer (TicketObserver)
 
 ### **Phase 3: Advanced Features**
