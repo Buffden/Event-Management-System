@@ -14,6 +14,7 @@ import {
     Role,
     UpdateProfileRequest,
     User, VerifyTokenResponse,
+    SpeakerProfileCreationMessage,
 } from '../types/types';
 import {Profile} from 'passport-google-oauth20';
 import {ALLOWED_REGISTRATION_ROLES, DEFAULT_ROLE} from '../constants/roles';
@@ -111,10 +112,45 @@ class AuthService {
     }
 
     /**
-     * Sends a verification email to the user.
-     * If sending the email fails, the user creation is rolled back.
-     * @param user The user object.
+     * Creates a speaker profile in the Speaker Service when a user registers as a SPEAKER.
+     * @param user The user object with SPEAKER role.
      */
+    async createSpeakerProfile(user: User): Promise<void> {
+        try {
+            logger.debug("START - createSpeakerProfile(): ", {userId: user.id, role: user.role});
+            
+            if (user.role !== 'SPEAKER') {
+                logger.debug("createSpeakerProfile(): User is not a SPEAKER, skipping profile creation", {userId: user.id, role: user.role});
+                return;
+            }
+
+            const speakerProfileMessage: SpeakerProfileCreationMessage = {
+                type: MESSAGE_TYPE.SPEAKER_PROFILE_CREATION,
+                data: {
+                    userId: user.id,
+                    name: user.name || 'Speaker',
+                    email: user.email,
+                    bio: undefined, // Speaker can update this later
+                    expertise: [], // Speaker can update this later
+                    isAvailable: true,
+                }
+            };
+
+            const queueName = 'speaker.profile.create';
+            await rabbitMQService.sendMessage(queueName, speakerProfileMessage);
+            
+            logger.info("createSpeakerProfile(): Speaker profile creation message sent", {
+                userId: user.id,
+                queue: queueName
+            });
+            
+            logger.debug("END - createSpeakerProfile(): ", {userId: user.id});
+        } catch (error) {
+            logger.error("createSpeakerProfile(): Failed to send speaker profile creation message", error as Error, {userId: user.id});
+            // Don't throw error - speaker profile creation failure shouldn't break user registration
+            // The speaker can create their profile later manually
+        }
+    }
     async sendVerificationEmail(user: User): Promise<void> {
         try {
             logger.debug("START - sendVerificationEmail(): ", {userId: user.id});
@@ -220,6 +256,11 @@ class AuthService {
             logger.debug("register(): Exited transaction", {userId: user.id});
             await this.sendVerificationEmail(user);
             logger.debug("register(): Sent verification email to ", {email: user.email});
+            
+            // Create speaker profile if user registered as SPEAKER
+            await this.createSpeakerProfile(user);
+            logger.debug("register(): Speaker profile creation initiated", {userId: user.id, role: user.role});
+            
             const token = this._generateToken(user);
             logger.debug("END - register(): ", {userId: user.id});
             return {token, email: user.email, id: user.id, user: user as User};
