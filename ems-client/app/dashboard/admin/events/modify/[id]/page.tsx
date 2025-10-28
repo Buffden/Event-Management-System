@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft,
   Save,
@@ -13,13 +14,22 @@ import {
   MapPin,
   Clock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Users,
+  UserPlus,
+  Mail,
+  CheckCircle2,
+  XCircle,
+  Clock3
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
 import { eventAPI } from "@/lib/api/event.api";
 import { UpdateEventRequest, VenueResponse, EventResponse, EventStatus } from "@/lib/api/types/event.types";
+import { adminApiClient, SpeakerInvitation } from "@/lib/api/admin.api";
+import { SpeakerProfile } from "@/lib/api/speaker.api";
+import { SpeakerSearchModal } from "@/components/admin/SpeakerSearchModal";
 import { withAdminAuth } from "@/components/hoc/withAuth";
 
 const LOGGER_COMPONENT_NAME = 'AdminModifyEventPage';
@@ -59,6 +69,13 @@ function AdminModifyEventPage() {
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Speaker invitation state
+  const [showSpeakerSearchModal, setShowSpeakerSearchModal] = useState(false);
+  const [currentSpeaker, setCurrentSpeaker] = useState<SpeakerProfile | null>(null);
+  const [eventInvitations, setEventInvitations] = useState<SpeakerInvitation[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
+  const [acceptedSpeakerFromInvitation, setAcceptedSpeakerFromInvitation] = useState<SpeakerProfile | null>(null);
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
@@ -71,8 +88,17 @@ function AdminModifyEventPage() {
     if (isAuthenticated && user && eventId) {
       loadEvent();
       loadVenues();
+      loadSpeakerData();
+      loadEventInvitations();
     }
   }, [isAuthenticated, authLoading, user, router, eventId]);
+
+  // Load accepted speaker when invitations change
+  useEffect(() => {
+    if (eventInvitations.length > 0) {
+      loadAcceptedSpeakerFromInvitations();
+    }
+  }, [eventInvitations]);
 
   const loadEvent = async () => {
     try {
@@ -132,6 +158,97 @@ function AdminModifyEventPage() {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load venues', error as Error);
     } finally {
       setIsLoadingVenues(false);
+    }
+  };
+
+  const loadSpeakerData = async () => {
+    if (!originalEvent?.speakerId) return;
+
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading speaker data', { speakerId: originalEvent.speakerId });
+      
+      const speaker = await adminApiClient.getSpeakerProfile(originalEvent.speakerId);
+      setCurrentSpeaker(speaker);
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'Speaker data loaded', { speakerId: originalEvent.speakerId });
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load speaker data', error as Error);
+      // Don't set error state - speaker might not exist yet
+    }
+  };
+
+  const loadEventInvitations = async () => {
+    try {
+      setLoadingInvitations(true);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading event invitations', { eventId });
+      
+      const invitations = await adminApiClient.getEventInvitations(eventId);
+      setEventInvitations(invitations);
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'Event invitations loaded', { 
+        eventId, 
+        count: invitations.length 
+      });
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event invitations', error as Error);
+      // Don't set error state - invitations might not exist yet
+    } finally {
+      setLoadingInvitations(false);
+    }
+  };
+
+  const loadAcceptedSpeakerFromInvitations = async () => {
+    try {
+      const acceptedInvitation = eventInvitations.find(inv => inv.status === 'ACCEPTED');
+      if (acceptedInvitation) {
+        logger.debug(LOGGER_COMPONENT_NAME, 'Loading accepted speaker from invitation', { 
+          invitationId: acceptedInvitation.id,
+          speakerId: acceptedInvitation.speakerId 
+        });
+        const speaker = await adminApiClient.getSpeakerProfile(acceptedInvitation.speakerId);
+        setAcceptedSpeakerFromInvitation(speaker);
+        logger.info(LOGGER_COMPONENT_NAME, 'Accepted speaker loaded from invitation', {
+          speakerId: acceptedInvitation.speakerId,
+          speakerName: speaker.name
+        });
+      } else {
+        setAcceptedSpeakerFromInvitation(null);
+      }
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load accepted speaker from invitation', error as Error);
+      setAcceptedSpeakerFromInvitation(null);
+    }
+  };
+
+  const handleInviteSpeaker = async (speakerId: string, message: string) => {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Sending speaker invitation', { 
+        speakerId, 
+        eventId, 
+        eventName: originalEvent?.name 
+      });
+
+      const invitation = await adminApiClient.createInvitation({
+        speakerId,
+        eventId,
+        message
+      });
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Speaker invitation sent successfully', { 
+        invitationId: invitation.id,
+        speakerId, 
+        eventId 
+      });
+
+      // Reload invitations to show the new one
+      await loadEventInvitations();
+      
+      // Close the modal
+      setShowSpeakerSearchModal(false);
+      
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to send speaker invitation', error as Error);
+      throw error; // Re-throw to let the modal handle the error
     }
   };
 
@@ -508,6 +625,216 @@ function AdminModifyEventPage() {
                 </div>
               </div>
 
+              {/* Speaker Assignment */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
+                  <Users className="h-5 w-5 mr-2" />
+                  Speaker Assignment
+                </h3>
+
+                {/* Current Speaker Display */}
+                {(currentSpeaker || acceptedSpeakerFromInvitation) ? (
+                  <Card className="border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <UserPlus className="h-4 w-4 text-green-600" />
+                            <h4 className="font-medium text-green-900 dark:text-green-100">
+                              Current Speaker
+                            </h4>
+                            <Badge variant="default" className="bg-green-100 text-green-800">
+                              {currentSpeaker ? 'Assigned' : 'Accepted Invitation'}
+                            </Badge>
+                          </div>
+                          <div className="space-y-1 text-sm">
+                            <p className="text-green-800 dark:text-green-200">
+                              <strong>Name:</strong> {(currentSpeaker || acceptedSpeakerFromInvitation)?.name}
+                            </p>
+                            <p className="text-green-700 dark:text-green-300">
+                              <strong>Email:</strong> {(currentSpeaker || acceptedSpeakerFromInvitation)?.email}
+                            </p>
+                            {(currentSpeaker || acceptedSpeakerFromInvitation)?.expertise && (currentSpeaker || acceptedSpeakerFromInvitation)!.expertise.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {(currentSpeaker || acceptedSpeakerFromInvitation)!.expertise.slice(0, 3).map((exp) => (
+                                  <Badge key={exp} variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300">
+                                    {exp}
+                                  </Badge>
+                                ))}
+                                {(currentSpeaker || acceptedSpeakerFromInvitation)!.expertise.length > 3 && (
+                                  <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300">
+                                    +{(currentSpeaker || acceptedSpeakerFromInvitation)!.expertise.length - 3} more
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowSpeakerSearchModal(true)}
+                          className="border-green-300 text-green-700 hover:bg-green-100"
+                        >
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Change Speaker
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="border-gray-200 bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-gray-500" />
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                              No Speaker Assigned
+                            </h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Invite a speaker to present at this event
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => setShowSpeakerSearchModal(true)}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Invite Speaker
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Invitation History */}
+                {eventInvitations.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Mail className="h-5 w-5" />
+                        Invitation History
+                        <Badge variant="outline" className="ml-2">
+                          {eventInvitations.length} invitation{eventInvitations.length > 1 ? 's' : ''}
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        Track all invitations sent for this event
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingInvitations ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                          <span className="ml-2 text-gray-600 dark:text-gray-400">Loading invitations...</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {eventInvitations.map((invitation, index) => (
+                            <div key={invitation.id} className={`p-4 border rounded-lg transition-all hover:shadow-md ${
+                              invitation.status === 'ACCEPTED' 
+                                ? 'border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800' 
+                                : invitation.status === 'DECLINED'
+                                ? 'border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800'
+                                : invitation.status === 'PENDING'
+                                ? 'border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800'
+                                : 'border-gray-200 bg-gray-50 dark:bg-gray-800 dark:border-gray-700'
+                            }`}>
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-start gap-3 flex-1">
+                                  <div className={`p-2 rounded-full ${
+                                    invitation.status === 'ACCEPTED' 
+                                      ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300'
+                                      : invitation.status === 'DECLINED'
+                                      ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300'
+                                      : invitation.status === 'PENDING'
+                                      ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-300'
+                                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                  }`}>
+                                    {invitation.status === 'ACCEPTED' ? (
+                                      <CheckCircle2 className="h-4 w-4" />
+                                    ) : invitation.status === 'DECLINED' ? (
+                                      <XCircle className="h-4 w-4" />
+                                    ) : invitation.status === 'PENDING' ? (
+                                      <Clock3 className="h-4 w-4" />
+                                    ) : (
+                                      <Mail className="h-4 w-4" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                                        Invitation #{index + 1}
+                                      </h4>
+                                      <Badge variant="outline" className="text-xs">
+                                        Speaker ID: {invitation.speakerId.slice(-8)}
+                                      </Badge>
+                                    </div>
+                                    <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                      <div className="flex items-center gap-2">
+                                        <Calendar className="h-3 w-3" />
+                                        <span>
+                                          Sent: {new Date(invitation.sentAt).toLocaleDateString()} at {new Date(invitation.sentAt).toLocaleTimeString()}
+                                        </span>
+                                      </div>
+                                      {invitation.respondedAt && (
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="h-3 w-3" />
+                                          <span>
+                                            Responded: {new Date(invitation.respondedAt).toLocaleDateString()} at {new Date(invitation.respondedAt).toLocaleTimeString()}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {invitation.message && (
+                                        <div className="mt-2 p-2 bg-white dark:bg-gray-800 rounded border text-xs">
+                                          <strong>Message:</strong> {invitation.message}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                  {invitation.status === 'PENDING' && (
+                                    <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200">
+                                      <Clock3 className="h-3 w-3 mr-1" />
+                                      Pending Response
+                                    </Badge>
+                                  )}
+                                  {invitation.status === 'ACCEPTED' && (
+                                    <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      Accepted
+                                    </Badge>
+                                  )}
+                                  {invitation.status === 'DECLINED' && (
+                                    <Badge variant="destructive" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                      <XCircle className="h-3 w-3 mr-1" />
+                                      Declined
+                                    </Badge>
+                                  )}
+                                  {invitation.status === 'EXPIRED' && (
+                                    <Badge variant="secondary" className="bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                      <Clock3 className="h-3 w-3 mr-1" />
+                                      Expired
+                                    </Badge>
+                                  )}
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    ID: {invitation.id.slice(-8)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-200 dark:border-slate-700">
                 <Button
@@ -543,6 +870,16 @@ function AdminModifyEventPage() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Speaker Search Modal */}
+      <SpeakerSearchModal
+        isOpen={showSpeakerSearchModal}
+        onClose={() => setShowSpeakerSearchModal(false)}
+        onInviteSpeaker={handleInviteSpeaker}
+        eventId={eventId}
+        eventName={originalEvent?.name || 'Event'}
+        currentSpeakerId={originalEvent?.speakerId}
+      />
     </div>
   );
 }
