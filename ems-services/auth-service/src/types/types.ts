@@ -73,6 +73,7 @@ export interface VerifyTokenResponse {
 export enum MESSAGE_TYPE {
     ACCOUNT_VERIFICATION_EMAIL = 'ACCOUNT_VERIFICATION_EMAIL',
     PASSWORD_RESET_EMAIL = 'PASSWORD_RESET_EMAIL',
+    SPEAKER_PROFILE_CREATION = 'SPEAKER_PROFILE_CREATION',
 }
 
 // Unified Email Notification Interface
@@ -85,6 +86,19 @@ export interface EmailNotification {
         link: string;
         userName: string;
         expiryTime: string;
+    };
+}
+
+// Speaker Profile Creation Message Interface
+export interface SpeakerProfileCreationMessage {
+    type: MESSAGE_TYPE.SPEAKER_PROFILE_CREATION;
+    data: {
+        userId: string;
+        name: string;
+        email: string;
+        bio?: string;
+        expertise?: string[];
+        isAvailable?: boolean;
     };
 }
 
