@@ -3,6 +3,7 @@ import bookingRoutes from './booking.routes';
 import { ticketRoutes } from './ticket.routes';
 import speakerRoutes from './speaker.routes';
 import adminRoutes from './admin.routes';
+import attendanceRoutes from './attendance.routes';
 
 const router = Router();
 
@@ -17,5 +18,8 @@ router.use('/speaker', speakerRoutes);
 
 // Admin routes (ADMIN role required)
 router.use('/admin', adminRoutes);
+
+// Attendance routes (All authenticated users)
+router.use('/', attendanceRoutes);
 
 export default router;
