@@ -55,6 +55,10 @@ model Booking {
   // Ticket relationship
   ticket    Ticket?
 
+  // Attendance tracking fields
+  joinedAt  DateTime?     // When user joined the event (null if not joined)
+  isAttended Boolean      @default(false) // Whether user has attended the event
+
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
