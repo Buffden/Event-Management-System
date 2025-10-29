@@ -61,6 +61,8 @@ services:
       args:
         - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
     container_name: event-service
+    environment:
+      - TZ=America/Chicago
     env_file:
       ./ems-services/event-service/.env.production
     networks:
