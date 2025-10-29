@@ -29,6 +29,7 @@ import {
 const LOGGER_COMPONENT_NAME = 'AttendeeEventsPage';
 
 import { EventResponse } from '@/lib/api/types/event.types';
+import { EventJoinInterface } from '@/components/attendance/EventJoinInterface';
 
 interface Event extends EventResponse {}
 
@@ -230,7 +231,12 @@ export default function AttendeeEventsPage() {
   };
 
 
-  const getBookingButtonText = (eventId: string) => {
+  const getBookingButtonText = (eventId: string, event: Event) => {
+    // Check if event is expired
+    if (isEventExpired(event)) {
+      return 'Event Ended';
+    }
+    
     // Check if user already has a booking for this event
     if (userBookings[eventId]) {
       return 'Already Booked ✓';
@@ -245,7 +251,12 @@ export default function AttendeeEventsPage() {
     }
   };
 
-  const getBookingButtonVariant = (eventId: string) => {
+  const getBookingButtonVariant = (eventId: string, event: Event) => {
+    // Check if event is expired
+    if (isEventExpired(event)) {
+      return 'secondary';
+    }
+    
     // Check if user already has a booking for this event
     if (userBookings[eventId]) {
       return 'secondary';
@@ -270,8 +281,8 @@ export default function AttendeeEventsPage() {
     return bookingStatus[eventId] === 'success';
   };
 
-  const isButtonDisabled = (eventId: string) => {
-    return isEventBooked(eventId) || bookingStatus[eventId] === 'loading';
+  const isButtonDisabled = (eventId: string, event: Event) => {
+    return isEventExpired(event) || isEventBooked(eventId) || bookingStatus[eventId] === 'loading';
   };
 
   const handleFilterChange = (key: keyof EventFilters, value: string) => {
@@ -302,6 +313,28 @@ export default function AttendeeEventsPage() {
       date: start.toLocaleDateString(),
       time: `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
     };
+  };
+
+  // Utility function to check if event is expired/ended
+  const isEventExpired = (event: Event) => {
+    const now = new Date();
+    const eventEndDate = new Date(event.bookingEndDate);
+    return eventEndDate < now || event.status === 'COMPLETED' || event.status === 'CANCELLED';
+  };
+
+  // Utility function to check if event is upcoming
+  const isEventUpcoming = (event: Event) => {
+    const now = new Date();
+    const eventStartDate = new Date(event.bookingStartDate);
+    return eventStartDate > now && event.status === 'PUBLISHED';
+  };
+
+  // Utility function to check if event is currently running
+  const isEventRunning = (event: Event) => {
+    const now = new Date();
+    const eventStartDate = new Date(event.bookingStartDate);
+    const eventEndDate = new Date(event.bookingEndDate);
+    return eventStartDate <= now && eventEndDate >= now && event.status === 'PUBLISHED';
   };
 
 
@@ -486,8 +519,16 @@ export default function AttendeeEventsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredEvents.map((event) => {
+        <div className="space-y-8">
+          {/* Upcoming and Running Events */}
+          {filteredEvents.filter(event => !isEventExpired(event)).length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-blue-600" />
+                Available Events ({filteredEvents.filter(event => !isEventExpired(event)).length})
+              </h2>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredEvents.filter(event => !isEventExpired(event)).map((event) => {
             const eventTime = formatEventTime(event.bookingStartDate, event.bookingEndDate);
             const isBooked = userBookings[event.id];
             const isBooking = bookingStatus[event.id] === 'loading';
@@ -499,7 +540,17 @@ export default function AttendeeEventsPage() {
               }`}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between mb-2">
-                    <CardTitle className="text-lg leading-tight pr-2">{event.name}</CardTitle>
+                    <div className="flex-1">
+                      <CardTitle className="text-lg leading-tight pr-2">{event.name}</CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-1 p-0 h-auto text-blue-600 hover:text-blue-800"
+                        onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+                      >
+                        View Details →
+                      </Button>
+                    </div>
                     <div className="flex flex-col gap-1">
                       {isBooked && (
                         <Badge className="bg-green-600 text-white flex items-center gap-1">
@@ -507,9 +558,25 @@ export default function AttendeeEventsPage() {
                           BOOKED
                         </Badge>
                       )}
-                      <Badge variant={event.status === 'PUBLISHED' ? 'default' : 'secondary'}>
-                        {event.status}
-                      </Badge>
+                      {isEventExpired(event) ? (
+                        <Badge variant="secondary" className="bg-gray-500 text-white">
+                          EXPIRED
+                        </Badge>
+                      ) : isEventRunning(event) ? (
+                        <Badge className="bg-orange-600 text-white flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          LIVE
+                        </Badge>
+                      ) : isEventUpcoming(event) ? (
+                        <Badge className="bg-blue-600 text-white flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          UPCOMING
+                        </Badge>
+                      ) : (
+                        <Badge variant={event.status === 'PUBLISHED' ? 'default' : 'secondary'}>
+                          {event.status}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <CardDescription className="flex items-center gap-1">
@@ -564,13 +631,18 @@ export default function AttendeeEventsPage() {
                   {/* Booking Button */}
                   <Button
                     onClick={() => handleBookEvent(event.id)}
-                    disabled={isButtonDisabled(event.id)}
-                    variant={getBookingButtonVariant(event.id)}
+                    disabled={isButtonDisabled(event.id, event)}
+                    variant={getBookingButtonVariant(event.id, event)}
                     className={`w-full transition-all duration-200 ${
-                      isBooked ? 'opacity-60' : 'hover:scale-105'
+                      isBooked || isEventExpired(event) ? 'opacity-60' : 'hover:scale-105'
                     }`}
                   >
-                    {isBooking ? (
+                    {isEventExpired(event) ? (
+                      <>
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        Event Ended
+                      </>
+                    ) : isBooking ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Booking...
@@ -592,10 +664,137 @@ export default function AttendeeEventsPage() {
                       </>
                     )}
                   </Button>
+
+                  {/* Event Join Interface - Only show for booked events */}
+                  {isBooked && (
+                    <div className="mt-4 pt-4 border-t">
+                      <EventJoinInterface
+                        eventId={event.id}
+                        eventTitle={event.name}
+                        eventStartTime={event.bookingStartDate}
+                        eventEndTime={event.bookingEndDate}
+                        eventVenue={event.venue.name}
+                        eventCategory={event.category}
+                        eventStatus={event.status}
+                        eventDescription={event.description}
+                        userRole={user?.role || 'USER'}
+                      />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
           })}
+              </div>
+            </div>
+          )}
+
+          {/* Expired Events */}
+          {filteredEvents.filter(event => isEventExpired(event)).length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-gray-500" />
+                Past Events ({filteredEvents.filter(event => isEventExpired(event)).length})
+              </h2>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {filteredEvents.filter(event => isEventExpired(event)).map((event) => {
+                  const eventTime = formatEventTime(event.bookingStartDate, event.bookingEndDate);
+                  const isBooked = userBookings[event.id];
+                  
+                  return (
+                    <Card key={event.id} className={`opacity-75 hover:shadow-lg transition-all duration-300 ${
+                      isBooked ? 'ring-2 ring-green-200 bg-green-50/30' : ''
+                    }`}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg leading-tight pr-2">{event.name}</CardTitle>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="mt-1 p-0 h-auto text-blue-600 hover:text-blue-800"
+                              onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+                            >
+                              View Details →
+                            </Button>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            {isBooked && (
+                              <Badge className="bg-green-600 text-white flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                ATTENDED
+                              </Badge>
+                            )}
+                            <Badge variant="secondary" className="bg-gray-500 text-white">
+                              EXPIRED
+                            </Badge>
+                          </div>
+                        </div>
+                        <CardDescription className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          {eventTime.date}
+                        </CardDescription>
+                      </CardHeader>
+                      
+                      <CardContent className="space-y-4">
+                        {/* Description */}
+                        <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">
+                          {event.description}
+                        </p>
+                        
+                        {/* Event Details */}
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Clock className="h-4 w-4 text-blue-500" />
+                            <span className="font-medium">Time:</span>
+                            <span>{eventTime.time}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4 text-red-500" />
+                            <span className="font-medium">Venue:</span>
+                            <span>{event.venue.name}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm">
+                            <Users className="h-4 w-4 text-green-500" />
+                            <span className="font-medium">Capacity:</span>
+                            <span>{event.venue.capacity} people</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm">
+                            <Star className="h-4 w-4 text-yellow-500" />
+                            <span className="font-medium">Category:</span>
+                            <Badge variant="outline" className="text-xs">{event.category}</Badge>
+                          </div>
+                        </div>
+
+                        {/* Booking Status */}
+                        {isBooked && (
+                          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center gap-2 text-green-700">
+                              <CheckCircle className="h-4 w-4" />
+                              <span className="text-sm font-medium">You attended this event!</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Disabled Button for Expired Events */}
+                        <Button
+                          disabled={true}
+                          variant="secondary"
+                          className="w-full opacity-60"
+                        >
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                          Event Ended
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
