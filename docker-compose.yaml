@@ -134,6 +134,8 @@ services:
     container_name: speaker-service
     env_file:
       ./ems-services/speaker-service/.env.production
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq:5672
     networks:
       - event-net
     depends_on:
