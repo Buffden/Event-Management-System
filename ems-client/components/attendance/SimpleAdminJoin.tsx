@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +45,7 @@ export const SimpleAdminJoin: React.FC<SimpleAdminJoinProps> = ({
   eventDescription,
 }) => {
   const logger = useLogger();
+  const router = useRouter();
   const [canJoin, setCanJoin] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
@@ -121,6 +123,11 @@ export const SimpleAdminJoin: React.FC<SimpleAdminJoinProps> = ({
         
         // Refresh attendance data
         await fetchAttendanceData();
+        
+        // Redirect to live auditorium after 2 seconds
+        setTimeout(() => {
+          router.push(`/dashboard/admin/events/${eventId}/live`);
+        }, 2000);
       } else {
         setJoinMessage(response.message);
         logger.warn(LOGGER_COMPONENT_NAME, `Failed to join event: ${response.message}`, { eventId });

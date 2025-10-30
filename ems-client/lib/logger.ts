@@ -53,20 +53,82 @@ class Logger {
                 this.logBuffer.shift();
             }
 
-            // Client-side (browser) - store in localStorage
+            // Client-side (browser) - store in localStorage with size limits
             if (typeof window !== 'undefined') {
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 const logKey = `ems-logs-${timestamp.split('T')[0]}`;
+                const maxLogSize = 2 * 1024 * 1024; // 2MB max per day
+                const maxLogEntries = 500; // Max log entries per day
 
                 // Get existing logs for today
-                const existingLogs = localStorage.getItem(logKey) || '';
+                let existingLogs = localStorage.getItem(logKey) || '';
+                
+                // Clean up old logs if needed (keep last 7 days max)
+                this.cleanupOldLogs(7);
+
+                // Check if we need to truncate existing logs
+                if (existingLogs.length > maxLogSize) {
+                    // Keep only the most recent entries
+                    const logLines = existingLogs.split('\n').filter(line => line.trim());
+                    const recentLogs = logLines.slice(-maxLogEntries).join('\n');
+                    existingLogs = recentLogs;
+                }
+
                 const updatedLogs = existingLogs + logEntry + '\n';
 
-                // Store in localStorage (limited to ~5-10MB per domain)
-                localStorage.setItem(logKey, updatedLogs);
+                // Truncate if exceeds max size
+                if (updatedLogs.length > maxLogSize) {
+                    const logLines = updatedLogs.split('\n').filter(line => line.trim());
+                    const recentLogs = logLines.slice(-maxLogEntries).join('\n');
+                    localStorage.setItem(logKey, recentLogs);
+                } else {
+                    localStorage.setItem(logKey, updatedLogs);
+                }
             }
         } catch (error) {
-            console.error('Failed to write log to storage:', error);
+            // If quota exceeded, try to clean up and retry once
+            if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+                try {
+                    this.cleanupOldLogs(1); // Keep only today's logs
+                    // Retry with truncated logs
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const logKey = `ems-logs-${timestamp.split('T')[0]}`;
+                    const existingLogs = localStorage.getItem(logKey) || '';
+                    const logLines = existingLogs.split('\n').filter(line => line.trim());
+                    const recentLogs = logLines.slice(-200).join('\n') + '\n' + logEntry + '\n';
+                    localStorage.setItem(logKey, recentLogs);
+                } catch (retryError) {
+                    // If still fails, just log to console and skip localStorage
+                    console.warn('localStorage quota exceeded, skipping log storage');
+                }
+            } else {
+                console.error('Failed to write log to storage:', error);
+            }
+        }
+    }
+
+    private cleanupOldLogs(daysToKeep: number = 7): void {
+        if (typeof window === 'undefined') return;
+
+        try {
+            const today = new Date();
+            const keys = Object.keys(localStorage);
+            
+            keys.forEach(key => {
+                if (key.startsWith('ems-logs-')) {
+                    const dateMatch = key.match(/ems-logs-(\d{4}-\d{2}-\d{2})/);
+                    if (dateMatch) {
+                        const logDate = new Date(dateMatch[1]);
+                        const daysDiff = Math.floor((today.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24));
+                        
+                        if (daysDiff > daysToKeep) {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.warn('Failed to cleanup old logs:', error);
         }
     }
 
@@ -157,6 +219,11 @@ class Logger {
                 }
             });
         }
+    }
+
+    // Method to cleanup old logs (public API)
+    public cleanup(): void {
+        this.cleanupOldLogs(7);
     }
 }
 
