@@ -49,6 +49,8 @@ export const SimpleAdminJoin: React.FC<SimpleAdminJoinProps> = ({
   const [isJoining, setIsJoining] = useState(false);
   const [timeUntilStart, setTimeUntilStart] = useState<string>('');
   const [joinMessage, setJoinMessage] = useState('');
+  // Admin-only component; default to compact rendering to avoid duplication in parent card
+  const compact = true;
   
   // Attendance overview state
   const [attendanceData, setAttendanceData] = useState({
@@ -142,44 +144,57 @@ export const SimpleAdminJoin: React.FC<SimpleAdminJoinProps> = ({
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Play className="h-5 w-5 text-primary" />
-          {eventTitle} - Admin View
-        </CardTitle>
-        <CardDescription className="flex items-center gap-1">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          {formatEventTime(eventStartTime, eventEndTime)}
-        </CardDescription>
-        <CardDescription className="flex items-center gap-1">
-          <MapPin className="h-4 w-4 text-muted-foreground" />
-          {eventVenue}
-        </CardDescription>
-        <CardDescription className="flex items-center gap-1">
-          <Tag className="h-4 w-4 text-muted-foreground" />
-          {eventCategory}
-        </CardDescription>
+    <Card className={`w-full ${compact ? '' : 'max-w-2xl mx-auto'}`}>
+      <CardHeader className={compact ? 'pb-2 pt-3' : 'pb-3'}>
+        {!compact && (
+          <>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Play className="h-5 w-5 text-primary" />
+              {eventTitle} - Admin View
+            </CardTitle>
+            <CardDescription className="flex items-center gap-1">
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              {formatEventTime(eventStartTime, eventEndTime)}
+            </CardDescription>
+            <CardDescription className="flex items-center gap-1">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              {eventVenue}
+            </CardDescription>
+            <CardDescription className="flex items-center gap-1">
+              <Tag className="h-4 w-4 text-muted-foreground" />
+              {eventCategory}
+            </CardDescription>
+          </>
+        )}
+        {compact && (
+          <CardTitle className="text-base flex items-center gap-2">
+            <Play className="h-4 w-4 text-primary" />
+            Live Event - Admin View
+          </CardTitle>
+        )}
       </CardHeader>
       
-      <CardContent className="space-y-4">
-        {/* Event Description */}
-        <div className="text-sm text-muted-foreground">
-          <p>{eventDescription}</p>
-        </div>
+      <CardContent className={compact ? 'space-y-3 pt-0' : 'space-y-4'}>
+        {/* Event Description - Only show in full view */}
+        {!compact && (
+          <div className="text-sm text-muted-foreground">
+            <p>{eventDescription}</p>
+          </div>
+        )}
 
         {/* Attendance Overview */}
-        <div className="space-y-3">
+        <div className={compact ? 'space-y-2' : 'space-y-3'}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Attendance Overview</span>
+              <BarChart3 className={`${compact ? 'h-3 w-3' : 'h-4 w-4'} text-muted-foreground`} />
+              <span className={`${compact ? 'text-xs' : 'text-sm'} font-medium`}>Attendance Overview</span>
             </div>
             <Button
               variant="outline"
-              size="sm"
+              size={compact ? 'sm' : 'sm'}
               onClick={fetchAttendanceData}
               disabled={isLoadingAttendance}
+              className={compact ? 'h-7 px-2' : ''}
             >
               {isLoadingAttendance ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -189,29 +204,29 @@ export const SimpleAdminJoin: React.FC<SimpleAdminJoinProps> = ({
             </Button>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 p-3 bg-gray-50 rounded-lg">
+          <div className={`grid grid-cols-3 gap-4 p-3 bg-gray-50 rounded-lg ${compact ? 'p-2 gap-2' : ''}`}>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
+              <div className={`${compact ? 'text-xl' : 'text-2xl'} font-bold text-blue-600`}>
                 {attendanceData.totalRegistered}
               </div>
               <div className="text-xs text-muted-foreground">Registered</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
+              <div className={`${compact ? 'text-xl' : 'text-2xl'} font-bold text-green-600`}>
                 {attendanceData.totalAttended}
               </div>
               <div className="text-xs text-muted-foreground">Attended</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">
+              <div className={`${compact ? 'text-xl' : 'text-2xl'} font-bold text-purple-600`}>
                 {attendanceData.attendancePercentage.toFixed(0)}%
               </div>
               <div className="text-xs text-muted-foreground">Rate</div>
             </div>
           </div>
 
-          {/* Recent Attendees */}
-          {attendanceData.attendees.length > 0 && (
+          {/* Recent Attendees - Hide in compact mode or show fewer */}
+          {attendanceData.attendees.length > 0 && !compact && (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4 text-muted-foreground" />
@@ -241,18 +256,19 @@ export const SimpleAdminJoin: React.FC<SimpleAdminJoinProps> = ({
 
         {/* Join Button */}
         {eventStatus === 'PUBLISHED' && (
-          <div className="space-y-2">
+          <div className={compact ? 'space-y-1' : 'space-y-2'}>
             {canJoin ? (
               <Button 
                 onClick={handleJoinEvent} 
                 disabled={isJoining || hasJoined} 
+                size={compact ? 'sm' : 'default'}
                 className={`w-full ${hasJoined ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
               >
                 {isJoining && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {hasJoined ? 'Joined as Admin ✓' : 'Join as Admin'}
               </Button>
             ) : (
-              <Button disabled className="w-full bg-gray-400 cursor-not-allowed">
+              <Button disabled size={compact ? 'sm' : 'default'} className="w-full bg-gray-400 cursor-not-allowed">
                 {timeUntilStart || 'Event Not Started'}
               </Button>
             )}
