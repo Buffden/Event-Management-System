@@ -27,6 +27,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
+import { EventJoinInterface } from '@/components/attendance/EventJoinInterface';
 import { eventAPI } from "@/lib/api/event.api";
 import { EventResponse, EventStatus, EventFilters } from "@/lib/api/types/event.types";
 import { withAdminAuth } from "@/components/hoc/withAuth";
@@ -417,6 +418,14 @@ function EventManagementPage() {
                     <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
                       {event.name}
                     </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mb-2 p-0 h-auto text-blue-600 hover:text-blue-800"
+                      onClick={() => router.push(`/dashboard/admin/events/${event.id}`)}
+                    >
+                      View Details →
+                    </Button>
                     <Badge className={statusColors[event.status]}>
                       {event.status.replace('_', ' ')}
                     </Badge>
@@ -520,6 +529,23 @@ function EventManagementPage() {
                     Delete
                   </Button>
                 </div>
+
+                {/* Event Join Interface - Only show for published events */}
+                {event.status === EventStatus.PUBLISHED && (
+                  <div className="mt-4 pt-4 border-t">
+                    <EventJoinInterface
+                      eventId={event.id}
+                      eventTitle={event.name}
+                      eventStartTime={event.bookingStartDate}
+                      eventEndTime={event.bookingEndDate}
+                      eventVenue={event.venue.name}
+                      eventCategory={event.category}
+                      eventStatus={event.status}
+                      eventDescription={event.description}
+                      userRole={user?.role || 'ADMIN'}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

@@ -6,6 +6,7 @@ import speakerRoutes from './routes/speaker.routes';
 import invitationRoutes from './routes/invitation.routes';
 import messageRoutes from './routes/message.routes';
 import materialRoutes from './routes/material.routes';
+import speakerAttendanceRoutes from './routes/speaker-attendance.routes';
 import { errorMiddleware, notFoundHandler } from './middleware/error.middleware';
 import { RabbitMQService } from './services/rabbitmq.service';
 import { SpeakerService } from './services/speaker.service';
@@ -34,6 +35,7 @@ app.use('/api/speakers', speakerRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/materials', materialRoutes);
+app.use('/api/speaker-attendance', speakerAttendanceRoutes);
 
 // Error handling middleware
 app.use(notFoundHandler);

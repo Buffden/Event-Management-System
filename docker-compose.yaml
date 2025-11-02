@@ -61,6 +61,8 @@ services:
       args:
         - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
     container_name: event-service
+    environment:
+      - TZ=America/Chicago
     env_file:
       ./ems-services/event-service/.env.production
     networks:
@@ -132,6 +134,11 @@ services:
     container_name: speaker-service
     env_file:
       ./ems-services/speaker-service/.env.production
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - speaker-uploads:/app/uploads  # Persistent storage for uploaded materials
     networks:
       - event-net
     depends_on:
@@ -237,5 +244,6 @@ volumes:
   booking-service-data:
   feedback-service-data:
   speaker-service-data:
+  speaker-uploads:  # Persistent storage for speaker uploaded materials
   rabbitmq_data:
   rabbitmq_log:

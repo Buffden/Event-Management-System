@@ -66,6 +66,31 @@ export default function AttendeeTicketsPage() {
     return new Date(expiresAt) < new Date();
   };
 
+  // Utility function to check if ticket's event is expired/ended
+  const isTicketEventExpired = (ticket: TicketResponse) => {
+    if (!ticket.event) return false;
+    const now = new Date();
+    const eventEndDate = new Date(ticket.event.bookingEndDate);
+    return eventEndDate < now;
+  };
+
+  // Utility function to check if ticket's event is upcoming
+  const isTicketEventUpcoming = (ticket: TicketResponse) => {
+    if (!ticket.event) return false;
+    const now = new Date();
+    const eventStartDate = new Date(ticket.event.bookingStartDate);
+    return eventStartDate > now;
+  };
+
+  // Utility function to check if ticket's event is currently running
+  const isTicketEventRunning = (ticket: TicketResponse) => {
+    if (!ticket.event) return false;
+    const now = new Date();
+    const eventStartDate = new Date(ticket.event.bookingStartDate);
+    const eventEndDate = new Date(ticket.event.bookingEndDate);
+    return eventStartDate <= now && eventEndDate >= now;
+  };
+
 
   if (loading) {
     return (
@@ -120,8 +145,16 @@ export default function AttendeeTicketsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {tickets.map((ticket) => (
+        <div className="space-y-8">
+          {/* Active Tickets (Upcoming and Running Events) */}
+          {tickets.filter(ticket => !isTicketEventExpired(ticket)).length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <div className="h-5 w-5 bg-green-500 rounded-full"></div>
+                Active Tickets ({tickets.filter(ticket => !isTicketEventExpired(ticket)).length})
+              </h2>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {tickets.filter(ticket => !isTicketEventExpired(ticket)).map((ticket) => (
             <Card key={ticket.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -203,6 +236,88 @@ export default function AttendeeTicketsPage() {
               </CardContent>
             </Card>
           ))}
+              </div>
+            </div>
+          )}
+
+          {/* Expired Tickets */}
+          {tickets.filter(ticket => isTicketEventExpired(ticket)).length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <div className="h-5 w-5 bg-gray-500 rounded-full"></div>
+                Past Event Tickets ({tickets.filter(ticket => isTicketEventExpired(ticket)).length})
+              </h2>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {tickets.filter(ticket => isTicketEventExpired(ticket)).map((ticket) => (
+                  <Card key={ticket.id} className="opacity-75 hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        {ticket.event?.name || 'Event Ticket'}
+                        <Badge variant="secondary" className="bg-gray-500 text-white">
+                          EXPIRED EVENT
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        {ticket.event?.category && (
+                          <span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full mr-2">
+                            {ticket.event.category}
+                          </span>
+                        )}
+                        Ticket ID: {ticket.id.substring(0, 8)}...
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {/* QR Code Display - Disabled for expired events */}
+                      <div className="mb-4">
+                        <div className="h-48 bg-gray-100 rounded flex items-center justify-center opacity-50">
+                          <p className="text-gray-500">QR Code no longer valid</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mb-4">
+                        {ticket.event && (
+                          <>
+                            <p className="text-sm">
+                              <span className="font-medium">Event:</span> {ticket.event.name}
+                            </p>
+                            <p className="text-sm">
+                              <span className="font-medium">Venue:</span> {ticket.event.venue.name}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {ticket.event.venue.address}
+                            </p>
+                            <p className="text-sm">
+                              <span className="font-medium">Event Date:</span> {
+                                ticket.event.bookingStartDate ? 
+                                  new Date(ticket.event.bookingStartDate).toLocaleDateString() : 
+                                  'Date not available'
+                              }
+                            </p>
+                          </>
+                        )}
+                        <p className="text-sm">
+                          <span className="font-medium">Issued:</span> {new Date(ticket.issuedAt).toLocaleString()}
+                        </p>
+                        <p className="text-sm">
+                          <span className="font-medium">Expires:</span> {new Date(ticket.expiresAt).toLocaleString()}
+                        </p>
+                        {ticket.scannedAt && (
+                          <p className="text-sm">
+                            <span className="font-medium">Scanned:</span> {new Date(ticket.scannedAt).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Event Ended Notice */}
+                      <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded text-gray-700 text-sm">
+                        📅 This event has ended
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

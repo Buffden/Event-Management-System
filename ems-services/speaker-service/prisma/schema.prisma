@@ -4,7 +4,8 @@
 generator client {
   provider      = "prisma-client-js"
   output        = "../generated/prisma"
-  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
+  // Debian (glibc) compatible engines
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -46,8 +47,14 @@ model SpeakerInvitation {
   status      InvitationStatus @default(PENDING)
   sentAt      DateTime         @default(now())
   respondedAt DateTime?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  
+  // Speaker joining and material selection
+  joinedAt           DateTime?  // When speaker joined the event (null if not joined)
+  materialsSelected  String[]   @default([]) // Array of material IDs selected for this event
+  isAttended         Boolean    @default(false) // Whether speaker has attended the event
+  
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   
   speaker     SpeakerProfile @relation(fields: [speakerId], references: [id])
   
