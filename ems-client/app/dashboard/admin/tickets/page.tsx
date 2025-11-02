@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { adminTicketAPI } from '@/lib/api/booking.api';
+import { bookingAPI } from '@/lib/api/booking.api';
 import { eventAPI } from '@/lib/api/event.api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,7 +64,7 @@ export default function AdminTicketsPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const logger = useLogger();
-  
+
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [ticketStats, setTicketStats] = useState<TicketStats | null>(null);
@@ -92,7 +92,7 @@ export default function AdminTicketsPage() {
       router.push('/dashboard');
       return;
     }
-    
+
     loadEvents();
   }, [isAuthenticated, isAdmin, router]);
 
@@ -115,7 +115,7 @@ export default function AdminTicketsPage() {
     // Filter by search term (user ID)
     if (filters.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(ticket => 
+      filtered = filtered.filter(ticket =>
         ticket.userId.toLowerCase().includes(searchLower) ||
         ticket.id.toLowerCase().includes(searchLower)
       );
@@ -125,7 +125,7 @@ export default function AdminTicketsPage() {
     if (filters.dateRange) {
       const now = new Date();
       const filterDate = new Date();
-      
+
       switch (filters.dateRange) {
         case 'today':
           filterDate.setHours(0, 0, 0, 0);
@@ -149,10 +149,10 @@ export default function AdminTicketsPage() {
     try {
       setLoading(true);
       logger.info(LOGGER_COMPONENT_NAME, 'Loading events for admin');
-      
+
       const response = await eventAPI.getAllEvents();
       setEvents(response.data?.events || []);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Events loaded successfully');
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load events', error as Error);
@@ -166,10 +166,10 @@ export default function AdminTicketsPage() {
 
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading ticket stats for event');
-      
-      const stats = await adminTicketAPI.getEventTicketStats(selectedEventId);
+
+      const stats = await bookingAPI.getEventTicketStats(selectedEventId);
       setTicketStats(stats);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Ticket stats loaded successfully');
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load ticket stats', error as Error);
@@ -182,17 +182,17 @@ export default function AdminTicketsPage() {
     try {
       setTicketsLoading(true);
       logger.info(LOGGER_COMPONENT_NAME, 'Loading tickets for event');
-      
-      const response = await adminTicketAPI.getEventTickets(selectedEventId, {
+
+      const response = await bookingAPI.getEventTickets(selectedEventId, {
         page: 1,
         limit: 100
       });
-      
+
       // Fix: Backend returns data.tickets, not response.tickets
       const ticketsData = response.data?.tickets || [];
       setTickets(ticketsData);
       setFilteredTickets(ticketsData);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Event tickets loaded successfully', { count: ticketsData.length });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event tickets', error as Error);
@@ -208,12 +208,12 @@ export default function AdminTicketsPage() {
       setRevokeStatus(prev => ({ ...prev, [ticketId]: 'loading' }));
       logger.info(LOGGER_COMPONENT_NAME, 'Revoking ticket');
 
-      const result = await adminTicketAPI.revokeTicket(ticketId);
-      
+      const result = await bookingAPI.revokeTicket(ticketId);
+
       if (result.success) {
         setRevokeStatus(prev => ({ ...prev, [ticketId]: 'success' }));
         logger.info(LOGGER_COMPONENT_NAME, 'Ticket revoked successfully');
-        
+
         // Refresh the tickets list
         loadEventTickets();
         loadEventTicketStats();
@@ -234,7 +234,7 @@ export default function AdminTicketsPage() {
       'REVOKED': 'destructive',
       'EXPIRED': 'outline'
     } as const;
-    
+
     return (
       <Badge variant={variants[status as keyof typeof variants] || 'outline'}>
         {status}
@@ -347,7 +347,7 @@ export default function AdminTicketsPage() {
                   <div className="text-2xl font-bold">{ticketStats.totalTickets}</div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Issued</CardTitle>
@@ -356,7 +356,7 @@ export default function AdminTicketsPage() {
                   <div className="text-2xl font-bold text-blue-600">{ticketStats.issuedTickets}</div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Scanned</CardTitle>
@@ -365,7 +365,7 @@ export default function AdminTicketsPage() {
                   <div className="text-2xl font-bold text-green-600">{ticketStats.scannedTickets}</div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Expired</CardTitle>
@@ -374,7 +374,7 @@ export default function AdminTicketsPage() {
                   <div className="text-2xl font-bold text-orange-600">{ticketStats.expiredTickets}</div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Revoked</CardTitle>
@@ -477,19 +477,19 @@ export default function AdminTicketsPage() {
                   <table className="w-full border-collapse border border-gray-300">
                     <thead>
                       <tr className="bg-gray-50">
-                        <th className="border border-gray-300 px-4 py-2 text-left">Ticket ID</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">User ID</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Status</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Issued</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Expires</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Scanned</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">QR Scans</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Actions</th>
+                        <th className="border dark:text-white dark:bg-black border-gray-300 px-4 py-2 text-left">Ticket ID</th>
+                        <th className="border dark:text-white dark:bg-black border-gray-300 px-4 py-2 text-left">User ID</th>
+                        <th className="border dark:text-white dark:bg-black border-gray-300 px-4 py-2 text-left">Status</th>
+                        <th className="border dark:text-white dark:bg-black border-gray-300 px-4 py-2 text-left">Issued</th>
+                        <th className="border dark:text-white dark:bg-black border-gray-300 px-4 py-2 text-left">Expires</th>
+                        <th className="border dark:text-white dark:bg-black border-gray-300 px-4 py-2 text-left">Scanned</th>
+                        <th className="border dark:text-white dark:bg-black border-gray-300 px-4 py-2 text-left">QR Scans</th>
+                        <th className="border dark:text-white dark:bg-black border-gray-300 px-4 py-2 text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredTickets.map((ticket) => (
-                        <tr key={ticket.id} className="hover:bg-gray-50">
+                        <tr key={ticket.id} className="hover:bg-gray-50 hover:text-black">
                           <td className="border border-gray-300 px-4 py-2 font-mono text-sm">
                             {ticket.id.substring(0, 8)}...
                           </td>

@@ -17,7 +17,7 @@ router.use(requireAdmin);
 /**
  * GET /admin/events/:eventId/bookings - Get all bookings for a specific event
  */
-router.get('/admin/events/:eventId/bookings',
+router.get('/events/:eventId/bookings',
   validateQuery(validatePagination),
   validateQuery(validateBookingStatus),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -64,7 +64,7 @@ router.get('/admin/events/:eventId/bookings',
 /**
  * GET /admin/bookings - Get all bookings across all events
  */
-router.get('/admin/bookings',
+router.get('/bookings',
   validateQuery(validatePagination),
   validateQuery(validateBookingStatus),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -108,9 +108,96 @@ router.get('/admin/bookings',
 );
 
 /**
+ * GET /admin/bookings/stats - Get total registrations across all events (admin only)
+ */
+router.get('/bookings/stats',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    logger.info('Admin fetching total registrations', {
+      adminId: req.user!.userId
+    });
+
+    try {
+      const totalRegistrations = await bookingService.getTotalRegistrations();
+
+      res.json({
+        success: true,
+        data: {
+          totalRegistrations
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to get total registrations', error as Error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch total registrations'
+      });
+    }
+  })
+);
+
+/**
+ * GET /admin/analytics/average-attendance - Get average attendance rate (admin only)
+ */
+router.get('/analytics/average-attendance',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    logger.info('Admin fetching average attendance', {
+      adminId: req.user!.userId
+    });
+
+    try {
+      const averageAttendance = await bookingService.getAverageAttendance();
+
+      res.json({
+        success: true,
+        data: {
+          averageAttendance
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to get average attendance', error as Error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch average attendance'
+      });
+    }
+  })
+);
+
+/**
+ * GET /admin/analytics/top-events - Get top performing events (admin only)
+ */
+router.get('/analytics/top-events',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { limit = 10 } = req.query;
+    logger.info('Admin fetching top events', {
+      adminId: req.user!.userId,
+      limit: Number(limit)
+    });
+
+    try {
+      const topEvents = await bookingService.getTopEvents(Number(limit));
+
+      // Fetch event names from event service
+      // For now, we'll return eventId and let frontend fetch names if needed
+      // Or we can add a call to event service here
+      res.json({
+        success: true,
+        data: topEvents
+      });
+    } catch (error) {
+      logger.error('Failed to get top events', error as Error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch top events'
+      });
+    }
+  })
+);
+
+/**
  * GET /admin/events/:eventId/capacity - Get detailed capacity information for an event
  */
-router.get('/admin/events/:eventId/capacity',
+router.get('/events/:eventId/capacity',
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { eventId } = req.params;
 
@@ -141,7 +228,7 @@ router.get('/admin/events/:eventId/capacity',
 /**
  * GET /admin/bookings/:id - Get specific booking details (admin view)
  */
-router.get('/admin/bookings/:id',
+router.get('/bookings/:id',
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
@@ -179,7 +266,7 @@ router.get('/admin/bookings/:id',
 /**
  * DELETE /admin/bookings/:id - Cancel a booking (admin override)
  */
-router.delete('/admin/bookings/:id',
+router.delete('/bookings/:id',
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const adminId = req.user!.userId;

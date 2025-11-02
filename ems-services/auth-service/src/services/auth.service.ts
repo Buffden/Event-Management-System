@@ -30,6 +30,7 @@ const userSelect = {
     role: true,
     isActive: true,
     emailVerified: true,
+    createdAt: true,
 };
 
 class AuthService {
@@ -610,6 +611,193 @@ class AuthService {
     }
 
     /**
+     * Gets the total count of users in the system (admin only).
+     * @returns The total number of users
+     */
+    async getTotalUsers(): Promise<number> {
+        logger.info('Getting total users count');
+        const totalUsers = await prisma.user.count();
+        logger.info('Retrieved total users count', { totalUsers });
+        return totalUsers;
+    }
+
+    /**
+     * Gets all users with pagination and filtering (admin only).
+     * @param filters Optional filters for role and status
+     * @param page Page number (default: 1)
+     * @param limit Items per page (default: 10)
+     * @returns List of users with pagination info
+     */
+    async getAllUsers(filters?: { role?: Role; isActive?: boolean; search?: string }, page: number = 1, limit: number = 10): Promise<{ users: User[]; total: number; page: number; limit: number; totalPages: number }> {
+        logger.info('Getting all users', { filters, page, limit });
+
+        const skip = (page - 1) * limit;
+        const where: any = {};
+
+        // Exclude admins by default unless explicitly requested
+        if (filters?.role === 'ADMIN') {
+            where.role = 'ADMIN';
+        } else {
+            // Exclude admins: either use the specified role (USER/SPEAKER) or exclude ADMIN if no role filter
+            if (filters?.role) {
+                where.role = filters.role; // USER or SPEAKER
+            } else {
+                where.role = { not: 'ADMIN' }; // No role filter - exclude admins
+            }
+        }
+
+        if (filters?.isActive !== undefined) {
+            where.isActive = filters.isActive;
+        }
+
+        if (filters?.search) {
+            // Use case-insensitive search with Prisma
+            const searchConditions = [
+                { email: { contains: filters.search, mode: 'insensitive' } },
+                { name: { contains: filters.search, mode: 'insensitive' } }
+            ];
+
+            // Combine role filter with search conditions
+            const conditions: any[] = [];
+
+            // Add role condition if it exists
+            if (where.role) {
+                conditions.push({ role: where.role });
+            }
+
+            // Add isActive condition if it exists
+            if (where.isActive !== undefined) {
+                conditions.push({ isActive: where.isActive });
+            }
+
+            // Add search conditions
+            conditions.push({ OR: searchConditions });
+
+            // Replace where with combined conditions
+            where.AND = conditions;
+            delete where.role;
+            delete where.isActive;
+            delete where.OR;
+        }
+
+        const [users, total] = await Promise.all([
+            prisma.user.findMany({
+                where,
+                select: userSelect,
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit
+            }),
+            prisma.user.count({ where })
+        ]);
+
+        const totalPages = Math.ceil(total / limit);
+
+        logger.info('Retrieved users', { count: users.length, total, page, limit });
+
+        return {
+            users: users as User[],
+            total,
+            page,
+            limit,
+            totalPages
+        };
+    }
+
+    /**
+     * Suspend a user by setting isActive to false (admin only).
+     * @param userId The ID of the user to suspend
+     * @returns The updated User object
+     */
+    async suspendUser(userId: string): Promise<User> {
+        logger.info('Suspending user', { userId });
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        if (user.role === 'ADMIN') {
+            throw new Error('Cannot suspend admin users');
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { isActive: false, updatedAt: new Date() },
+            select: userSelect
+        });
+
+        logger.info('User suspended successfully', { userId });
+        return updated as User;
+    }
+
+    /**
+     * Activate a user by setting isActive to true and optionally emailVerified (admin only).
+     * @param userId The ID of the user to activate
+     * @returns The updated User object
+     */
+    async activateUser(userId: string): Promise<User> {
+        logger.info('Activating user', { userId });
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const updateData: any = {
+            isActive: true,
+            updatedAt: new Date()
+        };
+
+        // If email is not verified, verify it
+        if (!user.emailVerified) {
+            updateData.emailVerified = new Date();
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+            select: userSelect
+        });
+
+        logger.info('User activated successfully', { userId });
+        return updated as User;
+    }
+
+    /**
+     * Change a user's role (admin only).
+     * Allows changing between USER and SPEAKER only (not ADMIN).
+     * @param userId The ID of the user
+     * @param newRole The new role (USER or SPEAKER)
+     * @returns The updated User object
+     */
+    async changeUserRole(userId: string, newRole: Role): Promise<User> {
+        logger.info('Changing user role', { userId, newRole });
+
+        if (newRole === 'ADMIN') {
+            throw new Error('Cannot set role to ADMIN via this endpoint. ADMIN roles must be created manually.');
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        if (user.role === 'ADMIN') {
+            throw new Error('Cannot change role of admin users');
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { role: newRole, updatedAt: new Date() },
+            select: userSelect
+        });
+
+        logger.info('User role changed successfully', { userId, oldRole: user.role, newRole });
+        return updated as User;
+    }
+
+    /**
      * Verifies a JWT token and returns the associated user.
      * @param token The JWT to verify.
      * @returns An object with validity status and optionally the user.
@@ -733,6 +921,56 @@ class AuthService {
         } catch (error) {
             logger.error('activateUsers(): Activation failed', error as Error);
             throw new Error('Failed to activate users: ' + (error as Error).message);
+        }
+    }
+
+    /**
+     * Get user growth statistics over time (monthly)
+     */
+    async getUserGrowth(): Promise<Array<{ month: string; users: number }>> {
+        try {
+            logger.info('getUserGrowth() - Getting user growth statistics');
+
+            // Get all users with their creation dates
+            const users = await prisma.user.findMany({
+                select: {
+                    createdAt: true
+                },
+                orderBy: {
+                    createdAt: 'asc'
+                }
+            });
+
+            if (users.length === 0) {
+                return [];
+            }
+
+            // Group by month
+            const monthlyData: { [key: string]: number } = {};
+
+            users.forEach(user => {
+                const date = new Date(user.createdAt);
+                const monthKey = `${date.toLocaleString('default', { month: 'short' })} ${date.getFullYear()}`;
+                monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+            });
+
+            // Convert to array and calculate cumulative counts
+            const months = Object.keys(monthlyData).sort();
+            let cumulativeCount = 0;
+
+            const growth = months.map(month => {
+                cumulativeCount += monthlyData[month];
+                return {
+                    month,
+                    users: cumulativeCount
+                };
+            });
+
+            logger.info('getUserGrowth() - Retrieved user growth statistics', { count: growth.length });
+            return growth;
+        } catch (error) {
+            logger.error('getUserGrowth() - Failed to get user growth statistics', error as Error);
+            throw error;
         }
     }
 }

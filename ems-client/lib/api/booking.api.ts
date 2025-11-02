@@ -67,6 +67,19 @@ class BookingApiClient extends BaseApiClient {
     return this.request(`/admin/events/${eventId}/stats`);
   }
 
+  async getTotalRegistrations(): Promise<{ success: boolean; data: { totalRegistrations: number } }> {
+    return this.request('/admin/bookings/stats');
+  }
+
+  async getAverageAttendance(): Promise<{ success: boolean; data: { averageAttendance: number } }> {
+    return this.request('/admin/analytics/average-attendance');
+  }
+
+  async getTopEvents(limit?: number): Promise<{ success: boolean; data: Array<{ eventId: string; name: string; registrations: number; attendance: number }> }> {
+    const params = limit ? `?limit=${limit}` : '';
+    return this.request(`/admin/analytics/top-events${params}`);
+  }
+
   async revokeTicket(ticketId: string): Promise<{ success: boolean; message: string }> {
     return this.request<{ success: boolean; message: string }>(`/admin/${ticketId}/revoke`, {
       method: 'PUT'
@@ -95,7 +108,43 @@ export const bookingAPI = {
   /**
    * Cancel a booking
    */
-  cancelBooking: (bookingId: string) => bookingApiClient.cancelBooking(bookingId)
+  cancelBooking: (bookingId: string) => bookingApiClient.cancelBooking(bookingId),
+
+  /**
+   * Get attendance report for an event (Admin)
+   */
+  getEventAttendance: (eventId: string) => bookingApiClient.getEventAttendance(eventId),
+
+  /**
+   * Get all tickets for an event (Admin)
+   */
+  getEventTickets: (eventId: string, filters?: { page?: number; limit?: number; status?: string }) =>
+    bookingApiClient.getEventTickets(eventId, filters),
+
+  /**
+   * Get ticket statistics for an event (Admin)
+   */
+  getEventTicketStats: (eventId: string) => bookingApiClient.getEventTicketStats(eventId),
+
+  /**
+   * Get total registrations across all events (Admin)
+   */
+  getTotalRegistrations: () => bookingApiClient.getTotalRegistrations(),
+
+  /**
+   * Get average attendance rate (Admin)
+   */
+  getAverageAttendance: () => bookingApiClient.getAverageAttendance(),
+
+  /**
+   * Get top performing events (Admin)
+   */
+  getTopEvents: (limit?: number) => bookingApiClient.getTopEvents(limit),
+
+  /**
+   * Revoke a ticket (Admin)
+   */
+  revokeTicket: (ticketId: string) => bookingApiClient.revokeTicket(ticketId)
 };
 
 export const ticketAPI = {
@@ -109,27 +158,4 @@ export const ticketAPI = {
    * Get user's tickets
    */
   getUserTickets: () => bookingApiClient.getUserTickets()
-};
-
-export const adminTicketAPI = {
-  /**
-   * Get attendance report for an event
-   */
-  getEventAttendance: (eventId: string) => bookingApiClient.getEventAttendance(eventId),
-
-  /**
-   * Get all tickets for an event
-   */
-  getEventTickets: (eventId: string, filters?: { page?: number; limit?: number; status?: string }) =>
-    bookingApiClient.getEventTickets(eventId, filters),
-
-  /**
-   * Get ticket statistics for an event
-   */
-  getEventTicketStats: (eventId: string) => bookingApiClient.getEventTicketStats(eventId),
-
-  /**
-   * Revoke a ticket
-   */
-  revokeTicket: (ticketId: string) => bookingApiClient.revokeTicket(ticketId)
 };

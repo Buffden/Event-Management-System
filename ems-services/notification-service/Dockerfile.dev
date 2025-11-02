@@ -19,4 +19,4 @@ EXPOSE 3000
 
 # The actual source code will be mounted as a volume
 # Command will be overridden in docker-compose to use nodemon
-CMD ["npm", "run", "dev"]
+CMD ["sh", "-c", "sleep 30 && npm run dev"]

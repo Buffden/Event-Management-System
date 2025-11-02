@@ -16,7 +16,7 @@ router.use(requireAdmin);
 /**
  * GET /admin/events - Get a list of all events, with the ability to filter by any status
  */
-router.get('/admin/events',
+router.get('/events',
   validateQuery(validatePagination),
   validateQuery(validateDateRange),
   asyncHandler(async (req: Request, res: Response) => {
@@ -56,7 +56,7 @@ router.get('/admin/events',
 /**
  * GET /admin/events/:id - Get full details of any event, regardless of status
  */
-router.get('/admin/events/:id',
+router.get('/events/:id',
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
@@ -81,7 +81,7 @@ router.get('/admin/events/:id',
 /**
  * PATCH /admin/events/:id/approve - Approve a PENDING_APPROVAL event, changing its status to PUBLISHED
  */
-router.patch('/admin/events/:id/approve',
+router.patch('/events/:id/approve',
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
@@ -99,7 +99,7 @@ router.patch('/admin/events/:id/approve',
 /**
  * PATCH /admin/events/:id/reject - Reject a PENDING_APPROVAL event, changing its status to REJECTED
  */
-router.patch('/admin/events/:id/reject',
+router.patch('/events/:id/reject',
   validateRequest((body: RejectEventRequest) => {
     const errors = [];
 
@@ -131,7 +131,7 @@ router.patch('/admin/events/:id/reject',
 /**
  * PATCH /admin/events/:id/cancel - Cancel a PUBLISHED event
  */
-router.patch('/admin/events/:id/cancel',
+router.patch('/events/:id/cancel',
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
@@ -149,7 +149,7 @@ router.patch('/admin/events/:id/cancel',
 /**
  * POST /admin/venues - Create a new venue
  */
-router.post('/admin/venues',
+router.post('/venues',
   validateRequest((body: CreateVenueRequest) => {
     const errors = [];
 
@@ -192,7 +192,7 @@ router.post('/admin/venues',
 /**
  * PUT /admin/venues/:id - Update an existing venue
  */
-router.put('/admin/venues/:id',
+router.put('/venues/:id',
   validateRequest((body: UpdateVenueRequest) => {
     const errors = [];
 
@@ -236,7 +236,7 @@ router.put('/admin/venues/:id',
 /**
  * DELETE /admin/venues/:id - Delete a venue
  */
-router.delete('/admin/venues/:id',
+router.delete('/venues/:id',
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
@@ -254,7 +254,7 @@ router.delete('/admin/venues/:id',
 /**
  * GET /admin/venues - Get all venues with admin filtering
  */
-router.get('/admin/venues',
+router.get('/venues',
   validateQuery(validatePagination),
   asyncHandler(async (req: Request, res: Response) => {
     const {
@@ -285,7 +285,7 @@ router.get('/admin/venues',
 /**
  * GET /admin/venues/:id - Get venue by ID
  */
-router.get('/admin/venues/:id',
+router.get('/venues/:id',
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
 
@@ -304,6 +304,54 @@ router.get('/admin/venues/:id',
       success: true,
       data: venue
     });
+  })
+);
+
+/**
+ * GET /admin/analytics/stats - Get event statistics by status
+ */
+router.get('/analytics/stats',
+  asyncHandler(async (req: Request, res: Response) => {
+    logger.info('Fetching event statistics by status (admin)');
+
+    try {
+      const stats = await eventService.getEventStatsByStatus();
+
+      res.json({
+        success: true,
+        data: stats
+      });
+    } catch (error) {
+      logger.error('Failed to get event statistics', error as Error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch event statistics'
+      });
+    }
+  })
+);
+
+/**
+ * GET /admin/analytics/total-events - Get total events count
+ */
+router.get('/analytics/total-events',
+  asyncHandler(async (req: Request, res: Response) => {
+    logger.info('Fetching total events count (admin)');
+
+    try {
+      const total = await eventService.getTotalEvents();
+
+      res.json({
+        success: true,
+        data: { totalEvents: total }
+      });
+    } catch (error) {
+      logger.error('Failed to get total events', error as Error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch total events'
+      });
+    }
   })
 );
 

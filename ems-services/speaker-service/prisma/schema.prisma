@@ -23,64 +23,67 @@ enum InvitationStatus {
 model SpeakerProfile {
   id          String   @id @default(cuid())
   userId      String   @unique
-  name        String   // Required for search by name
-  email       String   // Required for contact
-  bio         String?  // Optional, can be updated later
+  name        String // Required for search by name
+  email       String // Required for contact
+  bio         String? // Optional, can be updated later
   expertise   String[] // Optional, can be updated later
   isAvailable Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   invitations SpeakerInvitation[]
   materials   PresentationMaterial[]
-  
+
   @@map("speaker_profiles")
 }
 
 // Speaker invitation model
 model SpeakerInvitation {
-  id          String           @id @default(cuid())
-  speakerId   String
-  eventId     String
-  message     String?
-  status      InvitationStatus @default(PENDING)
-  sentAt      DateTime         @default(now())
-  respondedAt DateTime?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  
-  speaker     SpeakerProfile @relation(fields: [speakerId], references: [id])
-  
+  id                String           @id @default(cuid())
+  speakerId         String
+  eventId           String
+  message           String?
+  status            InvitationStatus @default(PENDING)
+  sentAt            DateTime         @default(now())
+  respondedAt       DateTime?
+  joinedAt          DateTime?
+  materialsSelected String[]         @default([])
+  isAttended        Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  speaker SpeakerProfile @relation(fields: [speakerId], references: [id])
+
   @@map("speaker_invitations")
 }
 
 // Message model
 model Message {
-  id          String   @id @default(cuid())
-  fromUserId  String
-  toUserId    String
-  subject     String
-  content     String
-  threadId    String?
-  sentAt      DateTime @default(now())
-  readAt      DateTime?
-  createdAt   DateTime @default(now())
-  
+  id         String    @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  subject    String
+  content    String
+  threadId   String?
+  sentAt     DateTime  @default(now())
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
   @@map("messages")
 }
 
 // Presentation material model
 model PresentationMaterial {
-  id          String   @id @default(cuid())
-  speakerId   String
-  eventId     String?
-  fileName    String
-  filePath    String
-  fileSize    Int
-  mimeType    String
-  uploadDate  DateTime @default(now())
-  
-  speaker     SpeakerProfile @relation(fields: [speakerId], references: [id])
-  
+  id         String   @id @default(cuid())
+  speakerId  String
+  eventId    String?
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
+  uploadDate DateTime @default(now())
+
+  speaker SpeakerProfile @relation(fields: [speakerId], references: [id])
+
   @@map("presentation_materials")
 }
