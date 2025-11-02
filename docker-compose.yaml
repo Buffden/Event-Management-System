@@ -136,6 +136,9 @@ services:
       ./ems-services/speaker-service/.env.production
     environment:
       - RABBITMQ_URL=amqp://rabbitmq:5672
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - speaker-uploads:/app/uploads  # Persistent storage for uploaded materials
     networks:
       - event-net
     depends_on:
@@ -241,5 +244,6 @@ volumes:
   booking-service-data:
   feedback-service-data:
   speaker-service-data:
+  speaker-uploads:  # Persistent storage for speaker uploaded materials
   rabbitmq_data:
   rabbitmq_log:
