@@ -197,6 +197,110 @@ export class AdminApiClient extends BaseApiClient {
   }
 
   /**
+   * Get list of users with pagination and filtering
+   */
+  async getUsers(options: {
+    page?: number;
+    limit?: number;
+    role?: 'ADMIN' | 'USER' | 'SPEAKER';
+    isActive?: boolean;
+    search?: string;
+  } = {}): Promise<{
+    users: Array<{
+      id: string;
+      email: string;
+      name: string | null;
+      image: string | null;
+      role: 'ADMIN' | 'USER' | 'SPEAKER';
+      isActive: boolean;
+      emailVerified: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching users list', options);
+      
+      const params = new URLSearchParams();
+      if (options.page) params.append('page', options.page.toString());
+      if (options.limit) params.append('limit', options.limit.toString());
+      if (options.role) params.append('role', options.role);
+      if (options.isActive !== undefined) params.append('isActive', options.isActive.toString());
+      if (options.search) params.append('search', options.search);
+
+      const response = await fetch(`/api/auth/admin/users?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch users');
+      }
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'Users list retrieved successfully', { 
+        count: result.data.users.length,
+        total: result.data.total 
+      });
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch users', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user statistics (total counts by role and status)
+   */
+  async getUserStats(): Promise<{
+    total: number;
+    active: number;
+    inactive: number;
+    admins: number;
+    users: number;
+    speakers: number;
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching user statistics');
+      
+      const response = await fetch('/api/auth/admin/users/stats', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch user statistics');
+      }
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'User statistics retrieved successfully', result.data);
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch user statistics', error as Error);
+      throw error;
+    }
+  }
+
+  /**
    * Get dashboard statistics for admin
    */
   async getDashboardStats(): Promise<{

@@ -316,6 +316,77 @@ export function registerRoutes(app: Express, authService: AuthService) {
     });
 
     /**
+     * @route   GET /api/auth/admin/users/stats
+     * @desc    Get user statistics (total counts) for admin dashboard.
+     * @access  Admin only
+     */
+    app.get('/admin/users/stats', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const context = contextService.getContext();
+            if (!context || context.userRole !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            logger.info("Getting user statistics (admin)", { adminId: context.userId });
+
+            const stats = await authService.getUserStats();
+
+            res.json({
+                success: true,
+                data: stats
+            });
+        } catch (error: any) {
+            logger.error('Get user statistics (admin) failed', error);
+            return res.status(500).json({error: error.message});
+        }
+    });
+
+    /**
+     * @route   GET /api/auth/admin/users
+     * @desc    Get list of users with pagination and filtering (admin only).
+     * @access  Admin only
+     */
+    app.get('/admin/users', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const context = contextService.getContext();
+            if (!context || context.userRole !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 50;
+            const role = req.query.role as 'ADMIN' | 'USER' | 'SPEAKER' | undefined;
+            const isActive = req.query.isActive === 'true' ? true : req.query.isActive === 'false' ? false : undefined;
+            const search = req.query.search as string | undefined;
+
+            logger.info("Getting users list (admin)", { 
+                adminId: context.userId, 
+                page, 
+                limit, 
+                role, 
+                isActive, 
+                search 
+            });
+
+            const result = await authService.getUsers({
+                page,
+                limit,
+                role,
+                isActive,
+                search
+            });
+
+            res.json({
+                success: true,
+                data: result
+            });
+        } catch (error: any) {
+            logger.error('Get users list (admin) failed', error);
+            return res.status(500).json({error: error.message});
+        }
+    });
+
+    /**
      * @route   GET /api/auth/internal/users/count
      * @desc    Get total count of users (for internal microservice communication).
      * @access  Internal service only (no auth required)

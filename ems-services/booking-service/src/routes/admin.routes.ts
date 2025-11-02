@@ -597,6 +597,58 @@ router.get('/dashboard/stats', asyncHandler(async (req: AuthRequest, res: Respon
 /**
  * Revoke a ticket (Admin only)
  */
+/**
+ * Get registration counts for multiple users (events attended)
+ * POST /admin/users/registration-counts
+ */
+router.post('/users/registration-counts', asyncHandler(async (req: AuthRequest, res: Response) => {
+  try {
+    const { userIds } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'userIds must be a non-empty array'
+      });
+    }
+
+    // Get registration counts for each user
+    const registrationCounts = await Promise.all(
+      userIds.map(async (userId: string) => {
+        const count = await prisma.booking.count({
+          where: {
+            userId: userId,
+            status: BookingStatus.CONFIRMED
+          }
+        });
+        return { userId, count };
+      })
+    );
+
+    // Convert to map for easy lookup
+    const countsMap: Record<string, number> = {};
+    registrationCounts.forEach(({ userId, count }) => {
+      countsMap[userId] = count;
+    });
+
+    logger.info('User registration counts retrieved', { 
+      adminId: req.user?.userId,
+      count: userIds.length 
+    });
+
+    return res.json({
+      success: true,
+      data: countsMap
+    });
+  } catch (error) {
+    logger.error('Get user registration counts failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}));
+
 router.put('/:ticketId/revoke', async (req: AuthRequest, res: Response) => {
   try {
     const { ticketId } = req.params;

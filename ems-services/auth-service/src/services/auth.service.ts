@@ -30,6 +30,8 @@ const userSelect = {
     role: true,
     isActive: true,
     emailVerified: true,
+    createdAt: true,
+    updatedAt: true,
 };
 
 class AuthService {
@@ -653,6 +655,106 @@ class AuthService {
         } catch (error) {
             logger.error("getUserCount(): Failed to get user count", error as Error);
             throw new Error("Failed to get user count: " + (error as Error).message);
+        }
+    }
+
+    /**
+     * Gets user statistics (total counts by role and status) for admin dashboard.
+     * @returns User statistics including total, active, inactive, and role-based counts
+     */
+    async getUserStats(): Promise<{
+        total: number;
+        active: number;
+        inactive: number;
+        admins: number;
+        users: number;
+        speakers: number;
+    }> {
+        try {
+            const [total, active, inactive, admins, users, speakers] = await Promise.all([
+                prisma.user.count(),
+                prisma.user.count({ where: { isActive: true } }),
+                prisma.user.count({ where: { isActive: false } }),
+                prisma.user.count({ where: { role: 'ADMIN' } }),
+                prisma.user.count({ where: { role: 'USER' } }),
+                prisma.user.count({ where: { role: 'SPEAKER' } })
+            ]);
+
+            logger.debug("getUserStats(): User statistics retrieved", { 
+                total, active, inactive, admins, users, speakers 
+            });
+
+            return { total, active, inactive, admins, users, speakers };
+        } catch (error) {
+            logger.error("getUserStats(): Failed to get user statistics", error as Error);
+            throw new Error("Failed to get user statistics: " + (error as Error).message);
+        }
+    }
+
+    /**
+     * Gets a list of users with pagination and filtering (admin only).
+     * @param options Pagination and filtering options
+     * @returns Paginated list of users with total count
+     */
+    async getUsers(options: {
+        page?: number;
+        limit?: number;
+        role?: 'ADMIN' | 'USER' | 'SPEAKER';
+        isActive?: boolean;
+        search?: string;
+    } = {}): Promise<{ users: User[]; total: number; page: number; limit: number }> {
+        try {
+            const page = options.page || 1;
+            const limit = Math.min(options.limit || 50, 100); // Max 100 per page
+            const skip = (page - 1) * limit;
+
+            // Build where clause for filtering
+            const where: any = {};
+
+            if (options.role) {
+                where.role = options.role;
+            }
+
+            if (options.isActive !== undefined) {
+                where.isActive = options.isActive;
+            }
+
+            // Search by name or email
+            if (options.search) {
+                where.OR = [
+                    { name: { contains: options.search, mode: 'insensitive' } },
+                    { email: { contains: options.search, mode: 'insensitive' } }
+                ];
+            }
+
+            const [users, total] = await Promise.all([
+                prisma.user.findMany({
+                    where,
+                    select: userSelect,
+                    skip,
+                    take: limit,
+                    orderBy: { createdAt: 'desc' }
+                }),
+                prisma.user.count({ where })
+            ]);
+
+            logger.debug("getUsers(): Users retrieved", { 
+                count: users.length, 
+                total, 
+                page, 
+                limit,
+                filters: options
+            });
+
+            return {
+                users: users as User[],
+                total,
+                page,
+                limit
+            };
+        } catch (error) {
+            logger.error("getUsers(): Failed to get users", error as Error, options);
+            throw new Error("Failed to get users: " + (error as Error).message);
         }
     }
 

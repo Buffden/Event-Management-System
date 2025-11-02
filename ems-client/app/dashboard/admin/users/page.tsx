@@ -10,101 +10,155 @@ import {
   LogOut, 
   Users, 
   Search,
-  Filter,
-  MoreHorizontal,
-  Shield,
-  ShieldCheck,
-  UserX,
+  ArrowLeft,
   UserCheck,
-  Mail,
-  Calendar,
-  AlertTriangle,
-  ArrowLeft
+  Shield,
+  AlertTriangle
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import {logger} from "@/lib/logger";
+import { useEffect, useState, useCallback } from "react";
+import {useLogger} from "@/lib/logger/LoggerProvider";
+import { adminApiClient } from "@/lib/api/admin.api";
 
 const COMPONENT_NAME = 'UserManagementPage';
 
-// Mock data for development
-const mockUsers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    role: 'USER',
-    isActive: true,
-    emailVerified: '2024-01-15',
-    createdAt: '2024-01-10',
-    lastLogin: '2024-01-20',
-    eventsRegistered: 3
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    role: 'SPEAKER',
-    isActive: true,
-    emailVerified: '2024-01-12',
-    createdAt: '2024-01-08',
-    lastLogin: '2024-01-19',
-    eventsRegistered: 1
-  },
-  {
-    id: '3',
-    name: 'Bob Johnson',
-    email: 'bob@example.com',
-    role: 'USER',
-    isActive: false,
-    emailVerified: null,
-    createdAt: '2024-01-05',
-    lastLogin: '2024-01-15',
-    eventsRegistered: 0
-  },
-  {
-    id: '4',
-    name: 'Alice Wilson',
-    email: 'alice@example.com',
-    role: 'ADMIN',
-    isActive: true,
-    emailVerified: '2024-01-01',
-    createdAt: '2024-01-01',
-    lastLogin: '2024-01-20',
-    eventsRegistered: 5
-  },
-  {
-    id: '5',
-    name: 'Charlie Brown',
-    email: 'charlie@example.com',
-    role: 'USER',
-    isActive: true,
-    emailVerified: '2024-01-18',
-    createdAt: '2024-01-15',
-    lastLogin: '2024-01-21',
-    eventsRegistered: 2
-  }
-];
+interface User {
+  id: string;
+  email: string;
+  name: string | null;
+  image: string | null;
+  role: 'ADMIN' | 'USER' | 'SPEAKER';
+  isActive: boolean;
+  emailVerified: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  eventsRegistered?: number;
+}
 
 export default function UserManagementPage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
+  const logger = useLogger();
+  const [users, setUsers] = useState<User[]>([]);
+  const [userStats, setUserStats] = useState<{
+    total: number;
+    active: number;
+    inactive: number;
+    admins: number;
+    users: number;
+    speakers: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+
+  // Fetch user statistics (total counts - always unfiltered)
+  const loadUserStats = useCallback(async () => {
+    try {
+      logger.debug(COMPONENT_NAME, 'Loading user statistics');
+      const stats = await adminApiClient.getUserStats();
+      setUserStats(stats);
+      logger.info(COMPONENT_NAME, 'User statistics loaded successfully', stats);
+    } catch (err) {
+      logger.warn(COMPONENT_NAME, 'Failed to load user statistics', err as Error);
+      // Don't set error for stats failure, continue with loading users
+    }
+  }, [logger]);
+
+  // Fetch users and registration counts
+  const loadUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      logger.debug(COMPONENT_NAME, 'Loading users');
+
+      // Build filter options
+      const filters: {
+        role?: 'ADMIN' | 'USER' | 'SPEAKER';
+        isActive?: boolean;
+        search?: string;
+      } = {};
+
+      if (selectedRole !== 'ALL') {
+        filters.role = selectedRole as 'ADMIN' | 'USER' | 'SPEAKER';
+      }
+
+      if (selectedStatus !== 'ALL') {
+        filters.isActive = selectedStatus === 'ACTIVE';
+      }
+
+      if (searchTerm) {
+        filters.search = searchTerm;
+      }
+
+      // Fetch users from auth-service
+      const usersData = await adminApiClient.getUsers({
+        limit: 1000, // Get all users (max 1000)
+        ...filters
+      });
+
+      // Fetch registration counts from booking-service
+      const userIds = usersData.users.map((u: User) => u.id);
+      let registrationCounts: Record<string, number> = {};
+
+      if (userIds.length > 0) {
+        try {
+          const response = await fetch('/api/booking/admin/users/registration-counts', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${adminApiClient.getToken()}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ userIds })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              registrationCounts = result.data;
+            }
+          }
+        } catch (err) {
+          logger.warn(COMPONENT_NAME, 'Failed to fetch registration counts', err as Error);
+          // Continue without counts
+        }
+      }
+
+      // Combine user data with registration counts
+      const usersWithCounts = usersData.users.map((user: User) => ({
+        ...user,
+        eventsRegistered: registrationCounts[user.id] || 0
+      }));
+
+      setUsers(usersWithCounts);
+      logger.info(COMPONENT_NAME, 'Users loaded successfully', { count: usersWithCounts.length });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load users';
+      setError(errorMessage);
+      logger.error(COMPONENT_NAME, 'Failed to load users', err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm, selectedRole, selectedStatus, logger]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     } else if (!isLoading && user?.role !== 'ADMIN') {
       router.push('/dashboard');
+    } else if (isAuthenticated && user?.role === 'ADMIN') {
+      loadUserStats(); // Load stats once on mount
+      loadUsers();
     }
-  }, [isAuthenticated, isLoading, user, router]);
+  }, [isAuthenticated, isLoading, user, router, loadUsers, loadUserStats]);
 
-  // Filter users based on search and filters
-  const filteredUsers = mockUsers.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+  // Filter users based on search and filters (client-side for better UX)
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = !searchTerm || 
+                         (user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesRole = selectedRole === 'ALL' || user.role === selectedRole;
     const matchesStatus = selectedStatus === 'ALL' || 
                          (selectedStatus === 'ACTIVE' && user.isActive) ||
@@ -113,22 +167,24 @@ export default function UserManagementPage() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const handleRoleChange = (userId: string, newRole: string) => {
-    // TODO: Implement role change API call
-    logger.debug(COMPONENT_NAME, `Change user ${userId} role to ${newRole}`);
-  };
 
-  const handleStatusToggle = (userId: string, currentStatus: boolean) => {
-    // TODO: Implement status toggle API call
-    logger.debug(COMPONENT_NAME, `Toggle user ${userId} status from ${currentStatus} to ${!currentStatus}`);
-  };
-
-  if (isLoading) {
+  if (isLoading || !isAuthenticated || user?.role !== 'ADMIN') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-slate-700 dark:text-slate-300 font-medium">Loading user management...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400 font-medium mb-4">Error: {error}</p>
+          <Button onClick={() => loadUsers()}>Retry</Button>
         </div>
       </div>
     );
@@ -209,7 +265,7 @@ export default function UserManagementPage() {
                 <Users className="h-8 w-8 text-blue-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Users</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockUsers.length}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{userStats?.total ?? 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -222,7 +278,7 @@ export default function UserManagementPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Active Users</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {mockUsers.filter(u => u.isActive).length}
+                    {userStats?.active ?? 0}
                   </p>
                 </div>
               </div>
@@ -236,7 +292,7 @@ export default function UserManagementPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Admins</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {mockUsers.filter(u => u.role === 'ADMIN').length}
+                    {userStats?.admins ?? 0}
                   </p>
                 </div>
               </div>
@@ -250,7 +306,7 @@ export default function UserManagementPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Inactive Users</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {mockUsers.filter(u => !u.isActive).length}
+                    {userStats?.inactive ?? 0}
                   </p>
                 </div>
               </div>
@@ -321,105 +377,82 @@ export default function UserManagementPage() {
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Role</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Status</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Email Verified</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Events</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Last Login</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Actions</th>
+                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Events Attended</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => (
-                    <tr key={user.id} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
-                      <td className="py-4 px-4">
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage 
-                              src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`} 
-                              alt={user.name} 
-                            />
-                            <AvatarFallback className="text-xs">
-                              {user.name.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium text-slate-900 dark:text-white">{user.name}</p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400">{user.email}</p>
+                  {filteredUsers.map((user) => {
+                    // Determine profile route based on user role
+                    const getProfileRoute = (userRole: string, userId: string) => {
+                      switch (userRole) {
+                        case 'USER':
+                          return `/dashboard/attendee/profile?userId=${userId}`;
+                        case 'SPEAKER':
+                          return `/dashboard/speaker?section=profile&userId=${userId}`;
+                        case 'ADMIN':
+                          return `/dashboard/admin/profile?userId=${userId}`;
+                        default:
+                          return `/dashboard/admin/users`;
+                      }
+                    };
+
+                    return (
+                      <tr 
+                        key={user.id} 
+                        className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                        onClick={() => router.push(getProfileRoute(user.role, user.id))}
+                      >
+                        <td className="py-4 px-4">
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage 
+                                src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.name || user.email}`} 
+                                alt={user.name || user.email} 
+                              />
+                              <AvatarFallback className="text-xs">
+                                {user.name?.split(' ').map((n: string) => n[0]).join('') || user.email[0].toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium text-slate-900 dark:text-white">{user.name}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">{user.email}</p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <Badge 
-                          variant={user.role === 'ADMIN' ? 'default' : 'secondary'}
-                          className={
-                            user.role === 'ADMIN' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                            user.role === 'SPEAKER' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                            'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          }
-                        >
-                          {user.role}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-4">
-                        <Badge 
-                          variant={user.isActive ? 'default' : 'secondary'}
-                          className={user.isActive ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}
-                        >
-                          {user.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-4">
-                        <Badge 
-                          variant={user.emailVerified ? 'default' : 'secondary'}
-                          className={user.emailVerified ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
-                        >
-                          {user.emailVerified ? 'Verified' : 'Pending'}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-slate-900 dark:text-white">{user.eventsRegistered}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-slate-600 dark:text-slate-400">
-                          {new Date(user.lastLogin).toLocaleDateString()}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex space-x-2">
-                          {user.role !== 'ADMIN' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRoleChange(user.id, user.role === 'USER' ? 'SPEAKER' : 'USER')}
-                            >
-                              <ShieldCheck className="h-4 w-4 mr-1" />
-                              {user.role === 'USER' ? 'Make Speaker' : 'Make User'}
-                            </Button>
-                          )}
-                          
-                          <Button
-                            size="sm"
-                            variant={user.isActive ? 'destructive' : 'default'}
-                            onClick={() => handleStatusToggle(user.id, user.isActive)}
+                        </td>
+                        <td className="py-4 px-4">
+                          <Badge 
+                            variant={user.role === 'ADMIN' ? 'default' : 'secondary'}
+                            className={
+                              user.role === 'ADMIN' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                              user.role === 'SPEAKER' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                              'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            }
                           >
-                            {user.isActive ? (
-                              <>
-                                <UserX className="h-4 w-4 mr-1" />
-                                Suspend
-                              </>
-                            ) : (
-                              <>
-                                <UserCheck className="h-4 w-4 mr-1" />
-                                Activate
-                              </>
-                            )}
-                          </Button>
-                          
-                          <Button size="sm" variant="outline">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {user.role}
+                          </Badge>
+                        </td>
+                        <td className="py-4 px-4">
+                          <Badge 
+                            variant={user.isActive ? 'default' : 'secondary'}
+                            className={user.isActive ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}
+                          >
+                            {user.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </td>
+                        <td className="py-4 px-4">
+                          <Badge 
+                            variant={user.emailVerified ? 'default' : 'secondary'}
+                            className={user.emailVerified ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
+                          >
+                            {user.emailVerified ? 'Verified' : 'Pending'}
+                          </Badge>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="text-slate-900 dark:text-white">{user.eventsRegistered ?? 0}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               
