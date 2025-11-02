@@ -18,7 +18,8 @@ import {
   Eye,
   Edit,
   Trash2,
-  Ticket
+  Ticket,
+  Clock
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -30,7 +31,6 @@ const mockStats = {
   totalUsers: 156,
   totalEvents: 8,
   activeEvents: 3,
-  flaggedUsers: 2,
   totalRegistrations: 342,
   upcomingEvents: 3
 };
@@ -62,23 +62,6 @@ const mockRecentEvents = [
     capacity: 150,
     startDate: '2024-03-01',
     endDate: '2024-03-03'
-  }
-];
-
-const mockFlaggedUsers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    reason: 'Spam registrations',
-    flaggedAt: '2024-01-15'
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    reason: 'Inappropriate behavior',
-    flaggedAt: '2024-01-20'
   }
 ];
 
@@ -165,7 +148,7 @@ function AdminDashboard() {
             <CardContent>
               <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalUsers}</div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.flaggedUsers} flagged
+                Active users
               </p>
             </CardContent>
           </Card>
@@ -203,14 +186,14 @@ function AdminDashboard() {
           <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Flagged Users
+                Upcoming Events
               </CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
+              <Clock className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.flaggedUsers}</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.upcomingEvents}</div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                Need review
+                Scheduled soon
               </p>
             </CardContent>
           </Card>
@@ -262,15 +245,6 @@ function AdminDashboard() {
                 >
                   <Users className="h-5 w-5" />
                   <span className="text-sm">Manage Users</span>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
-                  onClick={() => router.push('/dashboard/admin/users/flagged')}
-                >
-                  <AlertTriangle className="h-5 w-5" />
-                  <span className="text-sm">Review Flags</span>
                 </Button>
 
                 <Button
@@ -334,39 +308,6 @@ function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Flagged Users Alert */}
-        {mockFlaggedUsers.length > 0 && (
-          <Card className="border-orange-200 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold text-orange-900 dark:text-orange-100 flex items-center">
-                <AlertTriangle className="h-5 w-5 mr-2" />
-                Flagged Users Requiring Review
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {mockFlaggedUsers.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border border-orange-200 dark:border-orange-700">
-                    <div>
-                      <h4 className="font-medium text-slate-900 dark:text-white">{user.name}</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">{user.email}</p>
-                      <p className="text-sm text-orange-600 dark:text-orange-400">Reason: {user.reason}</p>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="outline">
-                        Review
-                      </Button>
-                      <Button size="sm" variant="destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </main>
     </div>
   );

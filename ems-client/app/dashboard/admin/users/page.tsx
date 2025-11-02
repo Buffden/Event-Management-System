@@ -298,14 +298,6 @@ export default function UserManagementPage() {
                 <option value="INACTIVE">Inactive</option>
               </select>
               
-              <Button 
-                variant="outline"
-                onClick={() => router.push('/dashboard/admin/users/flagged')}
-                className="border-orange-200 text-orange-600 hover:bg-orange-50"
-              >
-                <AlertTriangle className="h-4 w-4 mr-2" />
-                View Flagged Users
-              </Button>
             </div>
           </CardContent>
         </Card>

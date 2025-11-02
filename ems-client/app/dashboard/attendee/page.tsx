@@ -16,7 +16,6 @@ import {
   Download,
   Settings,
   TrendingUp,
-  Award,
   MapPin,
   Users
 } from "lucide-react";
@@ -33,8 +32,6 @@ const mockStats = {
   ticketsPurchased: 12,
   activeTickets: 4,
   usedTickets: 8,
-  pointsEarned: 1250,
-  pointsThisMonth: 300,
   upcomingThisWeek: 2,
   nextWeekEvents: 1
 };
@@ -160,7 +157,7 @@ function AttendeeDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
@@ -187,21 +184,6 @@ function AttendeeDashboard() {
               <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.ticketsPurchased}</div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
                 {mockStats.activeTickets} active
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Points Earned
-              </CardTitle>
-              <Award className="h-4 w-4 text-yellow-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.pointsEarned}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.pointsThisMonth} this month
               </p>
             </CardContent>
           </Card>
