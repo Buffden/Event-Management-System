@@ -1,3 +1,7 @@
+# Development Docker Compose Configuration
+# This file enables hot-reload for all services
+# Usage: docker-compose -f docker-compose.dev.yaml up
+
 # This section defines all the containers (services) that make up your application.
 services:
   #########################################
@@ -6,18 +10,30 @@ services:
   ems-client:
     build:
       context: ./ems-client
-      dockerfile: Dockerfile
-    container_name: ems-client
+      dockerfile: Dockerfile.dev
+    container_name: ems-client-dev
     env_file:
-      ./ems-client/.env.production
+      - ./ems-client/.env.development
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    volumes:
+      - ./ems-client:/app
+      - /app/node_modules
+      - /app/.next
     networks:
       - event-net
+    ports:
+      - "3001:3000"
+    command: npm run dev
 
   ems-gateway:
     build:
       context: ./ems-gateway
       dockerfile: Dockerfile
-    container_name: ems-gateway
+    container_name: ems-gateway-dev
     ports:
       - "80:80"
     volumes:
@@ -30,23 +46,36 @@ services:
       - event-service
       - booking-service
       - speaker-service
+      - feedback-service
       - notification-service
 
   #########################################
   #   BACKEND MICROSERVICES
   #########################################
-  auth-service: &base-service
+  auth-service: &base-service-dev
     build:
       context: ./ems-services/auth-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         - DATABASE_URL=postgresql://admin:password@auth-service-db:5432/auth_db
-    container_name: auth-service
+    container_name: auth-service-dev
     restart: unless-stopped
     env_file:
-      ./ems-services/auth-service/.env.production
+      - ./ems-services/auth-service/.env.development
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    volumes:
+      - ./ems-services/auth-service:/app
+      - /app/node_modules
+      - /app/dist
+      - /app/prisma
     networks:
       - event-net
+    ports:
+      - "3002:3000"
+    command: sh -c "npx prisma generate && npm run dev"
     depends_on:
       auth-service-db:
         condition: service_healthy
@@ -54,15 +83,27 @@ services:
         condition: service_started
 
   event-service:
-    <<: *base-service
+    <<: *base-service-dev
     build:
       context: ./ems-services/event-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         - DATABASE_URL=postgresql://admin:password@event-service-db:5432/event_db
-    container_name: event-service
+    container_name: event-service-dev
     env_file:
-      ./ems-services/event-service/.env.production
+      - ./ems-services/event-service/.env.development
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    volumes:
+      - ./ems-services/event-service:/app
+      - /app/node_modules
+      - /app/dist
+      - /app/prisma
+    ports:
+      - "3003:3000"
+    command: sh -c "npx prisma generate && npm run dev"
     networks:
       - event-net
     depends_on:
@@ -74,15 +115,27 @@ services:
         condition: service_started
 
   booking-service:
-    <<: *base-service
+    <<: *base-service-dev
     build:
       context: ./ems-services/booking-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         - DATABASE_URL=postgresql://admin:password@booking-service-db:5432/booking_db
-    container_name: booking-service
+    container_name: booking-service-dev
     env_file:
-      ./ems-services/booking-service/.env.production
+      - ./ems-services/booking-service/.env.development
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    volumes:
+      - ./ems-services/booking-service:/app
+      - /app/node_modules
+      - /app/dist
+      - /app/prisma
+    ports:
+      - "3004:3000"
+    command: sh -c "npx prisma generate && npm run dev"
     networks:
       - event-net
     depends_on:
@@ -92,15 +145,27 @@ services:
         condition: service_started
 
   feedback-service:
-    <<: *base-service
+    <<: *base-service-dev
     build:
       context: ./ems-services/feedback-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         - DATABASE_URL=postgresql://admin:password@feedback-service-db:5432/feedback_db
-    container_name: feedback-service
+    container_name: feedback-service-dev
     env_file:
-      ./ems-services/feedback-service/.env.production
+      - ./ems-services/feedback-service/.env.development
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    volumes:
+      - ./ems-services/feedback-service:/app
+      - /app/node_modules
+      - /app/dist
+      - /app/prisma
+    ports:
+      - "3005:3000"
+    command: sh -c "npx prisma generate && npm run dev"
     networks:
       - event-net
     depends_on:
@@ -112,10 +177,21 @@ services:
   notification-service:
     build:
       context: ./ems-services/notification-service
-      dockerfile: Dockerfile
-    container_name: notification-service
+      dockerfile: Dockerfile.dev
+    container_name: notification-service-dev
     env_file:
-      ./ems-services/notification-service/.env.production
+      - ./ems-services/notification-service/.env.development
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    volumes:
+      - ./ems-services/notification-service:/app
+      - /app/node_modules
+      - /app/dist
+    ports:
+      - "3006:3000"
+    command: npm run dev
     networks:
       - event-net
     depends_on:
@@ -123,15 +199,27 @@ services:
         condition: service_started
 
   speaker-service:
-    <<: *base-service
+    <<: *base-service-dev
     build:
       context: ./ems-services/speaker-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
         - DATABASE_URL=postgresql://admin:password@speaker-service-db:5432/speaker_db
-    container_name: speaker-service
+    container_name: speaker-service-dev
     env_file:
-      ./ems-services/speaker-service/.env.production
+      - ./ems-services/speaker-service/.env.development
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+    volumes:
+      - ./ems-services/speaker-service:/app
+      - /app/node_modules
+      - /app/dist
+      - /app/prisma
+    ports:
+      - "3007:3000"
+    command: sh -c "npx prisma generate && npm run dev"
     networks:
       - event-net
     depends_on:
@@ -146,13 +234,13 @@ services:
 
   auth-service-db: &base-service-db
     image: postgres:14-alpine
-    container_name: auth-service-db
+    container_name: auth-service-db-dev
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=auth_db
     volumes:
-      - auth-service-data:/var/lib/postgresql/data
+      - auth-service-data-dev:/var/lib/postgresql/data
     networks:
       - event-net
     healthcheck:
@@ -163,50 +251,50 @@ services:
 
   event-service-db:
     <<: *base-service-db
-    container_name: event-service-db
+    container_name: event-service-db-dev
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=event_db
     volumes:
-      - event-service-data:/var/lib/postgresql/data
+      - event-service-data-dev:/var/lib/postgresql/data
 
   booking-service-db:
     <<: *base-service-db
-    container_name: booking-service-db
+    container_name: booking-service-db-dev
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=booking_db
     volumes:
-      - booking-service-data:/var/lib/postgresql/data
+      - booking-service-data-dev:/var/lib/postgresql/data
 
   feedback-service-db:
     <<: *base-service-db
-    container_name: feedback-service-db
+    container_name: feedback-service-db-dev
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=feedback_db
     volumes:
-      - feedback-service-data:/var/lib/postgresql/data
+      - feedback-service-data-dev:/var/lib/postgresql/data
 
   speaker-service-db:
     <<: *base-service-db
-    container_name: speaker-service-db
+    container_name: speaker-service-db-dev
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=speaker_db
     volumes:
-      - speaker-service-data:/var/lib/postgresql/data
+      - speaker-service-data-dev:/var/lib/postgresql/data
 
   #########################################
   #   INFRASTRUCTURE SERVICES
   #########################################
   rabbitmq:
     image: rabbitmq:3.9-management-alpine
-    container_name: rabbitmq
+    container_name: rabbitmq-dev
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -214,8 +302,8 @@ services:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq/ # Persistent storage for RabbitMQ data
-      - rabbitmq_log:/var/log/rabbitmq/  # Persistent storage for RabbitMQ
+      - rabbitmq_data-dev:/var/lib/rabbitmq/ # Persistent storage for RabbitMQ data
+      - rabbitmq_log-dev:/var/log/rabbitmq/  # Persistent storage for RabbitMQ
     networks:
       - event-net
     healthcheck:
@@ -232,10 +320,10 @@ networks:
 
 # This section defines a volume for persisting data.
 volumes:
-  auth-service-data:
-  event-service-data:
-  booking-service-data:
-  feedback-service-data:
-  speaker-service-data:
-  rabbitmq_data:
-  rabbitmq_log:
+  auth-service-data-dev:
+  event-service-data-dev:
+  booking-service-data-dev:
+  feedback-service-data-dev:
+  speaker-service-data-dev:
+  rabbitmq_data-dev:
+  rabbitmq_log-dev:

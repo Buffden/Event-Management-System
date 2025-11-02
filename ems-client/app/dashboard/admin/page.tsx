@@ -18,54 +18,52 @@ import {
   Eye,
   Edit,
   Trash2,
-  Ticket
+  Ticket,
+  Loader2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {useLogger} from "@/lib/logger/LoggerProvider";
 import {withAdminAuth} from "@/components/hoc/withAuth";
+import { eventAPI } from "@/lib/api/event.api";
+import { EventResponse, EventStatus } from "@/lib/api/types/event.types";
 
-// Mock data for development
-const mockStats = {
-  totalUsers: 156,
-  totalEvents: 8,
-  activeEvents: 3,
-  flaggedUsers: 2,
-  totalRegistrations: 342,
-  upcomingEvents: 3
-};
+const LOGGER_COMPONENT_NAME = 'AdminDashboard';
 
-const mockRecentEvents = [
-  {
-    id: '1',
-    title: 'Tech Conference 2024',
-    status: 'published',
-    registrations: 45,
-    capacity: 100,
-    startDate: '2024-02-15',
-    endDate: '2024-02-17'
-  },
-  {
-    id: '2',
-    title: 'Design Workshop',
-    status: 'draft',
-    registrations: 12,
-    capacity: 50,
-    startDate: '2024-02-20',
-    endDate: '2024-02-21'
-  },
-  {
-    id: '3',
-    title: 'AI Summit',
-    status: 'published',
-    registrations: 89,
-    capacity: 150,
-    startDate: '2024-03-01',
-    endDate: '2024-03-03'
-  }
-];
+// Interface for recent events display
+interface RecentEvent {
+  id: string;
+  title: string;
+  status: string;
+  registrations?: number;
+  capacity?: number;
+  startDate: string;
+  endDate: string;
+}
 
-const mockFlaggedUsers = [
+// Interface for flagged users
+interface FlaggedUser {
+  id: string;
+  name: string;
+  email: string;
+  reason: string;
+  flaggedAt: string;
+}
+
+// Interface for dashboard stats
+interface DashboardStats {
+  totalUsers: number | null;
+  totalEvents: number;
+  activeEvents: number;
+  flaggedUsers: number;
+  totalRegistrations: number | null;
+  upcomingEvents: number;
+}
+
+// TODO: Flagged users feature requires backend implementation
+// This mock data should be replaced with an API call once the backend endpoint is available
+// Expected endpoint: GET /api/admin/users/flagged
+const mockFlaggedUsers: FlaggedUser[] = [
   {
     id: '1',
     name: 'John Doe',
@@ -82,16 +80,120 @@ const mockFlaggedUsers = [
   }
 ];
 
-const LOGGER_COMPONENT_NAME = 'AdminDashboard';
-
 function AdminDashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const logger = useLogger();
+  const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState<string | null>(null);
+  const [flaggedUsers] = useState<FlaggedUser[]>(mockFlaggedUsers); // TODO: Replace with API call
+  const [stats, setStats] = useState<DashboardStats>({
+    totalUsers: null,
+    totalEvents: 0,
+    activeEvents: 0,
+    flaggedUsers: mockFlaggedUsers.length,
+    totalRegistrations: null,
+    upcomingEvents: 0
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Fetch dashboard stats
+  const fetchDashboardStats = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching dashboard stats');
+
+      // Fetch all events to get stats
+      const eventsResponse = await eventAPI.getAllEvents({
+        limit: 1000, // Large limit to get all events
+        page: 1
+      });
+
+      if (eventsResponse.success && eventsResponse.data) {
+        const allEvents = eventsResponse.data.events;
+        const totalEvents = eventsResponse.data.total || allEvents.length;
+        const activeEvents = allEvents.filter(e => e.status === EventStatus.PUBLISHED).length;
+
+        // Count upcoming events (events with bookingStartDate in the future)
+        const now = new Date();
+        const upcomingEvents = allEvents.filter(e => {
+          const startDate = new Date(e.bookingStartDate);
+          return startDate > now && e.status === EventStatus.PUBLISHED;
+        }).length;
+
+        // Total registrations: Currently no admin endpoint to get all bookings across all events
+        // TODO: Implement admin endpoint: GET /api/admin/bookings/stats or similar
+        // For now, we'll leave it as null and show "N/A"
+        let totalRegistrations: number | null = null;
+
+        setStats({
+          totalUsers: null, // TODO: No API endpoint available yet
+          totalEvents,
+          activeEvents,
+          flaggedUsers: mockFlaggedUsers.length,
+          totalRegistrations,
+          upcomingEvents
+        });
+
+        logger.info(LOGGER_COMPONENT_NAME, 'Dashboard stats fetched successfully', {
+          totalEvents,
+          activeEvents,
+          upcomingEvents,
+          totalRegistrations
+        });
+      }
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch dashboard stats', error as Error);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [logger]);
+
+  // Fetch recent events function
+  const fetchRecentEvents = useCallback(async () => {
+    try {
+      setEventsLoading(true);
+      setEventsError(null);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching recent events');
+
+      // Fetch all events, sorted by creation date (most recent first)
+      // Limit to 3 most recent events for dashboard
+      const response = await eventAPI.getAllEvents({
+        limit: 3,
+        page: 1
+      });
+
+      if (response.success && response.data) {
+        // Sort by createdAt descending (most recent first) and take first 3
+        const sortedEvents = [...response.data.events]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 3)
+          .map((event: EventResponse): RecentEvent => ({
+            id: event.id,
+            title: event.name,
+            status: event.status.toLowerCase(),
+            capacity: event.venue?.capacity,
+            startDate: event.bookingStartDate,
+            endDate: event.bookingEndDate
+          }));
+
+        setRecentEvents(sortedEvents);
+        logger.info(LOGGER_COMPONENT_NAME, 'Recent events fetched successfully', { count: sortedEvents.length });
+      }
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch recent events', error as Error);
+      setEventsError('Failed to load recent events');
+    } finally {
+      setEventsLoading(false);
+    }
+  }, [logger]);
 
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Admin dashboard loaded', { userRole: user?.role });
-  }, [user, logger]);
+    fetchDashboardStats();
+    fetchRecentEvents();
+  }, [user, logger, fetchDashboardStats, fetchRecentEvents]);
 
   // Loading and auth checks are handled by the HOC
 
@@ -163,10 +265,21 @@ function AdminDashboard() {
               <Users className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalUsers}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.flaggedUsers} flagged
-              </p>
+              {statsLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-600" />
+                  <span className="text-sm text-slate-600">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stats.totalUsers !== null ? stats.totalUsers : 'N/A'}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {stats.totalUsers !== null ? `${stats.flaggedUsers} flagged` : 'API endpoint needed'}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -178,10 +291,19 @@ function AdminDashboard() {
               <Calendar className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalEvents}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.activeEvents} active
-              </p>
+              {statsLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-600" />
+                  <span className="text-sm text-slate-600">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.totalEvents}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {stats.activeEvents} active
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -193,25 +315,45 @@ function AdminDashboard() {
               <UserCheck className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalRegistrations}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Across all events
-              </p>
+              {statsLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-600" />
+                  <span className="text-sm text-slate-600">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stats.totalRegistrations !== null ? stats.totalRegistrations : 'N/A'}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Across all events
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Flagged Users
+                Upcoming Events
               </CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
+              <Calendar className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.flaggedUsers}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Need review
-              </p>
+              {statsLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-600" />
+                  <span className="text-sm text-slate-600">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.upcomingEvents}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Scheduled soon
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -305,59 +447,124 @@ function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockRecentEvents.map((event) => (
-                  <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
-                      <div className="flex items-center space-x-4 text-sm text-slate-600 dark:text-slate-400">
-                        <span>{event.registrations}/{event.capacity} registrations</span>
-                        <Badge
-                          variant={event.status === 'published' ? 'default' : 'secondary'}
-                          className={event.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}
+              {eventsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-sm text-slate-600 dark:text-slate-400">Loading events...</span>
+                </div>
+              ) : eventsError ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-red-600 dark:text-red-400">{eventsError}</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={() => {
+                      setEventsError(null);
+                      setEventsLoading(true);
+                      fetchRecentEvents();
+                    }}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : recentEvents.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">No recent events found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {recentEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
+                        <div className="flex items-center space-x-4 text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          {event.capacity && (
+                            <span>Capacity: {event.capacity}</span>
+                          )}
+                          <Badge
+                            variant={event.status === 'published' ? 'default' : 'secondary'}
+                            className={
+                              event.status === 'published'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : event.status === 'pending_approval'
+                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                            }
+                          >
+                            {event.status}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                          {new Date(event.startDate).toLocaleDateString()} - {new Date(event.endDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/admin/events/${event.id}`)}
                         >
-                          {event.status}
-                        </Badge>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/admin/events/modify/${event.id}`)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="outline">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
 
         {/* Flagged Users Alert */}
-        {mockFlaggedUsers.length > 0 && (
+        {/* TODO: Replace with real API call once backend endpoint is available */}
+        {flaggedUsers.length > 0 && (
           <Card className="border-orange-200 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20">
             <CardHeader>
               <CardTitle className="text-xl font-semibold text-orange-900 dark:text-orange-100 flex items-center">
                 <AlertTriangle className="h-5 w-5 mr-2" />
                 Flagged Users Requiring Review
               </CardTitle>
+              <CardDescription className="text-orange-700 dark:text-orange-300">
+                {/* Note: Currently using mock data. Backend API endpoint needed. */}
+                {flaggedUsers.length} user{flaggedUsers.length !== 1 ? 's' : ''} flagged
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockFlaggedUsers.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border border-orange-200 dark:border-orange-700">
+                {flaggedUsers.map((flaggedUser) => (
+                  <div key={flaggedUser.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border border-orange-200 dark:border-orange-700">
                     <div>
-                      <h4 className="font-medium text-slate-900 dark:text-white">{user.name}</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">{user.email}</p>
-                      <p className="text-sm text-orange-600 dark:text-orange-400">Reason: {user.reason}</p>
+                      <h4 className="font-medium text-slate-900 dark:text-white">{flaggedUser.name}</h4>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{flaggedUser.email}</p>
+                      <p className="text-sm text-orange-600 dark:text-orange-400">Reason: {flaggedUser.reason}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                        Flagged: {new Date(flaggedUser.flaggedAt).toLocaleDateString()}
+                      </p>
                     </div>
                     <div className="flex space-x-2">
-                      <Button size="sm" variant="outline">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push(`/dashboard/admin/users/flagged`)}
+                      >
                         Review
                       </Button>
-                      <Button size="sm" variant="destructive">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          // TODO: Implement delete/remove flag functionality
+                          logger.debug(LOGGER_COMPONENT_NAME, 'Remove flag clicked', { userId: flaggedUser.id });
+                        }}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

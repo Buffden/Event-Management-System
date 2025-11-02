@@ -98,7 +98,7 @@ class EventService {
             // Get creator information to determine if they're an admin
             const creatorInfo = await this.getSpeakerInfo(speakerId);
             const isAdmin = creatorInfo?.role === 'ADMIN';
-            
+
             // Admin events are auto-published, speaker events start as DRAFT
             const initialStatus = isAdmin ? EventStatus.PUBLISHED : EventStatus.DRAFT;
 
@@ -173,8 +173,8 @@ class EventService {
             });
 
             logger.info('createEvent() - Event created successfully', {
-                eventId: event.id, 
-                speakerId, 
+                eventId: event.id,
+                speakerId,
                 status: event.status,
                 autoPublished: isAdmin
             });
@@ -200,11 +200,17 @@ class EventService {
     }
 
     /**
-     * Update an event (only if DRAFT or REJECTED)
+     * Update an event
+     * - Speakers can only update their own events in DRAFT or REJECTED status
+     * - Admins can update any event in any status
      */
-    async updateEvent(eventId: string, data: UpdateEventRequest, speakerId: string): Promise<EventResponse> {
+    async updateEvent(eventId: string, data: UpdateEventRequest, speakerId: string, userRole?: string): Promise<EventResponse> {
         try {
-            logger.info('updateEvent() - Updating event', {eventId, speakerId});
+            logger.info('updateEvent() - Updating event', {eventId, speakerId, userRole});
+
+            // Get user information to determine if they're an admin
+            const userInfo = await this.getSpeakerInfo(speakerId);
+            const isAdmin = userInfo?.role === 'ADMIN' || userRole === 'ADMIN';
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
@@ -216,12 +222,14 @@ class EventService {
                 throw new Error('Event not found');
             }
 
-            if (existingEvent.speakerId !== speakerId) {
+            // Check ownership - admins can update any event, speakers can only update their own
+            if (!isAdmin && existingEvent.speakerId !== speakerId) {
                 logger.info("updateEvent() - Unauthorized: You can only update your own events", {eventId, speakerId});
                 throw new Error('Unauthorized: You can only update your own events');
             }
 
-            if (existingEvent.status !== EventStatus.DRAFT && existingEvent.status !== EventStatus.REJECTED) {
+            // Status check - admins can update events in any status, speakers only DRAFT or REJECTED
+            if (!isAdmin && existingEvent.status !== EventStatus.DRAFT && existingEvent.status !== EventStatus.REJECTED) {
                 logger.info("updateEvent() - Event can only be updated when in DRAFT or REJECTED status", {eventId, status: existingEvent.status});
                 throw new Error('Event can only be updated when in DRAFT or REJECTED status');
             }
@@ -348,7 +356,8 @@ class EventService {
     }
 
     /**
-     * Approve event (PENDING_APPROVAL -> PUBLISHED)
+     * Approve/publish event (PENDING_APPROVAL or DRAFT -> PUBLISHED)
+     * Admins can publish events directly from DRAFT status
      */
     async approveEvent(eventId: string): Promise<EventResponse> {
         try {
@@ -364,9 +373,10 @@ class EventService {
                 throw new Error('Event not found');
             }
 
-            if (existingEvent.status !== EventStatus.PENDING_APPROVAL) {
-                logger.info("approveEvent() - Event must be in PENDING_APPROVAL status to be approved", {eventId, status: existingEvent.status});
-                throw new Error('Event must be in PENDING_APPROVAL status to be approved');
+            // Allow approving events that are in PENDING_APPROVAL or DRAFT status
+            if (existingEvent.status !== EventStatus.PENDING_APPROVAL && existingEvent.status !== EventStatus.DRAFT) {
+                logger.info("approveEvent() - Event must be in PENDING_APPROVAL or DRAFT status to be approved/published", {eventId, status: existingEvent.status});
+                throw new Error('Event must be in PENDING_APPROVAL or DRAFT status to be approved/published');
             }
 
             const event = await prisma.event.update({

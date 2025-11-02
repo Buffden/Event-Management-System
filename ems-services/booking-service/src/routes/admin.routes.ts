@@ -298,6 +298,7 @@ router.get('/events/:eventId/tickets', async (req: AuthRequest, res: Response) =
           id: ticket.id,
           bookingId: ticket.bookingId,
           userId: ticket.booking.userId,
+          eventId: ticket.booking.eventId,
           status: ticket.status,
           issuedAt: ticket.issuedAt.toISOString(),
           expiresAt: ticket.expiresAt.toISOString(),

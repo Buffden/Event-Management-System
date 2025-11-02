@@ -24,7 +24,7 @@ import {
   Download,
   Presentation
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import {useLogger} from "@/lib/logger/LoggerProvider";
 import {withSpeakerAuth} from "@/components/hoc/withAuth";
@@ -44,7 +44,6 @@ const LOGGER_COMPONENT_NAME = 'SpeakerDashboard';
 function SpeakerDashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const logger = useLogger();
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   
@@ -65,14 +64,6 @@ function SpeakerDashboard() {
     createSpeakerProfile,
     updateSpeakerProfile,
   } = useSpeakerData();
-
-  // Set active section from URL query params
-  useEffect(() => {
-    const section = searchParams.get('section') as DashboardSection | null;
-    if (section && ['overview', 'profile', 'materials', 'invitations', 'messages'].includes(section)) {
-      setActiveSection(section);
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Speaker dashboard loaded', { userRole: user?.role });
@@ -342,18 +333,9 @@ function SpeakerDashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <Button
                       className="h-20 flex flex-col items-center justify-center space-y-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
-                      onClick={() => router.push('/dashboard/speaker/events')}
-                    >
-                      <Calendar className="h-5 w-5" />
-                      <span className="text-sm">Manage Events</span>
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
                       onClick={() => setActiveSection('materials')}
                     >
                       <Upload className="h-5 w-5" />

@@ -18,76 +18,39 @@ import {
   TrendingUp,
   Award,
   MapPin,
-  Users
+  Users,
+  Loader2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {useLogger} from "@/lib/logger/LoggerProvider";
 import {withUserAuth} from "@/components/hoc/withAuth";
+import { bookingAPI, ticketAPI } from "@/lib/api/booking.api";
+import { eventAPI } from "@/lib/api/event.api";
+import { BookingResponse, TicketResponse } from "@/lib/api/types/booking.types";
+import { EventResponse } from "@/lib/api/types/event.types";
 
-// Mock data for development
-const mockStats = {
-  registeredEvents: 8,
-  upcomingEvents: 3,
-  attendedEvents: 5,
-  ticketsPurchased: 12,
-  activeTickets: 4,
-  usedTickets: 8,
-  pointsEarned: 1250,
-  pointsThisMonth: 300,
-  upcomingThisWeek: 2,
-  nextWeekEvents: 1
-};
+// Interface for display data
+interface UpcomingEventDisplay {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  attendees?: number;
+  status: 'registered' | 'interested';
+  ticketType?: string | null;
+  eventId: string;
+}
 
-const mockUpcomingEvents = [
-  {
-    id: '1',
-    title: 'TechConf 2024',
-    date: '2024-01-15',
-    time: '9:00 AM',
-    location: 'Convention Center',
-    attendees: 500,
-    status: 'registered',
-    ticketType: 'VIP Pass'
-  },
-  {
-    id: '2',
-    title: 'React Workshop',
-    date: '2024-01-18',
-    time: '2:00 PM',
-    location: 'Tech Hub',
-    attendees: 50,
-    status: 'registered',
-    ticketType: 'Standard'
-  },
-  {
-    id: '3',
-    title: 'Design Thinking Summit',
-    date: '2024-01-22',
-    time: '10:00 AM',
-    location: 'Innovation Lab',
-    attendees: 200,
-    status: 'interested',
-    ticketType: null
-  }
-];
-
-const mockRecentRegistrations = [
-  {
-    id: '1',
-    event: 'DevSummit 2024',
-    date: '2024-01-10',
-    status: 'confirmed',
-    ticketType: 'Early Bird'
-  },
-  {
-    id: '2',
-    event: 'UX Conference',
-    date: '2024-01-08',
-    status: 'confirmed',
-    ticketType: 'Standard'
-  }
-];
+interface RecentRegistrationDisplay {
+  id: string;
+  event: string;
+  date: string;
+  status: string;
+  ticketType?: string;
+  bookingId: string;
+}
 
 const LOGGER_COMPONENT_NAME = 'AttendeeDashboard';
 
@@ -96,9 +59,187 @@ function AttendeeDashboard() {
   const router = useRouter();
   const logger = useLogger();
 
+  // State for real data
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    registeredEvents: 0,
+    upcomingEvents: 0,
+    attendedEvents: 0,
+    ticketsPurchased: 0,
+    activeTickets: 0,
+    usedTickets: 0,
+    pointsEarned: 0,
+    pointsThisMonth: 0,
+    upcomingThisWeek: 0,
+    nextWeekEvents: 0
+  });
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEventDisplay[]>([]);
+  const [recentRegistrations, setRecentRegistrations] = useState<RecentRegistrationDisplay[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  // Helper function to format date
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  // Helper function to format time
+  const formatTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
+  // Helper function to check if event is upcoming
+  const isUpcoming = (dateString: string): boolean => {
+    return new Date(dateString) > new Date();
+  };
+
+  // Helper function to check if event is this week
+  const isThisWeek = (dateString: string): boolean => {
+    const eventDate = new Date(dateString);
+    const now = new Date();
+    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return eventDate >= now && eventDate <= weekFromNow;
+  };
+
+  // Helper function to check if event is next week
+  const isNextWeek = (dateString: string): boolean => {
+    const eventDate = new Date(dateString);
+    const now = new Date();
+    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    return eventDate >= weekFromNow && eventDate <= twoWeeksFromNow;
+  };
+
+  // Fetch all dashboard data
+  const fetchDashboardData = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching dashboard data', { userId: user.id });
+
+      // Fetch bookings, tickets, and published events in parallel
+      const [bookingsResponse, ticketsResponse, publishedEventsResponse] = await Promise.all([
+        bookingAPI.getUserBookings(),
+        ticketAPI.getUserTickets(),
+        eventAPI.getPublishedEvents()
+      ]);
+
+      const bookings = bookingsResponse.success ? bookingsResponse.data.bookings : [];
+      const tickets = ticketsResponse.success ? ticketsResponse.data : [];
+      const publishedEvents = publishedEventsResponse.success ? publishedEventsResponse.data.events : [];
+
+      logger.debug(LOGGER_COMPONENT_NAME, 'Data fetched', {
+        bookings: bookings.length,
+        tickets: tickets.length,
+        events: publishedEvents.length
+      });
+
+      // Calculate stats
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      const upcomingBookings = bookings.filter(booking => {
+        const event = publishedEvents.find(e => e.id === booking.eventId);
+        return event && isUpcoming(event.bookingStartDate);
+      });
+
+      const upcomingThisWeek = upcomingBookings.filter(booking => {
+        const event = publishedEvents.find(e => e.id === booking.eventId);
+        return event && isThisWeek(event.bookingStartDate);
+      });
+
+      const nextWeekBookings = upcomingBookings.filter(booking => {
+        const event = publishedEvents.find(e => e.id === booking.eventId);
+        return event && isNextWeek(event.bookingStartDate);
+      });
+
+      const activeTickets = tickets.filter(t => t.status === 'ISSUED');
+      const usedTickets = tickets.filter(t => t.status === 'SCANNED');
+
+      // Calculate points (simple calculation: 100 points per booking, 50 per ticket)
+      const pointsEarned = (bookings.length * 100) + (tickets.length * 50);
+      const bookingsThisMonth = bookings.filter(b => {
+        const bookingDate = new Date(b.createdAt);
+        return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
+      });
+      const pointsThisMonth = (bookingsThisMonth.length * 100) + (bookingsThisMonth.length * 50);
+
+      setStats({
+        registeredEvents: bookings.length,
+        upcomingEvents: upcomingBookings.length,
+        attendedEvents: usedTickets.length,
+        ticketsPurchased: tickets.length,
+        activeTickets: activeTickets.length,
+        usedTickets: usedTickets.length,
+        pointsEarned,
+        pointsThisMonth,
+        upcomingThisWeek: upcomingThisWeek.length,
+        nextWeekEvents: nextWeekBookings.length
+      });
+
+      // Build upcoming events display
+      const upcomingEventsDisplay: UpcomingEventDisplay[] = upcomingBookings
+        .slice(0, 3)
+        .reduce<UpcomingEventDisplay[]>((acc, booking) => {
+          const event = publishedEvents.find(e => e.id === booking.eventId);
+          if (!event) return acc;
+
+          acc.push({
+            id: booking.id,
+            eventId: event.id,
+            title: event.name,
+            date: formatDate(event.bookingStartDate),
+            time: formatTime(event.bookingStartDate),
+            location: event.venue.name,
+            attendees: event.venue.capacity,
+            status: 'registered' as const,
+            ticketType: 'Standard' // Default, could be enhanced with ticket type from booking
+          });
+          return acc;
+        }, []);
+
+      setUpcomingEvents(upcomingEventsDisplay);
+
+      // Build recent registrations display
+      const recentBookings = bookings
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 5);
+
+      const recentRegistrationsDisplay: RecentRegistrationDisplay[] = recentBookings.map(booking => {
+        const event = publishedEvents.find(e => e.id === booking.eventId);
+        const ticket = tickets.find(t => t.bookingId === booking.id);
+
+        return {
+          id: booking.id,
+          bookingId: booking.id,
+          event: event?.name || 'Unknown Event',
+          date: formatDate(booking.createdAt),
+          status: booking.status.toLowerCase(),
+          ticketType: ticket ? 'Standard' : undefined
+        };
+      });
+
+      setRecentRegistrations(recentRegistrationsDisplay);
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Dashboard data loaded successfully');
+    } catch (err) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load dashboard data', err as Error);
+      setError('Failed to load dashboard data. Please refresh the page.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user, logger]);
+
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Attendee dashboard loaded', { userRole: user?.role });
-  }, [user, logger]);
+    if (user?.id) {
+      fetchDashboardData();
+    }
+  }, [user, logger, fetchDashboardData]);
 
   // Loading and auth checks are handled by the HOC
 
@@ -169,10 +310,19 @@ function AttendeeDashboard() {
               <Calendar className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.registeredEvents}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.upcomingEvents} upcoming
-              </p>
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm text-slate-500">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.registeredEvents}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {stats.upcomingEvents} upcoming
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -184,10 +334,19 @@ function AttendeeDashboard() {
               <Ticket className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.ticketsPurchased}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.activeTickets} active
-              </p>
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm text-slate-500">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.ticketsPurchased}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {stats.activeTickets} active
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -199,10 +358,19 @@ function AttendeeDashboard() {
               <Award className="h-4 w-4 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.pointsEarned}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.pointsThisMonth} this month
-              </p>
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm text-slate-500">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.pointsEarned}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {stats.pointsThisMonth} this month
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -214,10 +382,19 @@ function AttendeeDashboard() {
               <Clock className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.upcomingThisWeek}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.nextWeekEvents} next week
-              </p>
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm text-slate-500">Loading...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.upcomingThisWeek}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {stats.nextWeekEvents} next week
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -285,41 +462,56 @@ function AttendeeDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockUpcomingEvents.map((event) => (
-                  <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
-                      <div className="flex items-center space-x-4 mt-1">
-                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          {event.date} at {event.time}
-                        </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          {event.location}
-                        </span>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                </div>
+              ) : upcomingEvents.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                  <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No upcoming events</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {upcomingEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
+                        <div className="flex items-center space-x-4 mt-1">
+                          <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {event.date} at {event.time}
+                          </span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            {event.location}
+                          </span>
+                        </div>
+                        {event.ticketType && (
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {event.ticketType}
+                          </span>
+                        )}
                       </div>
-                      {event.ticketType && (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {event.ticketType}
-                        </span>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        <Badge
+                          variant={event.status === 'registered' ? 'default' : 'secondary'}
+                          className={event.status === 'registered' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
+                        >
+                          {event.status}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/attendee/events`)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge
-                        variant={event.status === 'registered' ? 'default' : 'secondary'}
-                        className={event.status === 'registered' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
-                      >
-                        {event.status}
-                      </Badge>
-                      <Button size="sm" variant="outline">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -335,34 +527,56 @@ function AttendeeDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockRecentRegistrations.map((registration) => (
-                <div key={registration.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-slate-900 dark:text-white">{registration.event}</h4>
-                    <div className="flex items-center space-x-4 mt-1">
-                      <span className="text-sm text-slate-600 dark:text-slate-400">
-                        {registration.ticketType}
-                      </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        Registered on {registration.date}
-                      </span>
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              </div>
+            )}
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              </div>
+            ) : recentRegistrations.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                <Ticket className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No recent registrations</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {recentRegistrations.map((registration) => (
+                  <div key={registration.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-slate-900 dark:text-white">{registration.event}</h4>
+                      <div className="flex items-center space-x-4 mt-1">
+                        {registration.ticketType && (
+                          <span className="text-sm text-slate-600 dark:text-slate-400">
+                            {registration.ticketType}
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Registered on {registration.date}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge
+                        variant="default"
+                        className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                      >
+                        {registration.status}
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push(`/dashboard/attendee/tickets`)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge
-                      variant="default"
-                      className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    >
-                      {registration.status}
-                    </Badge>
-                    <Button size="sm" variant="outline">
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>

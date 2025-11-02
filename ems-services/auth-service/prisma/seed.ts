@@ -12,22 +12,22 @@ const adminUsers = [
         emailVerified: new Date(),
         isActive: true
     },
-    {
-        name: 'Ashwin Athappan',
-        email: 'ashwinathappank@yahoo.com',
-        password: 'Speaker123!',
-        role: Role.SPEAKER,
-        emailVerified: new Date(),
-        isActive: true
-    },
-    {
-        name: 'User 1',
-        email: '085.ashwin@gmail.com',
-        password: 'User123!',
-        role: Role.USER,
-        emailVerified: new Date(),
-        isActive: true
-    }
+    // {
+    //     name: 'Ashwin Athappan',
+    //     email: 'ashwinathappank@yahoo.com',
+    //     password: 'Speaker123!',
+    //     role: Role.SPEAKER,
+    //     emailVerified: new Date(),
+    //     isActive: true
+    // },
+    // {
+    //     name: 'User 1',
+    //     email: '085.ashwin@gmail.com',
+    //     password: 'User123!',
+    //     role: Role.USER,
+    //     emailVerified: new Date(),
+    //     isActive: true
+    // }
 ];
 
 async function main() {

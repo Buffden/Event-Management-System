@@ -3,12 +3,8 @@ import bookingRoutes from './booking.routes';
 import { ticketRoutes } from './ticket.routes';
 import speakerRoutes from './speaker.routes';
 import adminRoutes from './admin.routes';
-import attendanceRoutes from './attendance.routes';
 
 const router = Router();
-
-// Attendance routes (All authenticated users) - MUST be first to avoid conflicts with booking routes
-router.use('/', attendanceRoutes);
 
 // Booking routes (USER/ADMIN role required)
 router.use('/', bookingRoutes);

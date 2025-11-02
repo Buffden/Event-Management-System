@@ -3,6 +3,7 @@ import {Express} from 'express';
 import {AuthService} from '../services/auth.service';
 import {contextMiddleware} from '../middleware/context.middleware';
 import {authMiddleware} from '../middleware/auth.middleware';
+import {adminMiddleware} from '../middleware/admin.middleware';
 import {Request, Response} from 'express';
 import {UpdateProfileRequest, ResetPasswordRequest, VerifyResetTokenRequest} from "../types/types";
 import {contextService} from '../services/context.service';
@@ -350,6 +351,44 @@ export function registerRoutes(app: Express, authService: AuthService) {
                 return res.status(404).json({error: 'User not found'});
             }
             return res.status(400).json({error: error.message});
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/admin/activate-users
+     * @desc    Activate multiple users by setting emailVerified and isActive (Admin only)
+     * @access  Protected (Admin)
+     */
+    app.post('/admin/activate-users', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+        try {
+            const { emails } = req.body;
+
+            if (!emails || !Array.isArray(emails) || emails.length === 0) {
+                return res.status(400).json({error: 'Emails array is required'});
+            }
+
+            logger.info('/admin/activate-users - Admin activation request', {
+                adminId: contextService.getCurrentUserId(),
+                userCount: emails.length
+            });
+
+            const result = await authService.activateUsers(emails);
+
+            logger.info('/admin/activate-users - Users activated', {
+                activated: result.activated,
+                notFound: result.notFound
+            });
+
+            res.json({
+                success: true,
+                message: `Activated ${result.activated} user(s)`,
+                activated: result.activated,
+                notFound: result.notFound,
+                total: emails.length
+            });
+        } catch (error: any) {
+            logger.error('/admin/activate-users - Activation failed', error);
+            res.status(400).json({error: error.message});
         }
     });
 }

@@ -1,7 +1,7 @@
 import { BaseApiClient } from './base-api.client';
-import { 
-  CreateBookingRequest, 
-  BookingResponse, 
+import {
+  CreateBookingRequest,
+  BookingResponse,
   BookingListResponse,
   TicketResponse,
   TicketListResponse
@@ -50,7 +50,7 @@ class BookingApiClient extends BaseApiClient {
 
   // Public methods for admin operations
   async getEventAttendance(eventId: string): Promise<any> {
-    return this.request(`/admin/tickets/events/${eventId}/attendance`);
+    return this.request(`/admin/events/${eventId}/attendance`);
   }
 
   async getEventTickets(eventId: string, filters?: { page?: number; limit?: number; status?: string }): Promise<any> {
@@ -58,17 +58,17 @@ class BookingApiClient extends BaseApiClient {
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.limit) params.append('limit', filters.limit.toString());
     if (filters?.status) params.append('status', filters.status);
-    
-    const endpoint = `/admin/tickets/events/${eventId}/tickets?${params.toString()}`;
+
+    const endpoint = `/admin/events/${eventId}/tickets?${params.toString()}`;
     return this.request(endpoint);
   }
 
   async getEventTicketStats(eventId: string): Promise<any> {
-    return this.request(`/admin/tickets/events/${eventId}/stats`);
+    return this.request(`/admin/events/${eventId}/stats`);
   }
 
   async revokeTicket(ticketId: string): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/admin/tickets/${ticketId}/revoke`, {
+    return this.request<{ success: boolean; message: string }>(`/admin/${ticketId}/revoke`, {
       method: 'PUT'
     });
   }
@@ -120,7 +120,7 @@ export const adminTicketAPI = {
   /**
    * Get all tickets for an event
    */
-  getEventTickets: (eventId: string, filters?: { page?: number; limit?: number; status?: string }) => 
+  getEventTickets: (eventId: string, filters?: { page?: number; limit?: number; status?: string }) =>
     bookingApiClient.getEventTickets(eventId, filters),
 
   /**

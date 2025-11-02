@@ -143,10 +143,11 @@ router.put('/events/:id',
         const {id} = req.params;
         const updateData: UpdateEventRequest = req.body;
         const speakerId = req.user!.userId;
+        const userRole = req.user!.role;
 
-        logger.info('Updating event', {eventId: id, speakerId});
+        logger.info('Updating event', {eventId: id, speakerId, userRole});
 
-        const event = await eventService.updateEvent(id, updateData, speakerId);
+        const event = await eventService.updateEvent(id, updateData, speakerId, userRole);
 
         res.json({
             success: true,

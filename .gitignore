@@ -51,6 +51,7 @@
 **/.env.test.local
 **/.env.production.local
 **/.env.production
+**/.env.development
 
 # Other potential ignores (depending on your setup)
 **/*.log
@@ -69,3 +70,18 @@
 # Credentials
 **/EventManangementSystem_GoogleCreds.json
 **/*-service/generated
+
+# Python
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.pyw
+**/*.pyz
+**/*.pywz
+**/*.pyzz
+**/*.pywzz
+**/*.pyzzz
+**/*.pywzzz
+**/*.pyzzzz
