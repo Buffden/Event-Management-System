@@ -6,54 +6,76 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, BarChart3, TrendingUp, Users, Calendar, Download, Filter } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import {logger} from "@/lib/logger";
+import { useEffect, useState, useCallback } from "react";
+import {useLogger} from "@/lib/logger/LoggerProvider";
+import { adminApiClient } from "@/lib/api/admin.api";
 
 const COMPONENT_NAME = 'ReportsPage';
 
-// Mock data for reports
-const mockReportData = {
-  totalEvents: 8,
-  totalUsers: 156,
-  totalRegistrations: 342,
-  averageAttendance: 78,
-  topEvents: [
-    { name: 'Tech Conference 2024', registrations: 156, attendance: 89 },
-    { name: 'AI Summit', registrations: 142, attendance: 95 },
-    { name: 'Design Workshop', registrations: 44, attendance: 67 }
-  ],
-  userGrowth: [
-    { month: 'Oct 2023', users: 45 },
-    { month: 'Nov 2023', users: 67 },
-    { month: 'Dec 2023', users: 89 },
-    { month: 'Jan 2024', users: 112 },
-    { month: 'Feb 2024', users: 156 }
-  ],
-  eventStats: [
-    { status: 'Published', count: 5, percentage: 62.5 },
-    { status: 'Draft', count: 2, percentage: 25 },
-    { status: 'Archived', count: 1, percentage: 12.5 }
-  ]
-};
+interface ReportsAnalytics {
+  totalEvents: number;
+  totalUsers: number;
+  totalRegistrations: number;
+  averageAttendance: number;
+  topEvents: Array<{
+    name: string;
+    registrations: number;
+    attendance: number;
+  }>;
+  eventStats: Array<{
+    status: string;
+    count: number;
+    percentage: number;
+  }>;
+  userGrowth: Array<{
+    month: string;
+    users: number;
+  }>;
+}
 
 export default function ReportsPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const logger = useLogger();
+  const [analytics, setAnalytics] = useState<ReportsAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadAnalytics = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      logger.debug(COMPONENT_NAME, 'Loading reports analytics');
+      
+      const data = await adminApiClient.getReportsAnalytics();
+      setAnalytics(data);
+      
+      logger.info(COMPONENT_NAME, 'Reports analytics loaded successfully', data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load reports analytics';
+      setError(errorMessage);
+      logger.error(COMPONENT_NAME, 'Failed to load reports analytics', err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [logger]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     } else if (!isLoading && user?.role !== 'ADMIN') {
       router.push('/dashboard');
+    } else if (isAuthenticated && user?.role === 'ADMIN') {
+      loadAnalytics();
     }
-  }, [isAuthenticated, isLoading, user, router]);
+  }, [isAuthenticated, isLoading, user, router, loadAnalytics]);
 
   const handleExportReport = (type: string) => {
     // TODO: Implement report export functionality
     logger.debug(COMPONENT_NAME, `Exporting ${type} report`);
   };
 
-  if (isLoading) {
+  if (isLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         <div className="text-center">
@@ -65,6 +87,21 @@ export default function ReportsPage() {
   }
 
   if (!isAuthenticated || user?.role !== 'ADMIN') {
+    return null;
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400 font-medium mb-4">Error: {error}</p>
+          <Button onClick={() => loadAnalytics()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!analytics) {
     return null;
   }
 
@@ -112,7 +149,7 @@ export default function ReportsPage() {
                 <Calendar className="h-8 w-8 text-blue-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Events</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockReportData.totalEvents}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{analytics.totalEvents}</p>
                 </div>
               </div>
             </CardContent>
@@ -124,7 +161,7 @@ export default function ReportsPage() {
                 <Users className="h-8 w-8 text-green-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Users</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockReportData.totalUsers}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{analytics.totalUsers}</p>
                 </div>
               </div>
             </CardContent>
@@ -136,7 +173,7 @@ export default function ReportsPage() {
                 <BarChart3 className="h-8 w-8 text-purple-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Registrations</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockReportData.totalRegistrations}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{analytics.totalRegistrations}</p>
                 </div>
               </div>
             </CardContent>
@@ -148,7 +185,9 @@ export default function ReportsPage() {
                 <TrendingUp className="h-8 w-8 text-orange-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Avg. Attendance</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockReportData.averageAttendance}%</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {analytics.totalRegistrations > 0 ? `${analytics.averageAttendance}%` : 'N/A'}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -211,7 +250,8 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockReportData.topEvents.map((event, index) => (
+                {analytics.topEvents.length > 0 ? (
+                  analytics.topEvents.map((event, index) => (
                   <div key={index} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                     <div className="flex-1">
                       <h4 className="font-medium text-slate-900 dark:text-white">{event.name}</h4>
@@ -224,7 +264,10 @@ export default function ReportsPage() {
                       #{index + 1}
                     </Badge>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-slate-600 dark:text-slate-400 text-center py-4">No events found</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -241,7 +284,8 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockReportData.eventStats.map((stat, index) => (
+                {analytics.eventStats.length > 0 ? (
+                  analytics.eventStats.map((stat, index) => (
                   <div key={index} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{stat.status}</span>
@@ -257,7 +301,10 @@ export default function ReportsPage() {
                       <span className="text-xs text-slate-600 dark:text-slate-400">{stat.percentage}%</span>
                     </div>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-slate-600 dark:text-slate-400 text-center py-4">No event statistics available</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -294,7 +341,8 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {mockReportData.userGrowth.map((data, index) => (
+                    {analytics.userGrowth.length > 0 ? (
+                      analytics.userGrowth.map((data, index) => (
                       <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
                         <td className="py-2 px-4 text-slate-900 dark:text-white">{data.month}</td>
                         <td className="py-2 px-4 text-slate-900 dark:text-white">{data.users}</td>
@@ -303,11 +351,18 @@ export default function ReportsPage() {
                             variant="default" 
                             className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                           >
-                            +{data.users - (index > 0 ? mockReportData.userGrowth[index - 1].users : 0)}
+                            +{data.users - (index > 0 ? analytics.userGrowth[index - 1].users : 0)}
                           </Badge>
                         </td>
                       </tr>
-                    ))}
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={3} className="py-4 text-center text-slate-600 dark:text-slate-400">
+                          No user growth data available
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

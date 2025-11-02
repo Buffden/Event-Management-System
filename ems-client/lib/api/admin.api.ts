@@ -301,6 +301,58 @@ export class AdminApiClient extends BaseApiClient {
   }
 
   /**
+   * Get reports and analytics data
+   */
+  async getReportsAnalytics(): Promise<{
+    totalEvents: number;
+    totalUsers: number;
+    totalRegistrations: number;
+    averageAttendance: number;
+    topEvents: Array<{
+      name: string;
+      registrations: number;
+      attendance: number;
+    }>;
+    eventStats: Array<{
+      status: string;
+      count: number;
+      percentage: number;
+    }>;
+    userGrowth: Array<{
+      month: string;
+      users: number;
+    }>;
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching reports analytics');
+      
+      const response = await fetch('/api/booking/admin/reports/analytics', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch reports analytics');
+      }
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'Reports analytics retrieved successfully', result.data);
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch reports analytics', error as Error);
+      throw error;
+    }
+  }
+
+  /**
    * Get dashboard statistics for admin
    */
   async getDashboardStats(): Promise<{

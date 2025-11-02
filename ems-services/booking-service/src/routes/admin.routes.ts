@@ -9,6 +9,7 @@ import { BookingFilters, AuthRequest } from '../types';
 import { BookingStatus, TicketStatus } from '../../generated/prisma';
 import { prisma } from '../database';
 import axios from 'axios';
+import { getUserInfo } from '../utils/auth-helpers';
 
 const router = Router();
 
@@ -642,6 +643,220 @@ router.post('/users/registration-counts', asyncHandler(async (req: AuthRequest, 
     });
   } catch (error) {
     logger.error('Get user registration counts failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}));
+
+/**
+ * GET /admin/reports/analytics - Get comprehensive reports and analytics data
+ */
+router.get('/reports/analytics', asyncHandler(async (req: AuthRequest, res: Response) => {
+  try {
+    const gatewayUrl = process.env.GATEWAY_URL || 'http://ems-gateway';
+    const authServiceUrl = `${gatewayUrl}/api/auth`;
+    const eventServiceUrl = `${gatewayUrl}/api/event`;
+
+    logger.info('Fetching reports analytics', { 
+      adminId: req.user?.userId,
+      authServiceUrl,
+      eventServiceUrl
+    });
+
+    // Fetch basic metrics in parallel (without bookings filtering first)
+    const [
+      totalUsersResponse,
+      eventStatsResponse,
+      totalRegistrationsResponse,
+      allEventsResponse,
+      allBookingsRaw
+    ] = await Promise.all([
+      // Total users
+      axios.get(`${authServiceUrl}/internal/users/count`, {
+        timeout: 5000,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-service': 'booking-service'
+        }
+      }).catch(() => ({ data: { count: 0 } })),
+
+      // Event stats (total count)
+      axios.get(`${eventServiceUrl}/admin/admin/events`, {
+        timeout: 5000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': req.headers.authorization || ''
+        },
+        params: { page: 1, limit: 1 }
+      }).catch(() => ({ data: { data: { total: 0, events: [] } } })),
+
+      // Total registrations
+      prisma.booking.count({
+        where: { status: BookingStatus.CONFIRMED }
+      }),
+
+      // All events for top events and status distribution (max limit is 100)
+      axios.get(`${eventServiceUrl}/admin/admin/events`, {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': req.headers.authorization || ''
+        },
+        params: { page: 1, limit: 100 }
+      }).catch(() => ({ data: { data: { total: 0, events: [] } } })),
+
+      // All bookings for attendance calculations
+      prisma.booking.findMany({
+        where: { status: BookingStatus.CONFIRMED },
+        include: { event: true }
+      })
+    ]);
+
+    const totalUsers = totalUsersResponse.data?.count || 0;
+    const totalEvents = eventStatsResponse.data?.data?.total || 0;
+    const totalRegistrations = totalRegistrationsResponse || 0;
+    const allEvents = allEventsResponse.data?.data?.events || [];
+
+    // Filter bookings to exclude admin users
+    const bookingsWithUserInfo = await Promise.all(
+      allBookingsRaw.map(async (booking) => {
+        try {
+          const userInfo = await getUserInfo(booking.userId);
+          return { booking, userInfo };
+        } catch {
+          return { booking, userInfo: null };
+        }
+      })
+    );
+    const nonAdminBookings = bookingsWithUserInfo
+      .filter(({ userInfo }) => userInfo && userInfo.role !== 'ADMIN')
+      .map(({ booking }) => booking);
+
+    // Calculate average attendance
+    const eventsWithAttendance = await Promise.all(
+      allEvents.map(async (event: any) => {
+        const eventBookings = nonAdminBookings.filter(b => b.eventId === event.id);
+        const attendedCount = eventBookings.filter(b => b.isAttended === true).length;
+        const attendanceRate = eventBookings.length > 0 
+          ? Math.round((attendedCount / eventBookings.length) * 100) 
+          : 0;
+        return {
+          eventId: event.id,
+          name: event.name,
+          registrations: eventBookings.length,
+          attendance: attendanceRate,
+          attendedCount,
+          hasRegistrations: eventBookings.length > 0
+        };
+      })
+    );
+
+    // Calculate average attendance only from events that have registrations
+    const eventsWithRegistrations = eventsWithAttendance.filter(e => e.hasRegistrations);
+    
+    // Log for debugging
+    logger.info('Average attendance calculation', {
+      totalEvents: allEvents.length,
+      eventsWithRegistrations: eventsWithRegistrations.length,
+      totalBookings: nonAdminBookings.length,
+      totalAttended: nonAdminBookings.filter(b => b.isAttended === true).length,
+      sampleEvents: eventsWithRegistrations.slice(0, 3).map(e => ({
+        name: e.name,
+        registrations: e.registrations,
+        attended: e.attendedCount,
+        rate: e.attendance
+      }))
+    });
+
+    const totalAttendanceSum = eventsWithRegistrations.reduce((sum, e) => sum + e.attendance, 0);
+    const averageAttendance = eventsWithRegistrations.length > 0
+      ? Math.round(totalAttendanceSum / eventsWithRegistrations.length)
+      : 0;
+
+    // Top performing events (by registrations, limit to top 10)
+    const topEvents = eventsWithAttendance
+      .sort((a, b) => b.registrations - a.registrations)
+      .slice(0, 10)
+      .map(e => ({
+        name: e.name,
+        registrations: e.registrations,
+        attendance: e.attendance
+      }));
+
+    // Event status distribution
+    const statusCounts: Record<string, number> = {};
+    allEvents.forEach((event: any) => {
+      const status = event.status || 'DRAFT';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    });
+
+    const eventStats = Object.entries(statusCounts).map(([status, count]) => ({
+      status: status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' '),
+      count,
+      percentage: totalEvents > 0 ? Math.round((count / totalEvents) * 100 * 10) / 10 : 0
+    }));
+
+    // User growth by month
+    const userGrowthResponse = await axios.get(`${authServiceUrl}/admin/users`, {
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.authorization || ''
+      },
+      params: { limit: 10000 }
+    }).catch(() => ({ data: { success: true, data: { users: [] } } }));
+
+    const allUsers = userGrowthResponse.data?.data?.users || [];
+    
+    // Group users by month and calculate cumulative growth
+    const monthlyUsers: Array<{ month: string; count: number; date: Date }> = [];
+    allUsers.forEach((user: any) => {
+      if (user.createdAt) {
+        const date = new Date(user.createdAt);
+        const monthKey = `${date.toLocaleString('default', { month: 'short' })} ${date.getFullYear()}`;
+        const existing = monthlyUsers.find(m => m.month === monthKey);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          monthlyUsers.push({ month: monthKey, count: 1, date });
+        }
+      }
+    });
+
+    // Sort by date and calculate cumulative counts
+    monthlyUsers.sort((a, b) => a.date.getTime() - b.date.getTime());
+    let cumulative = 0;
+    const userGrowth = monthlyUsers.map(({ month, count }) => {
+      cumulative += count;
+      return { month, users: cumulative };
+    });
+
+    logger.info('Reports analytics retrieved successfully', {
+      totalEvents,
+      totalUsers,
+      totalRegistrations,
+      averageAttendance,
+      topEventsCount: topEvents.length,
+      eventStatsCount: eventStats.length,
+      userGrowthMonths: userGrowth.length
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        totalEvents,
+        totalUsers,
+        totalRegistrations,
+        averageAttendance,
+        topEvents,
+        eventStats,
+        userGrowth
+      }
+    });
+  } catch (error) {
+    logger.error('Get reports analytics failed', error as Error);
     return res.status(500).json({
       success: false,
       error: 'Internal server error'
