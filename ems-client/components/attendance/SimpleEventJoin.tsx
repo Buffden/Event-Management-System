@@ -113,9 +113,14 @@ export const SimpleEventJoin: React.FC<SimpleEventJoinProps> = ({
         setJoinMessage(response.message);
         logger.info(LOGGER_COMPONENT_NAME, response.message, { eventId, userRole });
         
-        // Refresh attendance count
-        const metrics = await attendanceApiClient.getAttendanceMetrics(eventId);
-        setAttendanceCount(metrics.totalAttended);
+        // Refresh attendance count (don't let this fail the join)
+        try {
+          const metrics = await attendanceApiClient.getAttendanceMetrics(eventId);
+          setAttendanceCount(metrics.totalAttended);
+        } catch (metricsError) {
+          logger.warn(LOGGER_COMPONENT_NAME, 'Failed to refresh attendance metrics, but join was successful', metricsError as Error);
+          // Don't fail the join if metrics refresh fails
+        }
         
         // Redirect to live auditorium after 2 seconds
         setTimeout(() => {

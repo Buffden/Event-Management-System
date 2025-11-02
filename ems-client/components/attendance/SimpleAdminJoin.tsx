@@ -121,8 +121,13 @@ export const SimpleAdminJoin: React.FC<SimpleAdminJoinProps> = ({
         setJoinMessage(response.message);
         logger.info(LOGGER_COMPONENT_NAME, response.message, { eventId });
         
-        // Refresh attendance data
-        await fetchAttendanceData();
+        // Refresh attendance data (don't let this fail the join)
+        try {
+          await fetchAttendanceData();
+        } catch (attendanceError) {
+          logger.warn(LOGGER_COMPONENT_NAME, 'Failed to refresh attendance data, but join was successful', attendanceError as Error);
+          // Don't fail the join if attendance refresh fails
+        }
         
         // Redirect to live auditorium after 2 seconds
         setTimeout(() => {
