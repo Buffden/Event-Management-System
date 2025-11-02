@@ -1,7 +1,10 @@
 import { Router, Response, Request } from 'express';
 import { speakerAttendanceService } from '../services/speaker-attendance.service';
+import { SpeakerService } from '../services/speaker.service';
 import { asyncHandler } from '../middleware/error.middleware';
 import { authMiddleware } from '../middleware/auth.middleware';
+
+const speakerService = new SpeakerService();
 
 interface AuthRequest extends Request {
   user?: {
@@ -17,13 +20,13 @@ const router = Router();
 
 /**
  * Speaker joins an event
- * POST /speaker-attendance/join
+ * POST /join (mounted at /api/speaker-attendance, so full path is /api/speaker-attendance/join)
  */
-router.post('/speaker-attendance/join', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
+router.post('/join', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const { eventId } = req.body;
-  const speakerId = req.user?.id;
+  const userId = req.user?.id;
 
-  if (!speakerId) {
+  if (!userId) {
     return res.status(401).json({ error: 'Speaker not authenticated' });
   }
 
@@ -32,8 +35,15 @@ router.post('/speaker-attendance/join', authMiddleware, asyncHandler(async (req:
   }
 
   try {
+    // Get speaker profile ID from userId
+    // The speakerInvitation table uses speaker profile ID, not userId
+    const speakerProfile = await speakerService.getSpeakerByUserId(userId);
+    if (!speakerProfile) {
+      return res.status(404).json({ error: 'Speaker profile not found' });
+    }
+
     const result = await speakerAttendanceService.speakerJoinEvent({
-      speakerId,
+      speakerId: speakerProfile.id, // Use speaker profile ID, not userId
       eventId
     });
 
@@ -50,9 +60,9 @@ router.post('/speaker-attendance/join', authMiddleware, asyncHandler(async (req:
 
 /**
  * Update materials selected for an event
- * PUT /speaker-attendance/materials/:invitationId
+ * PUT /materials/:invitationId (mounted at /api/speaker-attendance, so full path is /api/speaker-attendance/materials/:invitationId)
  */
-router.put('/speaker-attendance/materials/:invitationId', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
+router.put('/materials/:invitationId', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const { invitationId } = req.params;
   const { materialIds } = req.body;
   const speakerId = req.user?.id;
@@ -87,36 +97,11 @@ router.put('/speaker-attendance/materials/:invitationId', authMiddleware, asyncH
 }));
 
 /**
- * Get speaker attendance data for an event
- * GET /speaker-attendance/:eventId
- */
-router.get('/speaker-attendance/:eventId', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { eventId } = req.params;
-  const userRole = req.user?.role;
-
-  if (!eventId) {
-    return res.status(400).json({ error: 'Event ID is required' });
-  }
-
-  // Only admins and speakers can view speaker attendance
-  if (!['ADMIN', 'SPEAKER'].includes(userRole || '')) {
-    return res.status(403).json({ error: 'Access denied. Admin or speaker role required.' });
-  }
-
-  try {
-    const attendanceData = await speakerAttendanceService.getSpeakerAttendance(eventId);
-    return res.status(200).json(attendanceData);
-  } catch (error) {
-    console.error('Error fetching speaker attendance:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}));
-
-/**
  * Get available materials for selection
- * GET /speaker-attendance/materials/:invitationId
+ * GET /materials/:invitationId (mounted at /api/speaker-attendance, so full path is /api/speaker-attendance/materials/:invitationId)
+ * MUST be defined before /:eventId to avoid route conflicts
  */
-router.get('/speaker-attendance/materials/:invitationId', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
+router.get('/materials/:invitationId', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
   const { invitationId } = req.params;
   const speakerId = req.user?.id;
 
@@ -139,6 +124,29 @@ router.get('/speaker-attendance/materials/:invitationId', authMiddleware, asyncH
     return res.status(200).json(materialsData);
   } catch (error) {
     console.error('Error fetching available materials:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}));
+
+/**
+ * Get speaker attendance data for an event
+ * GET /:eventId (mounted at /api/speaker-attendance, so full path is /api/speaker-attendance/:eventId)
+ * MUST be defined after /materials/:invitationId to avoid route conflicts
+ */
+router.get('/:eventId', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { eventId } = req.params;
+
+  if (!eventId) {
+    return res.status(400).json({ error: 'Event ID is required' });
+  }
+
+  // Allow all authenticated users (ADMIN, SPEAKER, USER) to view basic speaker attendance info
+  // This allows attendees to see if speakers have joined and their selected materials
+  try {
+    const attendanceData = await speakerAttendanceService.getSpeakerAttendance(eventId);
+    return res.status(200).json(attendanceData);
+  } catch (error) {
+    console.error('Error fetching speaker attendance:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }));
