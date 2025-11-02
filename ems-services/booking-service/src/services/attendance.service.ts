@@ -2,6 +2,7 @@ import { prisma } from '../database';
 import { logger } from '../utils/logger';
 import axios from 'axios';
 import { EventDetails } from '../types/ticket.types';
+import { getUserInfo } from '../utils/auth-helpers';
 
 export interface JoinEventRequest {
   userId: string;
@@ -27,6 +28,13 @@ export interface LiveAttendanceResponse {
     joinedAt: string;
     isAttended: boolean;
   }>;
+  speaker?: {
+    speakerId: string;
+    speakerName: string;
+    speakerEmail: string;
+    joinedAt: string;
+    isAttended: boolean;
+  };
 }
 
 export class AttendanceService {
@@ -58,6 +66,7 @@ export class AttendanceService {
       return null;
     }
   }
+
   /**
    * Join an event - marks user as attended
    */
@@ -274,20 +283,34 @@ export class AttendanceService {
         }
       });
 
-      const totalRegistered = bookings.length;
-      const totalAttended = bookings.filter(booking => booking.isAttended).length;
+      // Get user info for all bookings to filter out admins
+      const bookingsWithUserInfo = await Promise.all(
+        bookings.map(async (booking) => {
+          const userInfo = await getUserInfo(booking.userId);
+          return {
+            booking,
+            userInfo
+          };
+        })
+      );
+
+      // Filter out admin users from attendance counts
+      const nonAdminBookings = bookingsWithUserInfo.filter(
+        ({ userInfo }) => userInfo && userInfo.role !== 'ADMIN'
+      );
+
+      const totalRegistered = nonAdminBookings.length;
+      const totalAttended = nonAdminBookings.filter(({ booking }) => booking.isAttended).length;
       const attendancePercentage = totalRegistered > 0 ? Math.round((totalAttended / totalRegistered) * 100) : 0;
 
-      // Get attendee details (we'll need to fetch user info from auth service)
-      const attendees = bookings
-        .filter(booking => booking.isAttended)
-        .map(booking => ({
-          userId: booking.userId,
-          userName: 'User', // Will be populated from auth service
-          userEmail: 'user@example.com', // Will be populated from auth service
-          joinedAt: booking.joinedAt?.toISOString() || '',
-          isAttended: booking.isAttended
-        }));
+      // Get all attendee details (both attended and not attended) - exclude admins
+      const attendees = nonAdminBookings.map(({ booking, userInfo }) => ({
+        userId: booking.userId,
+        userName: userInfo?.name || 'User',
+        userEmail: userInfo?.email || 'user@example.com',
+        joinedAt: booking.joinedAt?.toISOString() || '',
+        isAttended: booking.isAttended
+      }));
 
       logger.info('Live attendance data retrieved', { 
         eventId,
@@ -328,12 +351,29 @@ export class AttendanceService {
         }
       });
 
-      const totalRegistered = bookings.length;
-      const totalAttended = bookings.filter(booking => booking.isAttended).length;
+      // Get user info for all bookings to filter out admins
+      const bookingsWithUserInfo = await Promise.all(
+        bookings.map(async (booking) => {
+          const userInfo = await getUserInfo(booking.userId);
+          return {
+            booking,
+            userInfo
+          };
+        })
+      );
+
+      // Filter out admin users from attendance counts
+      const nonAdminBookings = bookingsWithUserInfo.filter(
+        ({ userInfo }) => userInfo && userInfo.role !== 'ADMIN'
+      );
+
+      const totalRegistered = nonAdminBookings.length;
+      const totalAttended = nonAdminBookings.filter(({ booking }) => booking.isAttended).length;
       const attendancePercentage = totalRegistered > 0 ? Math.round((totalAttended / totalRegistered) * 100) : 0;
 
-      // Group join times by hour for reporting
-      const joinTimes = bookings
+      // Group join times by hour for reporting (excluding admins)
+      const joinTimes = nonAdminBookings
+        .map(({ booking }) => booking)
         .filter(booking => booking.joinedAt)
         .reduce((acc, booking) => {
           const hour = new Date(booking.joinedAt!).getHours();

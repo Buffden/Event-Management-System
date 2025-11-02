@@ -7,6 +7,9 @@ import attendanceRoutes from './attendance.routes';
 
 const router = Router();
 
+// Attendance routes (All authenticated users) - MUST be first to avoid conflicts with booking routes
+router.use('/', attendanceRoutes);
+
 // Booking routes (USER/ADMIN role required)
 router.use('/', bookingRoutes);
 
@@ -18,8 +21,5 @@ router.use('/speaker', speakerRoutes);
 
 // Admin routes (ADMIN role required)
 router.use('/admin', adminRoutes);
-
-// Attendance routes (All authenticated users)
-router.use('/', attendanceRoutes);
 
 export default router;
