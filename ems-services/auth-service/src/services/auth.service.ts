@@ -643,6 +643,20 @@ class AuthService {
     }
 
     /**
+     * Get total count of users (for internal service use)
+     */
+    async getUserCount(): Promise<number> {
+        try {
+            const count = await prisma.user.count();
+            logger.debug("getUserCount(): User count retrieved", { count });
+            return count;
+        } catch (error) {
+            logger.error("getUserCount(): Failed to get user count", error as Error);
+            throw new Error("Failed to get user count: " + (error as Error).message);
+        }
+    }
+
+    /**
      * Updates a user's profile.
      * @param userId The ID of the user to update.
      * @param data The update data.

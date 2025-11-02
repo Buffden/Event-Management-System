@@ -196,6 +196,45 @@ export class AdminApiClient extends BaseApiClient {
     }
   }
 
+  /**
+   * Get dashboard statistics for admin
+   */
+  async getDashboardStats(): Promise<{
+    totalUsers: number;
+    totalEvents: number;
+    activeEvents: number;
+    totalRegistrations: number;
+    upcomingEvents: number;
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching admin dashboard stats');
+      
+      const response = await fetch('/api/booking/admin/dashboard/stats', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch dashboard stats');
+      }
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'Dashboard stats retrieved successfully', result.data);
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch dashboard stats', error as Error);
+      throw error;
+    }
+  }
+
   // Override getToken to return string instead of string | null
   public getToken(): string {
     const token = super.getToken();

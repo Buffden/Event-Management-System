@@ -22,18 +22,19 @@ import {
   Clock
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {useLogger} from "@/lib/logger/LoggerProvider";
 import {withAdminAuth} from "@/components/hoc/withAuth";
+import { adminApiClient } from "@/lib/api/admin.api";
 
-// Mock data for development
-const mockStats = {
-  totalUsers: 156,
-  totalEvents: 8,
-  activeEvents: 3,
-  totalRegistrations: 342,
-  upcomingEvents: 3
-};
+// Dashboard stats interface
+interface DashboardStats {
+  totalUsers: number;
+  totalEvents: number;
+  activeEvents: number;
+  totalRegistrations: number;
+  upcomingEvents: number;
+}
 
 const mockRecentEvents = [
   {
@@ -71,10 +72,43 @@ function AdminDashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const logger = useLogger();
+  
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadDashboardStats = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading dashboard stats');
+      
+      const dashboardStats = await adminApiClient.getDashboardStats();
+      setStats(dashboardStats);
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'Dashboard stats loaded successfully', dashboardStats);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard stats';
+      setError(errorMessage);
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load dashboard stats', err as Error);
+      
+      // Set default values on error so UI doesn't break
+      setStats({
+        totalUsers: 0,
+        totalEvents: 0,
+        activeEvents: 0,
+        totalRegistrations: 0,
+        upcomingEvents: 0
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [logger]);
 
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Admin dashboard loaded', { userRole: user?.role });
-  }, [user, logger]);
+    loadDashboardStats();
+  }, [user, logger, loadDashboardStats]);
 
   // Loading and auth checks are handled by the HOC
 
@@ -136,6 +170,23 @@ function AdminDashboard() {
               </p>
             </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-red-800 dark:text-red-200 text-sm">
+              {error}
+            </p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={loadDashboardStats}
+              className="mt-2"
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
@@ -146,10 +197,19 @@ function AdminDashboard() {
               <Users className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalUsers}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Active users
-              </p>
+              {loading ? (
+                <div className="animate-pulse">
+                  <div className="h-8 w-16 bg-slate-200 dark:bg-slate-700 rounded mb-2"></div>
+                  <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats?.totalUsers ?? 0}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Active users
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -161,10 +221,19 @@ function AdminDashboard() {
               <Calendar className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalEvents}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.activeEvents} active
-              </p>
+              {loading ? (
+                <div className="animate-pulse">
+                  <div className="h-8 w-16 bg-slate-200 dark:bg-slate-700 rounded mb-2"></div>
+                  <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats?.totalEvents ?? 0}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {stats?.activeEvents ?? 0} active
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -176,10 +245,19 @@ function AdminDashboard() {
               <UserCheck className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalRegistrations}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Across all events
-              </p>
+              {loading ? (
+                <div className="animate-pulse">
+                  <div className="h-8 w-16 bg-slate-200 dark:bg-slate-700 rounded mb-2"></div>
+                  <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats?.totalRegistrations ?? 0}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Across all events
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -191,10 +269,19 @@ function AdminDashboard() {
               <Clock className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.upcomingEvents}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Scheduled soon
-              </p>
+              {loading ? (
+                <div className="animate-pulse">
+                  <div className="h-8 w-16 bg-slate-200 dark:bg-slate-700 rounded mb-2"></div>
+                  <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats?.upcomingEvents ?? 0}</div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Scheduled soon
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -316,6 +316,32 @@ export function registerRoutes(app: Express, authService: AuthService) {
     });
 
     /**
+     * @route   GET /api/auth/internal/users/count
+     * @desc    Get total count of users (for internal microservice communication).
+     * @access  Internal service only (no auth required)
+     * NOTE: Must be defined BEFORE /internal/users/:id to avoid route conflicts
+     */
+    app.get('/internal/users/count', async (req: Request, res: Response) => {
+        try {
+            // Check for internal service header
+            const serviceHeader = req.headers['x-internal-service'];
+            if (serviceHeader !== 'event-service' && serviceHeader !== 'notification-service' && serviceHeader !== 'booking-service') {
+                return res.status(403).json({error: 'Access denied: Internal service only'});
+            }
+
+            logger.info("Getting user count (internal)");
+            const count = await authService.getUserCount();
+
+            res.json({
+                count
+            });
+        } catch (error: any) {
+            logger.error('Get user count (internal) failed', error);
+            return res.status(500).json({error: error.message});
+        }
+    });
+
+    /**
      * @route   GET /api/auth/internal/users/:id
      * @desc    Get user information by ID (for internal microservice communication).
      * @access  Internal service only (no auth required)
