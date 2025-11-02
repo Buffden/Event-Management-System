@@ -118,7 +118,7 @@ class AuthService {
     async createSpeakerProfile(user: User): Promise<void> {
         try {
             logger.debug("START - createSpeakerProfile(): ", {userId: user.id, role: user.role});
-            
+
             if (user.role !== 'SPEAKER') {
                 logger.debug("createSpeakerProfile(): User is not a SPEAKER, skipping profile creation", {userId: user.id, role: user.role});
                 return;
@@ -138,12 +138,12 @@ class AuthService {
 
             const queueName = 'speaker.profile.create';
             await rabbitMQService.sendMessage(queueName, speakerProfileMessage);
-            
+
             logger.info("createSpeakerProfile(): Speaker profile creation message sent", {
                 userId: user.id,
                 queue: queueName
             });
-            
+
             logger.debug("END - createSpeakerProfile(): ", {userId: user.id});
         } catch (error) {
             logger.error("createSpeakerProfile(): Failed to send speaker profile creation message", error as Error, {userId: user.id});
@@ -256,11 +256,11 @@ class AuthService {
             logger.debug("register(): Exited transaction", {userId: user.id});
             await this.sendVerificationEmail(user);
             logger.debug("register(): Sent verification email to ", {email: user.email});
-            
+
             // Create speaker profile if user registered as SPEAKER
             await this.createSpeakerProfile(user);
             logger.debug("register(): Speaker profile creation initiated", {userId: user.id, role: user.role});
-            
+
             const token = this._generateToken(user);
             logger.debug("END - register(): ", {userId: user.id});
             return {token, email: user.email, id: user.id, user: user as User};
@@ -689,6 +689,50 @@ class AuthService {
         } catch (error) {
             logger.error("updateProfile(): Profile update failed", error as Error, {userId});
             throw new Error("Profile update failed: " + (error as Error).message);
+        }
+    }
+
+    /**
+     * Activate multiple users by setting emailVerified and isActive
+     * Admin-only operation
+     * @param emails Array of email addresses to activate
+     * @returns Number of users activated
+     */
+    async activateUsers(emails: string[]): Promise<{ activated: number; notFound: number }> {
+        try {
+            if (!emails || emails.length === 0) {
+                throw new Error('Email list is required');
+            }
+
+            logger.info('activateUsers(): Activating users', { count: emails.length });
+
+            // Update all users with matching emails
+            const result = await prisma.user.updateMany({
+                where: {
+                    email: {
+                        in: emails
+                    }
+                },
+                data: {
+                    emailVerified: new Date(),
+                    isActive: true,
+                    updatedAt: new Date()
+                }
+            });
+
+            const activated = result.count;
+            const notFound = emails.length - activated;
+
+            logger.info('activateUsers(): Users activated', {
+                activated,
+                notFound,
+                total: emails.length
+            });
+
+            return { activated, notFound };
+        } catch (error) {
+            logger.error('activateUsers(): Activation failed', error as Error);
+            throw new Error('Failed to activate users: ' + (error as Error).message);
         }
     }
 }

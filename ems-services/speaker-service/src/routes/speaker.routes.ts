@@ -11,20 +11,20 @@ const speakerService = new SpeakerService();
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { query, expertise, isAvailable, limit = 10, offset = 0 } = req.query;
-    
+
     const searchParams: any = {
       limit: parseInt(limit as string),
       offset: parseInt(offset as string)
     };
-    
+
     if (query) searchParams.query = query as string;
     if (expertise) searchParams.expertise = (expertise as string).split(',');
     if (isAvailable !== undefined) searchParams.isAvailable = isAvailable === 'true';
-    
+
     const speakers = await speakerService.searchSpeakers(searchParams);
 
     logger.info('Speakers retrieved', { count: speakers.length });
-    
+
     return res.json({
       success: true,
       data: speakers,
@@ -44,7 +44,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -52,9 +52,9 @@ router.get('/:id', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     const speaker = await speakerService.getSpeakerById(id);
-    
+
     if (!speaker) {
       return res.status(404).json({
         success: false,
@@ -64,7 +64,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     logger.info('Speaker retrieved', { speakerId: id });
-    
+
     return res.json({
       success: true,
       data: speaker,
@@ -84,7 +84,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { userId, name, email, bio, expertise, isAvailable } = req.body;
-    
+
     if (!userId || !name || !email) {
       return res.status(400).json({
         success: false,
@@ -103,7 +103,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
 
     logger.info('Speaker profile created', { speakerId: speakerProfile.id, userId, name });
-    
+
     return res.status(201).json({
       success: true,
       data: speakerProfile,
@@ -125,7 +125,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, bio, expertise, isAvailable } = req.body;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -133,7 +133,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     // Check if speaker exists
     const existingSpeaker = await speakerService.getSpeakerById(id);
     if (!existingSpeaker) {
@@ -152,7 +152,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     });
 
     logger.info('Speaker profile updated', { speakerId: id });
-    
+
     return res.json({
       success: true,
       data: updatedSpeaker,
@@ -173,7 +173,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.get('/profile/me', async (req: Request, res: Response) => {
   try {
     const { userId } = req.query;
-    
+
     if (!userId) {
       return res.status(400).json({
         success: false,
@@ -181,9 +181,9 @@ router.get('/profile/me', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     const speaker = await speakerService.getSpeakerByUserId(userId as string);
-    
+
     if (!speaker) {
       return res.status(404).json({
         success: false,
@@ -193,7 +193,7 @@ router.get('/profile/me', async (req: Request, res: Response) => {
     }
 
     logger.info('Speaker profile retrieved', { speakerId: speaker.id, userId });
-    
+
     return res.json({
       success: true,
       data: speaker,

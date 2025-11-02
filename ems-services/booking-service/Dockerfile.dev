@@ -1,0 +1,30 @@
+# Development Dockerfile for Booking Service
+FROM alpine:latest
+RUN apk update && apk add nodejs npm openssl && rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+# Set development environment
+ENV NODE_ENV=development
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Copy package files first for better caching
+COPY package.json package-lock.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci
+
+# Copy prisma schema
+COPY prisma ./prisma
+
+# Generate Prisma client (will be regenerated on volume mount)
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
+RUN npx prisma generate || echo "Prisma generate will run on container start"
+
+EXPOSE 3000
+
+# The actual source code will be mounted as a volume
+# Command will be overridden in docker-compose to use nodemon
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run dev"]

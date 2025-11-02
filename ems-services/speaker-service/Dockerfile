@@ -1,25 +1,31 @@
 # Stage 1: Build
-FROM node:20-bullseye-slim AS builder
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+FROM alpine:latest AS builder
+RUN apk update && apk add nodejs npm && rm -rf /var/cache/apk/*
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY prisma ./prisma
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
 RUN npx prisma generate
 
 COPY . .
 RUN npm run build
 
 # Stage 2: Runner
-FROM node:20-bullseye-slim AS runner
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+FROM alpine:latest AS runner
+RUN apk update && apk add nodejs npm openssl && rm -rf /var/cache/apk/*
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+
+# Database URL will be provided at runtime via docker-compose
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
 
 # Install only prod deps in final image
 COPY package.json package-lock.json ./

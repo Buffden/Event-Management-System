@@ -141,7 +141,7 @@ class EventApiClient extends BaseApiClient {
   }
 
   async getEventById(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>(`/events/${eventId}`);
+    return this.request<{ success: boolean; data: EventResponse }>(`/admin/admin/events/${eventId}`);
   }
 
   async approveEvent(eventId: string): Promise<{ success: boolean; data: EventResponse }> {

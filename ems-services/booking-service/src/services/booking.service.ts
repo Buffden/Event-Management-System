@@ -1,6 +1,5 @@
 import { prisma } from '../database';
 import { logger } from '../utils/logger';
-import { getUserInfo } from '../utils/auth-helpers';
 import {
   CreateBookingRequest,
   BookingResponse,
@@ -361,32 +360,13 @@ class BookingService {
         throw new Error('Event not found');
       }
 
-      // Get all confirmed bookings
-      const confirmedBookingsList = await prisma.booking.findMany({
+      // Count confirmed bookings (active users)
+      const confirmedBookings = await prisma.booking.count({
         where: {
           eventId: eventId,
           status: BookingStatus.CONFIRMED
         }
       });
-
-      // Get user info for all bookings to filter out admins
-      const bookingsWithUserInfo = await Promise.all(
-        confirmedBookingsList.map(async (booking) => {
-          const userInfo = await getUserInfo(booking.userId);
-          return {
-            booking,
-            userInfo
-          };
-        })
-      );
-
-      // Filter out admin users from attendance counts
-      const nonAdminBookings = bookingsWithUserInfo.filter(
-        ({ userInfo }) => userInfo && userInfo.role !== 'ADMIN'
-      );
-
-      // Count confirmed bookings (active users, excluding admins)
-      const confirmedBookings = nonAdminBookings.length;
 
       // Count cancelled bookings
       const cancelledBookings = await prisma.booking.count({

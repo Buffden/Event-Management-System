@@ -11,9 +11,7 @@ export class MaterialService {
   private readonly uploadDir: string;
 
   constructor() {
-    // Use absolute path to avoid path resolution issues
-    const defaultDir = path.resolve(process.cwd(), 'uploads');
-    this.uploadDir = process.env['UPLOAD_DIR'] || defaultDir;
+    this.uploadDir = process.env['UPLOAD_DIR'] || './uploads';
     this.ensureUploadDir();
   }
 
@@ -25,18 +23,6 @@ export class MaterialService {
       await fs.mkdir(this.uploadDir, { recursive: true });
     } catch (error) {
       logger.error('Error creating upload directory', error as Error);
-    }
-  }
-
-  /**
-   * Check if file exists
-   */
-  private async fileExists(filePath: string): Promise<boolean> {
-    try {
-      await fs.access(filePath);
-      return true;
-    } catch {
-      return false;
     }
   }
 
@@ -85,8 +71,7 @@ export class MaterialService {
       const fileExtension = path.extname(data.fileName);
       const baseName = path.basename(data.fileName, fileExtension);
       const uniqueFileName = `${baseName}_${Date.now()}${fileExtension}`;
-      // Use absolute path to avoid path resolution issues
-      const filePath = path.resolve(this.uploadDir, uniqueFileName);
+      const filePath = path.join(this.uploadDir, uniqueFileName);
 
       // Save file to disk
       await fs.writeFile(filePath, file.buffer);
@@ -215,30 +200,14 @@ export class MaterialService {
         throw new Error('Material not found');
       }
 
-      // Resolve file path - handle both absolute and relative paths
-      let resolvedPath = material.filePath;
-      
-      // If path is relative, resolve it relative to current working directory
-      if (!path.isAbsolute(material.filePath)) {
-        // Try relative to uploads directory first
-        resolvedPath = path.resolve(this.uploadDir, path.basename(material.filePath));
-        
-        // If not found, try the original relative path
-        if (!await this.fileExists(resolvedPath)) {
-          resolvedPath = path.resolve(process.cwd(), material.filePath);
-        }
-      }
-
       // Check if file exists on disk
       try {
-        await fs.access(resolvedPath);
+        await fs.access(material.filePath);
       } catch {
-        const errorMsg = `Material file not found on disk. Material ID: ${id}, Original Path: ${material.filePath}, Resolved Path: ${resolvedPath}, Upload Dir: ${this.uploadDir}, CWD: ${process.cwd()}`;
-        logger.error('Material file not found', new Error(errorMsg));
-        throw new Error(`Material file not found on disk. Path: ${resolvedPath}`);
+        throw new Error('Material file not found on disk');
       }
 
-      const fileBuffer = await fs.readFile(resolvedPath);
+      const fileBuffer = await fs.readFile(material.filePath);
 
       logger.info('Material downloaded successfully', { materialId: id });
       return { material, fileBuffer };
