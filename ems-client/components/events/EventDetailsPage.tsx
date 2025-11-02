@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
 import { eventAPI } from "@/lib/api/event.api";
 import { AttendanceApiClient } from "@/lib/api/attendance.api";
+import { AdminApiClient, SpeakerInvitation } from "@/lib/api/admin.api";
 import { EventResponse, EventStatus } from "@/lib/api/types/event.types";
 import { LiveAttendanceResponse, AttendanceMetricsResponse } from "@/lib/api/attendance.api";
 import { EventJoinInterface } from "@/components/attendance/EventJoinInterface";
@@ -65,12 +66,20 @@ export const EventDetailsPage = ({
   const [event, setEvent] = useState<EventResponse | null>(null);
   const [attendance, setAttendance] = useState<LiveAttendanceResponse | null>(null);
   const [metrics, setMetrics] = useState<AttendanceMetricsResponse | null>(null);
+  interface SpeakerInvitationWithInfo extends SpeakerInvitation {
+    speakerName?: string | null;
+    speakerEmail?: string | null;
+    isAttended?: boolean;
+  }
+  
+  const [acceptedSpeakers, setAcceptedSpeakers] = useState<SpeakerInvitationWithInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Create API client instance
+  // Create API client instances
   const attendanceAPI = new AttendanceApiClient();
+  const adminAPI = new AdminApiClient();
 
   const loadEvent = async () => {
     try {
@@ -81,6 +90,55 @@ export const EventDetailsPage = ({
     } catch (err) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event', err as Error);
       setError('Failed to load event details');
+    }
+  };
+
+  const loadAcceptedSpeakers = async () => {
+    if (!eventId) return;
+    
+    try {
+      logger.info(LOGGER_COMPONENT_NAME, 'Loading accepted speakers for event', { eventId });
+      
+      // Fetch all invitations for this event
+      const invitations = await adminAPI.getEventInvitations(eventId);
+      
+      // Filter to only show speakers who have ACCEPTED invitations
+      const accepted = invitations.filter(inv => inv.status === 'ACCEPTED');
+      
+      // Fetch speaker profiles for accepted invitations
+      const speakersWithInfo = await Promise.all(
+        accepted.map(async (invitation) => {
+          try {
+            const speakerProfile = await adminAPI.getSpeakerProfile(invitation.speakerId);
+            return {
+              ...invitation,
+              speakerName: speakerProfile.name,
+              speakerEmail: speakerProfile.email
+            };
+          } catch (err) {
+            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker profile', {
+              speakerId: invitation.speakerId,
+              error: err
+            });
+            return {
+              ...invitation,
+              speakerName: null,
+              speakerEmail: null
+            };
+          }
+        })
+      );
+      
+      setAcceptedSpeakers(speakersWithInfo);
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'Accepted speakers loaded', { 
+        eventId, 
+        count: speakersWithInfo.length 
+      });
+    } catch (err) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load accepted speakers', err as Error);
+      // Don't set error - this is not critical, just show empty list
+      setAcceptedSpeakers([]);
     }
   };
 
@@ -107,7 +165,7 @@ export const EventDetailsPage = ({
 
   const refreshData = async () => {
     setRefreshing(true);
-    await Promise.all([loadEvent(), loadAttendance()]);
+    await Promise.all([loadEvent(), loadAttendance(), loadAcceptedSpeakers()]);
     setRefreshing(false);
   };
 
@@ -115,6 +173,7 @@ export const EventDetailsPage = ({
     const loadData = async () => {
       setLoading(true);
       await loadEvent();
+      await loadAcceptedSpeakers();
       setLoading(false);
     };
     
@@ -315,6 +374,7 @@ export const EventDetailsPage = ({
                   eventStatus={event.status}
                   eventDescription={event.description}
                   userRole={userRole}
+                  speakerId={userRole === 'SPEAKER' ? user?.id : undefined}
                 />
               </div>
             )}
@@ -417,24 +477,41 @@ export const EventDetailsPage = ({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
-                        {event.speakerId ? event.speakerId.charAt(0).toUpperCase() : 'S'}
+                {acceptedSpeakers.length > 0 ? (
+                  <div className="space-y-4">
+                    {acceptedSpeakers.map((invitation) => (
+                      <div key={invitation.id} className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
+                            {invitation.speakerName ? invitation.speakerName.charAt(0).toUpperCase() : 'S'}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium">
+                              {invitation.speakerName || `Speaker ${invitation.speakerId.substring(0, 8)}`}
+                            </p>
+                            {invitation.speakerEmail && (
+                              <p className="text-sm text-slate-600 dark:text-slate-400">{invitation.speakerEmail}</p>
+                            )}
+                            {invitation.isAttended && (
+                              <Badge className="mt-2 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Joined Event
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">Speaker ID: {event.speakerId}</p>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Main Speaker</p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                  
-                  {/* Additional speakers would go here */}
-                  <div className="text-center py-4">
-                    <p className="text-slate-600 dark:text-slate-400">Additional speaker information will be displayed here</p>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                    <p className="text-slate-600 dark:text-slate-400 mb-2">No speakers have been invited yet</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-500">
+                      Speakers must be invited and accept their invitation to appear here
+                    </p>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

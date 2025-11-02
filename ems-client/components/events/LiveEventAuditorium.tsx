@@ -27,7 +27,9 @@ import { useLogger } from "@/lib/logger/LoggerProvider";
 import { eventAPI } from "@/lib/api/event.api";
 import { AttendanceApiClient } from "@/lib/api/attendance.api";
 import { EventResponse, EventStatus } from "@/lib/api/types/event.types";
-import { LiveAttendanceResponse } from "@/lib/api/attendance.api";
+import { LiveAttendanceResponse, SpeakerAttendanceResponse } from "@/lib/api/attendance.api";
+import { adminApiClient } from "@/lib/api/admin.api";
+import { speakerApiClient, PresentationMaterial } from "@/lib/api/speaker.api";
 
 const LOGGER_COMPONENT_NAME = 'LiveEventAuditorium';
 
@@ -54,12 +56,66 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   
   const [event, setEvent] = useState<EventResponse | null>(null);
   const [attendance, setAttendance] = useState<LiveAttendanceResponse | null>(null);
+  const [speakerAttendance, setSpeakerAttendance] = useState<SpeakerAttendanceResponse | null>(null);
+  const [speakerInfo, setSpeakerInfo] = useState<{ name: string | null; email: string } | null>(null);
+  const [selectedMaterials, setSelectedMaterials] = useState<PresentationMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Create API client instance
   const attendanceAPI = new AttendanceApiClient();
+
+  const loadSpeakerInfo = async (eventId: string, speakerAttendanceData?: SpeakerAttendanceResponse | null) => {
+    try {
+      // Try to get speaker info from speaker attendance data first (for all roles)
+      if (speakerAttendanceData && speakerAttendanceData.speakers.length > 0) {
+        // Get the first joined speaker, or first speaker if none joined
+        const speaker = speakerAttendanceData.speakers.find(s => s.isAttended) || speakerAttendanceData.speakers[0];
+        setSpeakerInfo({
+          name: speaker.speakerName || null,
+          email: speaker.speakerEmail
+        });
+        logger.info(LOGGER_COMPONENT_NAME, 'Speaker info loaded from speaker attendance', {
+          speakerId: speaker.speakerId,
+          speakerName: speaker.speakerName
+        });
+        return;
+      }
+
+      // Fallback: Try to get speaker info from event (for all roles)
+      // This is a last resort if speaker attendance data doesn't have the info
+      if (!speakerInfo && event) {
+        // Try using event speakerId if available
+        if (event.speakerId) {
+          // For non-admin users, we can't fetch speaker profile, so use a default
+          if (userRole === 'ADMIN') {
+            try {
+              const invitations = await adminApiClient.getEventInvitations(eventId);
+              const acceptedInvitation = invitations.find(inv => inv.status === 'ACCEPTED');
+              
+              if (acceptedInvitation) {
+                const speakerProfile = await adminApiClient.getSpeakerProfile(acceptedInvitation.speakerId);
+                setSpeakerInfo({
+                  name: speakerProfile.name || null,
+                  email: speakerProfile.email
+                });
+                logger.info(LOGGER_COMPONENT_NAME, 'Speaker info loaded from accepted invitation', {
+                  speakerId: acceptedInvitation.speakerId,
+                  speakerName: speakerProfile.name
+                });
+              }
+            } catch (err) {
+              logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker info from invitations', err as Error);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker info', err as Error);
+      // Don't fail the whole page if speaker info fails
+    }
+  };
 
   const loadEvent = async () => {
     try {
@@ -73,8 +129,45 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     }
   };
 
+  const loadSpeakerAttendanceForAll = async () => {
+    // Load speaker attendance for all roles (to show speaker join status)
+    try {
+      // Try to load speaker attendance - all authenticated users can now access it
+      const speakerData = await attendanceAPI.getSpeakerAttendance(eventId).catch(() => null);
+      setSpeakerAttendance(speakerData);
+      
+      // Update speaker info from speaker attendance data
+      if (speakerData) {
+        await loadSpeakerInfo(eventId, speakerData);
+      }
+      
+      // Load selected materials if speaker has joined and selected materials
+      if (speakerData && speakerData.speakers.length > 0) {
+        const joinedSpeaker = speakerData.speakers.find(s => s.isAttended);
+        if (joinedSpeaker && joinedSpeaker.materialsSelected.length > 0) {
+          await loadMaterialDetails(joinedSpeaker.materialsSelected);
+        } else {
+          // Clear materials if no speaker joined or no materials selected
+          setSelectedMaterials([]);
+        }
+      } else {
+        setSelectedMaterials([]);
+      }
+    } catch (err) {
+      logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker attendance data', err as Error);
+      // Don't fail the whole page - clear materials and continue
+      setSelectedMaterials([]);
+    }
+  };
+
   const loadAttendance = async () => {
     if (!event) return;
+    
+    // Load speaker attendance for all roles
+    await loadSpeakerAttendanceForAll();
+    
+    // Load detailed attendance data only for ADMIN and SPEAKER roles
+    if (userRole !== 'ADMIN' && userRole !== 'SPEAKER') return;
     
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading attendance data', { eventId });
@@ -82,6 +175,41 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       setAttendance(attendanceData);
     } catch (err) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load attendance data', err as Error);
+    }
+  };
+
+  const loadMaterialDetails = async (materialIds: string[]) => {
+    try {
+      const token = attendanceAPI.getToken();
+      const materialPromises = materialIds.map(async (materialId) => {
+        try {
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json'
+          };
+          // Only add auth header if token exists
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+          
+          const response = await fetch(`/api/materials/${materialId}`, {
+            headers
+          });
+          if (!response.ok) {
+            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load material', { materialId, status: response.status });
+            return null;
+          }
+          const result = await response.json();
+          return result.data || null;
+        } catch (err) {
+          logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load material', err as Error);
+          return null;
+        }
+      });
+      
+      const materials = await Promise.all(materialPromises);
+      setSelectedMaterials(materials.filter(m => m !== null) as PresentationMaterial[]);
+    } catch (err) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load material details', err as Error);
     }
   };
 
@@ -105,7 +233,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     if (event) {
       loadAttendance();
     }
-  }, [event]);
+  }, [event, userRole]);
 
   // Auto-refresh attendance data every 15 seconds for live experience
   useEffect(() => {
@@ -116,7 +244,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     }, 15000);
 
     return () => clearInterval(interval);
-  }, [event]);
+  }, [event, userRole]);
 
   if (loading) {
     return (
@@ -172,6 +300,9 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   // Separate attendees into joined and not joined
   const joinedAttendees = attendance?.attendees.filter(attendee => attendee.isAttended) || [];
   const notJoinedAttendees = attendance?.attendees.filter(attendee => !attendee.isAttended) || [];
+  
+  // Get speaker info from speaker attendance
+  const speakerHasJoined = speakerAttendance?.speakers && speakerAttendance.speakers.length > 0 && speakerAttendance.speakers[0].isAttended;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900">
@@ -263,14 +394,80 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                 <CardTitle className="text-white flex items-center">
                   <FileText className="h-5 w-5 mr-2" />
                   Event Materials
+                  {selectedMaterials.length > 0 && (
+                    <Badge className="ml-2 bg-blue-600 text-white">
+                      {selectedMaterials.length} {selectedMaterials.length === 1 ? 'file' : 'files'}
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {isEventStarted ? (
-                  <div className="text-center py-8">
-                    <FileText className="h-12 w-12 text-slate-500 mx-auto mb-4" />
-                    <p className="text-slate-400">Materials will be available when the speaker uploads them</p>
-                  </div>
+                  selectedMaterials.length > 0 ? (
+                    <div className="space-y-3">
+                      {selectedMaterials.map((material) => (
+                        <div
+                          key={material.id}
+                          className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+                        >
+                          <div className="flex items-center space-x-3 flex-1">
+                            <FileText className="h-5 w-5 text-blue-400" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-medium truncate">{material.fileName}</p>
+                              <p className="text-slate-400 text-sm">
+                                {material.fileSize ? `${(material.fileSize / 1024).toFixed(2)} KB` : 'Unknown size'} • {material.mimeType || 'Unknown type'}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-slate-600 text-slate-300 hover:bg-slate-600"
+                            onClick={async () => {
+                              try {
+                                // Use the same download approach as the working dashboard implementation
+                                const response = await fetch(`/api/materials/${material.id}/download`, {
+                                  method: 'GET',
+                                  headers: {
+                                    'Authorization': `Bearer ${attendanceAPI.getToken()}`
+                                  }
+                                });
+                                
+                                if (!response.ok) {
+                                  throw new Error(`Failed to download material: ${response.statusText}`);
+                                }
+                                
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = material.fileName;
+                                document.body.appendChild(a);
+                                a.click();
+                                window.URL.revokeObjectURL(url);
+                                document.body.removeChild(a);
+                              } catch (error) {
+                                logger.error(LOGGER_COMPONENT_NAME, 'Failed to download material', error as Error);
+                                alert('Failed to download material. Please try again.');
+                              }
+                            }}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <FileText className="h-12 w-12 text-slate-500 mx-auto mb-4" />
+                      <p className="text-slate-400">
+                        {speakerAttendance && speakerAttendance.speakers.some(s => s.isAttended)
+                          ? 'No materials selected by the speaker'
+                          : 'Materials will be available when the speaker joins and selects materials'}
+                      </p>
+                    </div>
+                  )
                 ) : (
                   <div className="text-center py-8">
                     <Clock className="h-12 w-12 text-slate-500 mx-auto mb-4" />
@@ -287,26 +484,41 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
               {/* Speaker Info */}
               <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <Crown className="h-5 w-5 mr-2 text-yellow-400" />
-                    Speaker
+                  <CardTitle className="text-white flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Crown className="h-5 w-5 mr-2 text-yellow-400" />
+                      Speaker
+                    </div>
+                    {speakerAttendance && speakerAttendance.speakers.length > 0 && speakerAttendance.speakers.some(s => s.isAttended) && (
+                      <Badge className="bg-green-600 text-white">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Joined
+                      </Badge>
+                    )}
+                    {speakerAttendance && speakerAttendance.speakers.length > 0 && !speakerAttendance.speakers.some(s => s.isAttended) && (
+                      <Badge className="bg-gray-600 text-white">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Not Joined
+                      </Badge>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                      {event.speakerId ? event.speakerId.charAt(0).toUpperCase() : 'S'}
+                      {speakerInfo?.name ? speakerInfo.name.charAt(0).toUpperCase() : (event.speakerId ? event.speakerId.charAt(0).toUpperCase() : 'S')}
                     </div>
                     <div>
-                      <p className="text-white font-medium">Speaker</p>
-                      <p className="text-slate-400 text-sm">Main Speaker</p>
+                      <p className="text-white font-medium">{speakerInfo?.name || 'Speaker'}</p>
+                      <p className="text-slate-400 text-sm">{speakerInfo?.email || 'Main Speaker'}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Attendance Stats */}
-              <Card className="bg-slate-800 border-slate-700">
+              {/* Attendance Stats - Show for ADMIN only */}
+              {userRole === 'ADMIN' && (
+                <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
                     <Users className="h-5 w-5 mr-2" />
@@ -342,9 +554,11 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                   )}
                 </CardContent>
               </Card>
+              )}
 
-              {/* People Who Joined */}
-              <Card className="bg-slate-800 border-slate-700">
+              {/* People Who Joined - Show for ADMIN and SPEAKER only */}
+              {(userRole === 'ADMIN' || userRole === 'SPEAKER') && (
+                <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
                     <UserCheck className="h-5 w-5 mr-2 text-green-400" />
@@ -377,13 +591,15 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                   </ScrollArea>
                 </CardContent>
               </Card>
+              )}
 
-              {/* People Registered But Not Joined */}
-              <Card className="bg-slate-800 border-slate-700">
+              {/* Other Registered Attendees - Show for ADMIN and SPEAKER only */}
+              {(userRole === 'ADMIN' || userRole === 'SPEAKER') && (
+                <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
                     <UserPlus className="h-5 w-5 mr-2 text-blue-400" />
-                    Waiting Outside ({notJoinedAttendees.length})
+                    Other Registered Attendees ({notJoinedAttendees.length})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -412,6 +628,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                   </ScrollArea>
                 </CardContent>
               </Card>
+              )}
             </div>
           </div>
         </div>
