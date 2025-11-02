@@ -722,6 +722,55 @@ class EventService {
             updatedAt: event.updatedAt.toISOString()
         };
     }
+
+    /**
+     * Get event statistics grouped by status
+     */
+    async getEventStatsByStatus(): Promise<Array<{ status: string; count: number; percentage: number }>> {
+        try {
+            logger.info('getEventStatsByStatus() - Getting event statistics by status');
+
+            const totalEvents = await prisma.event.count();
+
+            if (totalEvents === 0) {
+                return [];
+            }
+
+            const statusCounts = await prisma.event.groupBy({
+                by: ['status'],
+                _count: {
+                    id: true
+                }
+            });
+
+            const stats = statusCounts.map(item => ({
+                status: item.status,
+                count: item._count.id,
+                percentage: (item._count.id / totalEvents) * 100
+            }));
+
+            logger.info('getEventStatsByStatus() - Retrieved event statistics', { stats });
+            return stats;
+        } catch (error) {
+            logger.error('getEventStatsByStatus() - Failed to get event statistics', error as Error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get total events count
+     */
+    async getTotalEvents(): Promise<number> {
+        try {
+            logger.info('getTotalEvents() - Getting total events count');
+            const total = await prisma.event.count();
+            logger.info('getTotalEvents() - Retrieved total events', { total });
+            return total;
+        } catch (error) {
+            logger.error('getTotalEvents() - Failed to get total events', error as Error);
+            throw error;
+        }
+    }
 }
 
 export { EventService };

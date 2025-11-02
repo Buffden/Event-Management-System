@@ -355,6 +355,31 @@ export function registerRoutes(app: Express, authService: AuthService) {
     });
 
     /**
+     * @route   GET /api/auth/admin/users/stats
+     * @desc    Get total users count (Admin only)
+     * @access  Protected (Admin)
+     */
+    app.get('/admin/users/stats', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+        try {
+            logger.info('/admin/users/stats - Admin fetching total users count', {
+                adminId: contextService.getCurrentUserId()
+            });
+
+            const totalUsers = await authService.getTotalUsers();
+
+            res.json({
+                success: true,
+                data: {
+                    totalUsers
+                }
+            });
+        } catch (error: any) {
+            logger.error('/admin/users/stats - Failed to get total users', error);
+            res.status(500).json({error: 'Failed to fetch total users'});
+        }
+    });
+
+    /**
      * @route   POST /api/auth/admin/activate-users
      * @desc    Activate multiple users by setting emailVerified and isActive (Admin only)
      * @access  Protected (Admin)
@@ -389,6 +414,184 @@ export function registerRoutes(app: Express, authService: AuthService) {
         } catch (error: any) {
             logger.error('/admin/activate-users - Activation failed', error);
             res.status(400).json({error: error.message});
+        }
+    });
+
+    /**
+     * @route   GET /api/auth/admin/users
+     * @desc    Get all users with pagination and filtering (Admin only)
+     * @access  Protected (Admin)
+     */
+    app.get('/admin/users', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+        try {
+            const {
+                page = 1,
+                limit = 10,
+                role,
+                isActive,
+                search
+            } = req.query;
+
+            const pageNum = Number(page);
+            const limitNum = Number(limit);
+
+            if (isNaN(pageNum) || pageNum < 1) {
+                return res.status(400).json({error: 'Page must be a positive integer'});
+            }
+
+            if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+                return res.status(400).json({error: 'Limit must be between 1 and 100'});
+            }
+
+            const filters: { role?: any; isActive?: boolean; search?: string } = {};
+
+            if (role && (role === 'ADMIN' || role === 'USER' || role === 'SPEAKER')) {
+                filters.role = role;
+            }
+
+            if (isActive !== undefined) {
+                filters.isActive = isActive === 'true';
+            }
+
+            if (search && typeof search === 'string') {
+                filters.search = search;
+            }
+
+            logger.info('/admin/users - Admin fetching users', {
+                adminId: contextService.getCurrentUserId(),
+                filters,
+                page: pageNum,
+                limit: limitNum
+            });
+
+            const result = await authService.getAllUsers(filters, pageNum, limitNum);
+
+            res.json({
+                success: true,
+                data: result
+            });
+        } catch (error: any) {
+            logger.error('/admin/users - Failed to fetch users', error);
+            res.status(500).json({error: 'Failed to fetch users'});
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/admin/users/:id/suspend
+     * @desc    Suspend a user by setting isActive to false (Admin only)
+     * @access  Protected (Admin)
+     */
+    app.post('/admin/users/:id/suspend', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+
+            logger.info('/admin/users/:id/suspend - Admin suspending user', {
+                adminId: contextService.getCurrentUserId(),
+                userId: id
+            });
+
+            const user = await authService.suspendUser(id);
+
+            res.json({
+                success: true,
+                message: 'User suspended successfully',
+                data: user
+            });
+        } catch (error: any) {
+            logger.error('/admin/users/:id/suspend - Failed to suspend user', error);
+            if (error.message === 'User not found') {
+                res.status(404).json({error: error.message});
+            } else {
+                res.status(400).json({error: error.message});
+            }
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/admin/users/:id/activate
+     * @desc    Activate a user by setting isActive to true (Admin only)
+     * @access  Protected (Admin)
+     */
+    app.post('/admin/users/:id/activate', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+
+            logger.info('/admin/users/:id/activate - Admin activating user', {
+                adminId: contextService.getCurrentUserId(),
+                userId: id
+            });
+
+            const user = await authService.activateUser(id);
+
+            res.json({
+                success: true,
+                message: 'User activated successfully',
+                data: user
+            });
+        } catch (error: any) {
+            logger.error('/admin/users/:id/activate - Failed to activate user', error);
+            if (error.message === 'User not found') {
+                res.status(404).json({error: error.message});
+            } else {
+                res.status(400).json({error: error.message});
+            }
+        }
+    });
+
+    /**
+     * @route   PATCH /api/auth/admin/users/:id/role
+     * @desc    Change a user's role (Admin only). Only USER ↔ SPEAKER allowed.
+     * @access  Protected (Admin)
+     */
+    app.patch('/admin/users/:id/role', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const { role } = req.body;
+
+            if (!role || (role !== 'USER' && role !== 'SPEAKER')) {
+                return res.status(400).json({error: 'Role must be either USER or SPEAKER'});
+            }
+
+            logger.info('/admin/users/:id/role - Admin changing user role', {
+                adminId: contextService.getCurrentUserId(),
+                userId: id,
+                newRole: role
+            });
+
+            const user = await authService.changeUserRole(id, role);
+
+            res.json({
+                success: true,
+                message: `User role changed to ${role} successfully`,
+                data: user
+            });
+        } catch (error: any) {
+            logger.error('/admin/users/:id/role - Failed to change user role', error);
+            if (error.message === 'User not found') {
+                res.status(404).json({error: error.message});
+            } else {
+                res.status(400).json({error: error.message});
+            }
+        }
+    });
+
+    /**
+     * @route   GET /api/auth/admin/users/growth
+     * @desc    Get user growth statistics over time (Admin only)
+     */
+    app.get('/admin/users/growth', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+        try {
+            logger.info('/admin/users/growth - Admin fetching user growth statistics', {
+                adminId: contextService.getCurrentUserId()
+            });
+            const growth = await authService.getUserGrowth();
+            res.json({
+                success: true,
+                data: growth
+            });
+        } catch (error: any) {
+            logger.error('/admin/users/growth - Failed to get user growth statistics', error);
+            res.status(500).json({error: 'Failed to fetch user growth statistics'});
         }
     });
 }

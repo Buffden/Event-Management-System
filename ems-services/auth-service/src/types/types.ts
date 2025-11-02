@@ -17,6 +17,7 @@ export interface User {
     role: Role; // Role from Prisma Schema
     isActive: boolean;
     emailVerified: Date | null;
+    createdAt?: Date;
 }
 
 /**

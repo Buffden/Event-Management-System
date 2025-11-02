@@ -6,124 +6,149 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { 
-  LogOut, 
-  Users, 
+import {
+  LogOut,
+  Users,
   Search,
   Filter,
   MoreHorizontal,
   Shield,
-  ShieldCheck,
   UserX,
   UserCheck,
   Mail,
   Calendar,
   AlertTriangle,
-  ArrowLeft
+  ArrowLeft,
+  Loader2,
+  RefreshCw
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import {logger} from "@/lib/logger";
+import { useEffect, useState, useCallback } from "react";
+import { authAPI } from "@/lib/api/auth.api";
+import {useLogger} from "@/lib/logger/LoggerProvider";
 
 const COMPONENT_NAME = 'UserManagementPage';
 
-// Mock data for development
-const mockUsers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    role: 'USER',
-    isActive: true,
-    emailVerified: '2024-01-15',
-    createdAt: '2024-01-10',
-    lastLogin: '2024-01-20',
-    eventsRegistered: 3
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    role: 'SPEAKER',
-    isActive: true,
-    emailVerified: '2024-01-12',
-    createdAt: '2024-01-08',
-    lastLogin: '2024-01-19',
-    eventsRegistered: 1
-  },
-  {
-    id: '3',
-    name: 'Bob Johnson',
-    email: 'bob@example.com',
-    role: 'USER',
-    isActive: false,
-    emailVerified: null,
-    createdAt: '2024-01-05',
-    lastLogin: '2024-01-15',
-    eventsRegistered: 0
-  },
-  {
-    id: '4',
-    name: 'Alice Wilson',
-    email: 'alice@example.com',
-    role: 'ADMIN',
-    isActive: true,
-    emailVerified: '2024-01-01',
-    createdAt: '2024-01-01',
-    lastLogin: '2024-01-20',
-    eventsRegistered: 5
-  },
-  {
-    id: '5',
-    name: 'Charlie Brown',
-    email: 'charlie@example.com',
-    role: 'USER',
-    isActive: true,
-    emailVerified: '2024-01-18',
-    createdAt: '2024-01-15',
-    lastLogin: '2024-01-21',
-    eventsRegistered: 2
-  }
-];
+interface User {
+  id: string;
+  name: string | null;
+  email: string;
+  role: 'ADMIN' | 'USER' | 'SPEAKER';
+  isActive: boolean;
+  emailVerified: string | null;
+  image?: string | null;
+  createdAt?: string;
+}
 
 export default function UserManagementPage() {
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const router = useRouter();
+  const loggerHook = useLogger();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    admins: 0,
+    inactive: 0
+  });
+  const [page, setPage] = useState(1);
+  const [limit] = useState(100); // Large limit to get all users for now
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      setUsersLoading(true);
+      setUsersError(null);
+      loggerHook.debug(COMPONENT_NAME, 'Fetching users', { searchTerm, selectedRole, selectedStatus, page });
+
+      const filters: { page?: number; limit?: number; role?: string; isActive?: boolean; search?: string } = {
+        page,
+        limit
+      };
+
+      if (selectedRole !== 'ALL') {
+        filters.role = selectedRole;
+      }
+
+      if (selectedStatus !== 'ALL') {
+        filters.isActive = selectedStatus === 'ACTIVE';
+      }
+
+      if (searchTerm.trim()) {
+        filters.search = searchTerm.trim();
+      }
+
+      const response = await authAPI.getAllUsers(filters);
+
+      if (response.success && response.data) {
+        setUsers(response.data.users);
+        setStats({
+          total: response.data.total,
+          active: response.data.users.filter(u => u.isActive).length,
+          admins: response.data.users.filter(u => u.role === 'ADMIN').length,
+          inactive: response.data.users.filter(u => !u.isActive).length
+        });
+        loggerHook.info(COMPONENT_NAME, 'Users fetched successfully', { count: response.data.users.length });
+      } else {
+        throw new Error('Failed to fetch users');
+      }
+    } catch (error) {
+      loggerHook.error(COMPONENT_NAME, 'Failed to fetch users', error as Error);
+      setUsersError('Failed to load users. Please try again.');
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [searchTerm, selectedRole, selectedStatus, page, limit, loggerHook]);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       router.push('/login');
-    } else if (!isLoading && user?.role !== 'ADMIN') {
+    } else if (!authLoading && user?.role !== 'ADMIN') {
       router.push('/dashboard');
+    } else if (!authLoading && isAuthenticated && user?.role === 'ADMIN') {
+      fetchUsers();
     }
-  }, [isAuthenticated, isLoading, user, router]);
+  }, [isAuthenticated, authLoading, user, router, fetchUsers]);
 
-  // Filter users based on search and filters
-  const filteredUsers = mockUsers.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = selectedRole === 'ALL' || user.role === selectedRole;
-    const matchesStatus = selectedStatus === 'ALL' || 
-                         (selectedStatus === 'ACTIVE' && user.isActive) ||
-                         (selectedStatus === 'INACTIVE' && !user.isActive);
-    
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+  // Debounce search - fetch users when filters change
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || user?.role !== 'ADMIN') return;
 
-  const handleRoleChange = (userId: string, newRole: string) => {
-    // TODO: Implement role change API call
-    logger.debug(COMPONENT_NAME, `Change user ${userId} role to ${newRole}`);
+    const timer = setTimeout(() => {
+      setPage(1); // Reset to first page on search/filter change
+      fetchUsers();
+    }, 500);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedRole, selectedStatus]);
+
+  const handleStatusToggle = async (userId: string, currentStatus: boolean) => {
+    try {
+      loggerHook.debug(COMPONENT_NAME, `Toggling user ${userId} status from ${currentStatus} to ${!currentStatus}`);
+
+      const response = currentStatus
+        ? await authAPI.suspendUser(userId)
+        : await authAPI.activateUser(userId);
+
+      if (response.success) {
+        loggerHook.info(COMPONENT_NAME, 'User status updated successfully', { userId, newStatus: !currentStatus });
+        // Refresh users list
+        fetchUsers();
+      } else {
+        throw new Error('Failed to update user status');
+      }
+    } catch (error) {
+      loggerHook.error(COMPONENT_NAME, 'Failed to update user status', error as Error);
+      alert('Failed to update user status. Please try again.');
+    }
   };
 
-  const handleStatusToggle = (userId: string, currentStatus: boolean) => {
-    // TODO: Implement status toggle API call
-    logger.debug(COMPONENT_NAME, `Toggle user ${userId} status from ${currentStatus} to ${!currentStatus}`);
-  };
-
-  if (isLoading) {
+  if (authLoading || usersLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         <div className="text-center">
@@ -145,8 +170,8 @@ export default function UserManagementPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => router.push('/dashboard/admin')}
                 className="text-slate-600 hover:text-slate-900"
@@ -158,13 +183,13 @@ export default function UserManagementPage() {
                 User Management
               </h1>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage 
-                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`} 
-                    alt={user?.name || user?.email} 
+                  <AvatarImage
+                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`}
+                    alt={user?.name || user?.email}
                   />
                   <AvatarFallback className="text-xs">
                     {user?.name ? user.name.split(' ').map(n => n[0]).join('') : user?.email?.[0]?.toUpperCase()}
@@ -174,9 +199,9 @@ export default function UserManagementPage() {
                   {user?.name}
                 </span>
               </div>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={logout}
                 className="text-slate-600 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400"
@@ -209,7 +234,9 @@ export default function UserManagementPage() {
                 <Users className="h-8 w-8 text-blue-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Users</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockUsers.length}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {usersLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats.total}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -222,7 +249,7 @@ export default function UserManagementPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Active Users</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {mockUsers.filter(u => u.isActive).length}
+                    {usersLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats.active}
                   </p>
                 </div>
               </div>
@@ -236,7 +263,7 @@ export default function UserManagementPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Admins</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {mockUsers.filter(u => u.role === 'ADMIN').length}
+                    {usersLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats.admins}
                   </p>
                 </div>
               </div>
@@ -250,7 +277,7 @@ export default function UserManagementPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Inactive Users</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {mockUsers.filter(u => !u.isActive).length}
+                    {usersLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : stats.inactive}
                   </p>
                 </div>
               </div>
@@ -276,7 +303,7 @@ export default function UserManagementPage() {
                   className="pl-10"
                 />
               </div>
-              
+
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
@@ -287,7 +314,7 @@ export default function UserManagementPage() {
                 <option value="SPEAKER">Speaker</option>
                 <option value="USER">User</option>
               </select>
-              
+
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
@@ -297,14 +324,15 @@ export default function UserManagementPage() {
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
               </select>
-              
-              <Button 
+
+              <Button
                 variant="outline"
-                onClick={() => router.push('/dashboard/admin/users/flagged')}
-                className="border-orange-200 text-orange-600 hover:bg-orange-50"
+                onClick={() => fetchUsers()}
+                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                disabled={usersLoading}
               >
-                <AlertTriangle className="h-4 w-4 mr-2" />
-                View Flagged Users
+                <RefreshCw className={`h-4 w-4 mr-2 ${usersLoading ? 'animate-spin' : ''}`} />
+                Refresh
               </Button>
             </div>
           </CardContent>
@@ -314,130 +342,127 @@ export default function UserManagementPage() {
         <Card className="border-slate-200 dark:border-slate-700">
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
-              Users ({filteredUsers.length})
+              Users {usersLoading ? '' : `(${users.length})`}
             </CardTitle>
             <CardDescription className="text-slate-600 dark:text-slate-400">
               Manage user accounts and permissions
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">User</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Role</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Status</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Email Verified</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Events</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Last Login</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((user) => (
-                    <tr key={user.id} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
-                      <td className="py-4 px-4">
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage 
-                              src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`} 
-                              alt={user.name} 
-                            />
-                            <AvatarFallback className="text-xs">
-                              {user.name.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium text-slate-900 dark:text-white">{user.name}</p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400">{user.email}</p>
+            {usersError ? (
+              <div className="text-center py-8">
+                <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                <p className="text-red-600 dark:text-red-400 mb-4">{usersError}</p>
+                <Button onClick={fetchUsers} variant="outline">
+                  Try Again
+                </Button>
+              </div>
+            ) : usersLoading ? (
+              <div className="text-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+                <p className="text-slate-600 dark:text-slate-400">Loading users...</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-700">
+                      <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">User</th>
+                      <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Role</th>
+                      <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Status</th>
+                      <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Email Verified</th>
+                      <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Created</th>
+                      <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((userItem) => (
+                      <tr key={userItem.id} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <td className="py-4 px-4">
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage
+                                src={userItem.image || `https://api.dicebear.com/7.x/initials/svg?seed=${userItem.name || userItem.email}`}
+                                alt={userItem.name || userItem.email}
+                              />
+                              <AvatarFallback className="text-xs">
+                                {(userItem.name || userItem.email).split(' ').map(n => n[0]).join('').toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium text-slate-900 dark:text-white">{userItem.name || 'No name'}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">{userItem.email}</p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <Badge 
-                          variant={user.role === 'ADMIN' ? 'default' : 'secondary'}
-                          className={
-                            user.role === 'ADMIN' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                            user.role === 'SPEAKER' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                            'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          }
-                        >
-                          {user.role}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-4">
-                        <Badge 
-                          variant={user.isActive ? 'default' : 'secondary'}
-                          className={user.isActive ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}
-                        >
-                          {user.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-4">
-                        <Badge 
-                          variant={user.emailVerified ? 'default' : 'secondary'}
-                          className={user.emailVerified ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
-                        >
-                          {user.emailVerified ? 'Verified' : 'Pending'}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-slate-900 dark:text-white">{user.eventsRegistered}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-slate-600 dark:text-slate-400">
-                          {new Date(user.lastLogin).toLocaleDateString()}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex space-x-2">
-                          {user.role !== 'ADMIN' && (
+                        </td>
+                        <td className="py-4 px-4">
+                          <Badge
+                            variant={userItem.role === 'ADMIN' ? 'default' : 'secondary'}
+                            className={
+                              userItem.role === 'ADMIN' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                              userItem.role === 'SPEAKER' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                              'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            }
+                          >
+                            {userItem.role}
+                          </Badge>
+                        </td>
+                        <td className="py-4 px-4">
+                          <Badge
+                            variant={userItem.isActive ? 'default' : 'secondary'}
+                            className={userItem.isActive ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}
+                          >
+                            {userItem.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </td>
+                        <td className="py-4 px-4">
+                          <Badge
+                            variant={userItem.emailVerified ? 'default' : 'secondary'}
+                            className={userItem.emailVerified ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
+                          >
+                            {userItem.emailVerified ? 'Verified' : 'Pending'}
+                          </Badge>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="text-slate-600 dark:text-slate-400">
+                            {userItem.createdAt ? new Date(userItem.createdAt).toLocaleDateString() : 'N/A'}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex space-x-2">
                             <Button
                               size="sm"
-                              variant="outline"
-                              onClick={() => handleRoleChange(user.id, user.role === 'USER' ? 'SPEAKER' : 'USER')}
+                              variant={userItem.isActive ? 'destructive' : 'default'}
+                              onClick={() => handleStatusToggle(userItem.id, userItem.isActive)}
+                              disabled={usersLoading}
                             >
-                              <ShieldCheck className="h-4 w-4 mr-1" />
-                              {user.role === 'USER' ? 'Make Speaker' : 'Make User'}
+                              {userItem.isActive ? (
+                                <>
+                                  <UserX className="h-4 w-4 mr-1" />
+                                  Suspend
+                                </>
+                              ) : (
+                                <>
+                                  <UserCheck className="h-4 w-4 mr-1" />
+                                  Activate
+                                </>
+                              )}
                             </Button>
-                          )}
-                          
-                          <Button
-                            size="sm"
-                            variant={user.isActive ? 'destructive' : 'default'}
-                            onClick={() => handleStatusToggle(user.id, user.isActive)}
-                          >
-                            {user.isActive ? (
-                              <>
-                                <UserX className="h-4 w-4 mr-1" />
-                                Suspend
-                              </>
-                            ) : (
-                              <>
-                                <UserCheck className="h-4 w-4 mr-1" />
-                                Activate
-                              </>
-                            )}
-                          </Button>
-                          
-                          <Button size="sm" variant="outline">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              
-              {filteredUsers.length === 0 && (
-                <div className="text-center py-8">
-                  <Users className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                  <p className="text-slate-600 dark:text-slate-400">No users found matching your criteria</p>
-                </div>
-              )}
-            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {users.length === 0 && !usersLoading && (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                    <p className="text-slate-600 dark:text-slate-400">No users found matching your criteria</p>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>

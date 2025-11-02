@@ -104,6 +104,45 @@ class AuthApiClient extends BaseApiClient {
         });
     }
 
+    async getTotalUsers(): Promise<{ success: boolean; data: { totalUsers: number } }> {
+        return this.request('/admin/users/stats');
+    }
+
+    async getAllUsers(filters?: { page?: number; limit?: number; role?: string; isActive?: boolean; search?: string }): Promise<{ success: boolean; data: { users: any[]; total: number; page: number; limit: number; totalPages: number } }> {
+        const params = new URLSearchParams();
+        if (filters?.page) params.append('page', filters.page.toString());
+        if (filters?.limit) params.append('limit', filters.limit.toString());
+        if (filters?.role) params.append('role', filters.role);
+        if (filters?.isActive !== undefined) params.append('isActive', filters.isActive.toString());
+        if (filters?.search) params.append('search', filters.search);
+
+        const endpoint = `/admin/users?${params.toString()}`;
+        return this.request(endpoint);
+    }
+
+    async suspendUser(userId: string): Promise<{ success: boolean; message: string; data: any }> {
+        return this.request(`/admin/users/${userId}/suspend`, {
+            method: 'POST'
+        });
+    }
+
+    async activateUser(userId: string): Promise<{ success: boolean; message: string; data: any }> {
+        return this.request(`/admin/users/${userId}/activate`, {
+            method: 'POST'
+        });
+    }
+
+    async changeUserRole(userId: string, role: 'USER' | 'SPEAKER'): Promise<{ success: boolean; message: string; data: any }> {
+        return this.request(`/admin/users/${userId}/role`, {
+            method: 'PATCH',
+            body: JSON.stringify({ role })
+        });
+    }
+
+    async getUserGrowth(): Promise<{ success: boolean; data: Array<{ month: string; users: number }> }> {
+        return this.request('/admin/users/growth');
+    }
+
 }
 
 // Create and export the Auth API client instance
@@ -123,6 +162,12 @@ export const authAPI = {
     forgotPassword: (data: ForgotPasswordRequest) => authApiClient.forgotPassword(data),
     verifyResetToken: (data: VerifyResetTokenRequest) => authApiClient.verifyResetToken(data),
     resetPassword: (data: ResetPasswordRequest) => authApiClient.resetPassword(data),
+    getTotalUsers: () => authApiClient.getTotalUsers(),
+    getAllUsers: (filters?: { page?: number; limit?: number; role?: string; isActive?: boolean; search?: string }) => authApiClient.getAllUsers(filters),
+    suspendUser: (userId: string) => authApiClient.suspendUser(userId),
+    activateUser: (userId: string) => authApiClient.activateUser(userId),
+    changeUserRole: (userId: string, role: 'USER' | 'SPEAKER') => authApiClient.changeUserRole(userId, role),
+    getUserGrowth: () => authApiClient.getUserGrowth(),
 };
 
 export const tokenManager = {

@@ -74,7 +74,7 @@ class BookingService {
         eventId: booking.eventId,
         createdAt: booking.createdAt.toISOString()
       };
-      
+
       await eventPublisherService.publishBookingConfirmed(bookingMessage);
 
       // Booking confirmation email will be sent via notification-service pipeline triggered by booking.confirmed event
@@ -392,6 +392,144 @@ class BookingService {
       };
     } catch (error) {
       logger.error('Failed to get number of users for event', error as Error, { eventId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get total registrations (confirmed bookings) across all events
+   */
+  async getTotalRegistrations(): Promise<number> {
+    try {
+      logger.info('Getting total registrations across all events');
+
+      const totalRegistrations = await prisma.booking.count({
+        where: {
+          status: BookingStatus.CONFIRMED
+        }
+      });
+
+      logger.info('Retrieved total registrations', { totalRegistrations });
+
+      return totalRegistrations;
+    } catch (error) {
+      logger.error('Failed to get total registrations', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get average attendance rate across all events
+   */
+  async getAverageAttendance(): Promise<number> {
+    try {
+      logger.info('Getting average attendance rate');
+
+      // Get all confirmed bookings with their tickets
+      const bookings = await prisma.booking.findMany({
+        where: {
+          status: BookingStatus.CONFIRMED
+        },
+        include: {
+          ticket: true
+        }
+      });
+
+      if (bookings.length === 0) {
+        return 0;
+      }
+
+      let totalTickets = 0;
+      let scannedTickets = 0;
+
+      for (const booking of bookings) {
+        if (booking.ticket) {
+          totalTickets += 1;
+          if (booking.ticket.status === 'SCANNED') {
+            scannedTickets += 1;
+          }
+        }
+      }
+
+      const averageAttendance = totalTickets > 0 ? (scannedTickets / totalTickets) * 100 : 0;
+
+      logger.info('Retrieved average attendance', { averageAttendance, totalTickets, scannedTickets });
+      return Math.round(averageAttendance * 100) / 100; // Round to 2 decimal places
+    } catch (error) {
+      logger.error('Failed to get average attendance', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get top performing events by registration and attendance
+   */
+  async getTopEvents(limit: number = 10): Promise<Array<{
+    eventId: string;
+    name: string;
+    registrations: number;
+    attendance: number
+  }>> {
+    try {
+      logger.info('Getting top performing events', { limit });
+
+      // Get bookings grouped by event with ticket counts
+      const eventStats = await prisma.booking.groupBy({
+        by: ['eventId'],
+        where: {
+          status: BookingStatus.CONFIRMED
+        },
+        _count: {
+          id: true
+        }
+      });
+
+      // Fetch event details and calculate attendance
+      const topEvents = await Promise.all(
+        eventStats.map(async (stat) => {
+          // Get bookings for this event to calculate attendance
+          const bookings = await prisma.booking.findMany({
+            where: {
+              eventId: stat.eventId,
+              status: BookingStatus.CONFIRMED
+            },
+            include: {
+              ticket: true
+            }
+          });
+
+          let totalTickets = 0;
+          let scannedTickets = 0;
+
+          for (const booking of bookings) {
+            if (booking.ticket) {
+              totalTickets += 1;
+              if (booking.ticket.status === 'SCANNED') {
+                scannedTickets += 1;
+              }
+            }
+          }
+
+          const attendance = totalTickets > 0 ? Math.round((scannedTickets / totalTickets) * 100 * 100) / 100 : 0;
+
+          // Get event name from event service
+          // For now, we'll return eventId and fetch name in the route handler
+          return {
+            eventId: stat.eventId,
+            name: '', // Will be populated from event service
+            registrations: stat._count.id,
+            attendance
+          };
+        })
+      );
+
+      // Sort by registrations descending and limit
+      const sorted = topEvents.sort((a, b) => b.registrations - a.registrations).slice(0, limit);
+
+      logger.info('Retrieved top events', { count: sorted.length });
+      return sorted;
+    } catch (error) {
+      logger.error('Failed to get top events', error as Error);
       throw error;
     }
   }

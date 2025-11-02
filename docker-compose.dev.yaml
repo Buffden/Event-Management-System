@@ -75,7 +75,7 @@ services:
       - event-net
     ports:
       - "3002:3000"
-    command: sh -c "npx prisma generate && npm run dev"
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run prisma:seed && npm run dev"
     depends_on:
       auth-service-db:
         condition: service_healthy
@@ -103,7 +103,7 @@ services:
       - /app/prisma
     ports:
       - "3003:3000"
-    command: sh -c "npx prisma generate && npm run dev"
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run prisma:seed && npm run dev"
     networks:
       - event-net
     depends_on:
@@ -135,7 +135,7 @@ services:
       - /app/prisma
     ports:
       - "3004:3000"
-    command: sh -c "npx prisma generate && npm run dev"
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
     networks:
       - event-net
     depends_on:
@@ -165,7 +165,7 @@ services:
       - /app/prisma
     ports:
       - "3005:3000"
-    command: sh -c "npx prisma generate && npm run dev"
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
     networks:
       - event-net
     depends_on:
@@ -219,7 +219,7 @@ services:
       - /app/prisma
     ports:
       - "3007:3000"
-    command: sh -c "npx prisma generate && npm run dev"
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
     networks:
       - event-net
     depends_on:

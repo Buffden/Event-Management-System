@@ -26,6 +26,8 @@ import { useEffect, useState, useCallback } from "react";
 import {useLogger} from "@/lib/logger/LoggerProvider";
 import {withAdminAuth} from "@/components/hoc/withAuth";
 import { eventAPI } from "@/lib/api/event.api";
+import { authAPI } from "@/lib/api/auth.api";
+import { bookingAPI } from "@/lib/api/booking.api";
 import { EventResponse, EventStatus } from "@/lib/api/types/event.types";
 
 const LOGGER_COMPONENT_NAME = 'AdminDashboard';
@@ -105,13 +107,15 @@ function AdminDashboard() {
       logger.debug(LOGGER_COMPONENT_NAME, 'Fetching dashboard stats');
 
       // Fetch all events to get stats
+      // Note: API limit is 100, so we fetch with max limit and use total from response
       const eventsResponse = await eventAPI.getAllEvents({
-        limit: 1000, // Large limit to get all events
+        limit: 100, // Max allowed limit
         page: 1
       });
 
       if (eventsResponse.success && eventsResponse.data) {
         const allEvents = eventsResponse.data.events;
+        // Use total from API response, which represents total across all pages
         const totalEvents = eventsResponse.data.total || allEvents.length;
         const activeEvents = allEvents.filter(e => e.status === EventStatus.PUBLISHED).length;
 
@@ -122,13 +126,34 @@ function AdminDashboard() {
           return startDate > now && e.status === EventStatus.PUBLISHED;
         }).length;
 
-        // Total registrations: Currently no admin endpoint to get all bookings across all events
-        // TODO: Implement admin endpoint: GET /api/admin/bookings/stats or similar
-        // For now, we'll leave it as null and show "N/A"
+        console.log("Getting Total Registrations");
+
+        // Total registrations: Get from booking service admin endpoint
         let totalRegistrations: number | null = null;
+        try {
+          const registrationsResponse = await bookingAPI.getTotalRegistrations();
+          if (registrationsResponse.success && registrationsResponse.data) {
+            totalRegistrations = registrationsResponse.data.totalRegistrations;
+          }
+        } catch (error) {
+          logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch total registrations', error as Error);
+          // Leave as null to show "N/A"
+        }
+
+        // Total users: Get from auth service admin endpoint
+        let totalUsers: number | null = null;
+        try {
+          const usersResponse = await authAPI.getTotalUsers();
+          if (usersResponse.success && usersResponse.data) {
+            totalUsers = usersResponse.data.totalUsers;
+          }
+        } catch (error) {
+          logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch total users', error as Error);
+          // Leave as null to show "N/A"
+        }
 
         setStats({
-          totalUsers: null, // TODO: No API endpoint available yet
+          totalUsers,
           totalEvents,
           activeEvents,
           flaggedUsers: mockFlaggedUsers.length,
@@ -137,6 +162,7 @@ function AdminDashboard() {
         });
 
         logger.info(LOGGER_COMPONENT_NAME, 'Dashboard stats fetched successfully', {
+          totalUsers,
           totalEvents,
           activeEvents,
           upcomingEvents,
