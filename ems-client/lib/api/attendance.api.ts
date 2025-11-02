@@ -180,7 +180,8 @@ export class AttendanceApiClient extends BaseApiClient {
   async speakerJoinEvent(eventId: string): Promise<SpeakerJoinEventResponse> {
     const speakerServiceUrl = process.env.NEXT_PUBLIC_SPEAKER_SERVICE_URL || 'http://localhost/api/speaker-attendance';
     
-    const response = await this.request<SpeakerJoinEventResponse>(`${speakerServiceUrl}/api/speaker-attendance/join`, {
+    // Use absolute URL to avoid baseURL concatenation
+    const response = await this.request<SpeakerJoinEventResponse>(`${speakerServiceUrl}/join`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -198,7 +199,8 @@ export class AttendanceApiClient extends BaseApiClient {
   async updateMaterialsForEvent(invitationId: string, materialIds: string[]): Promise<UpdateMaterialsResponse> {
     const speakerServiceUrl = process.env.NEXT_PUBLIC_SPEAKER_SERVICE_URL || 'http://localhost/api/speaker-attendance';
     
-    const response = await this.request<UpdateMaterialsResponse>(`${speakerServiceUrl}/api/speaker-attendance/materials/${invitationId}`, {
+    // Use absolute URL to avoid baseURL concatenation
+    const response = await this.request<UpdateMaterialsResponse>(`${speakerServiceUrl}/materials/${invitationId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -216,7 +218,8 @@ export class AttendanceApiClient extends BaseApiClient {
   async getSpeakerAttendance(eventId: string): Promise<SpeakerAttendanceResponse> {
     const speakerServiceUrl = process.env.NEXT_PUBLIC_SPEAKER_SERVICE_URL || 'http://localhost/api/speaker-attendance';
     
-    const response = await this.request<SpeakerAttendanceResponse>(`${speakerServiceUrl}/api/speaker-attendance/${eventId}`, {
+    // Use absolute URL to avoid baseURL concatenation
+    const response = await this.request<SpeakerAttendanceResponse>(`${speakerServiceUrl}/${eventId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${this.getToken()}`
@@ -232,7 +235,8 @@ export class AttendanceApiClient extends BaseApiClient {
   async getAvailableMaterials(invitationId: string): Promise<AvailableMaterialsResponse> {
     const speakerServiceUrl = process.env.NEXT_PUBLIC_SPEAKER_SERVICE_URL || 'http://localhost/api/speaker-attendance';
     
-    const response = await this.request<AvailableMaterialsResponse>(`${speakerServiceUrl}/api/speaker-attendance/materials/${invitationId}`, {
+    // Use absolute URL to avoid baseURL concatenation
+    const response = await this.request<AvailableMaterialsResponse>(`${speakerServiceUrl}/materials/${invitationId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${this.getToken()}`

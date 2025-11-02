@@ -13,7 +13,11 @@ export abstract class BaseApiClient {
         endpoint: string,
         options: RequestInit = {}
     ): Promise<T> {
-        const url = `${this.baseURL}${endpoint}`;
+        // If endpoint is already an absolute URL, use it directly
+        // Otherwise, prepend the base URL
+        const url = endpoint.startsWith('http://') || endpoint.startsWith('https://') 
+            ? endpoint 
+            : `${this.baseURL}${endpoint}`;
         const method = options.method || 'GET';
 
         const defaultHeaders: Record<string, string> = {
