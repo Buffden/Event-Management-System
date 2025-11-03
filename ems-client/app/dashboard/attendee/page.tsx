@@ -21,84 +21,188 @@ import {
   Users
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {useLogger} from "@/lib/logger/LoggerProvider";
 import {withUserAuth} from "@/components/hoc/withAuth";
-
-// Mock data for development
-const mockStats = {
-  registeredEvents: 8,
-  upcomingEvents: 3,
-  attendedEvents: 5,
-  ticketsPurchased: 12,
-  activeTickets: 4,
-  usedTickets: 8,
-  pointsEarned: 1250,
-  pointsThisMonth: 300,
-  upcomingThisWeek: 2,
-  nextWeekEvents: 1
-};
-
-const mockUpcomingEvents = [
-  {
-    id: '1',
-    title: 'TechConf 2024',
-    date: '2024-01-15',
-    time: '9:00 AM',
-    location: 'Convention Center',
-    attendees: 500,
-    status: 'registered',
-    ticketType: 'VIP Pass'
-  },
-  {
-    id: '2',
-    title: 'React Workshop',
-    date: '2024-01-18',
-    time: '2:00 PM',
-    location: 'Tech Hub',
-    attendees: 50,
-    status: 'registered',
-    ticketType: 'Standard'
-  },
-  {
-    id: '3',
-    title: 'Design Thinking Summit',
-    date: '2024-01-22',
-    time: '10:00 AM',
-    location: 'Innovation Lab',
-    attendees: 200,
-    status: 'interested',
-    ticketType: null
-  }
-];
-
-const mockRecentRegistrations = [
-  {
-    id: '1',
-    event: 'DevSummit 2024',
-    date: '2024-01-10',
-    status: 'confirmed',
-    ticketType: 'Early Bird'
-  },
-  {
-    id: '2',
-    event: 'UX Conference',
-    date: '2024-01-08',
-    status: 'confirmed',
-    ticketType: 'Standard'
-  }
-];
+import { bookingAPI, ticketAPI } from "@/lib/api/booking.api";
+import { eventAPI } from "@/lib/api/event.api";
 
 const LOGGER_COMPONENT_NAME = 'AttendeeDashboard';
+
+interface DashboardStats {
+  registeredEvents: number;
+  upcomingEvents: number;
+  attendedEvents: number;
+  ticketsPurchased: number;
+  activeTickets: number;
+  usedTickets: number;
+  upcomingThisWeek: number;
+  nextWeekEvents: number;
+}
+
+interface UpcomingEvent {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  status: string;
+  ticketType: string | null;
+}
+
+interface RecentRegistration {
+  id: string;
+  event: string;
+  date: string;
+  status: string;
+  ticketType: string | null;
+}
 
 function AttendeeDashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const logger = useLogger();
+  
+  const [stats, setStats] = useState<DashboardStats>({
+    registeredEvents: 0,
+    upcomingEvents: 0,
+    attendedEvents: 0,
+    ticketsPurchased: 0,
+    activeTickets: 0,
+    usedTickets: 0,
+    upcomingThisWeek: 0,
+    nextWeekEvents: 0
+  });
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [recentRegistrations, setRecentRegistrations] = useState<RecentRegistration[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Attendee dashboard loaded', { userRole: user?.role });
+    if (user?.id) {
+      loadDashboardData();
+    }
   }, [user, logger]);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      logger.info(LOGGER_COMPONENT_NAME, 'Loading attendee dashboard data');
+
+      // Fetch bookings and tickets in parallel
+      const [bookingsResponse, ticketsResponse] = await Promise.all([
+        bookingAPI.getUserBookings(),
+        ticketAPI.getUserTickets().catch(() => ({ data: [], success: true }))
+      ]);
+
+      // Handle both response structures: {success, data: {bookings}} or {bookings}
+      const bookings = (bookingsResponse as any).data?.bookings || (bookingsResponse as any).bookings || [];
+      const tickets = ticketsResponse.data || [];
+
+      // Calculate stats
+      const now = new Date();
+      const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+      const confirmedBookings = bookings.filter((b: any) => b.status === 'CONFIRMED');
+      const attendedCount = bookings.filter((b: any) => b.isAttended === true).length;
+      
+      const upcomingBookings = confirmedBookings.filter((b: any) => {
+        if (!b.event?.bookingStartDate) return false;
+        const eventStart = new Date(b.event.bookingStartDate);
+        return eventStart > now;
+      });
+
+      const thisWeekBookings = upcomingBookings.filter((b: any) => {
+        if (!b.event?.bookingStartDate) return false;
+        const eventStart = new Date(b.event.bookingStartDate);
+        return eventStart <= oneWeekFromNow;
+      });
+
+      const nextWeekBookings = upcomingBookings.filter((b: any) => {
+        if (!b.event?.bookingStartDate) return false;
+        const eventStart = new Date(b.event.bookingStartDate);
+        return eventStart > oneWeekFromNow && eventStart <= twoWeeksFromNow;
+      });
+
+      const activeTickets = tickets.filter(t => t.status === 'ISSUED' && new Date(t.expiresAt) > now).length;
+      const usedTickets = tickets.filter(t => t.status === 'SCANNED').length;
+
+      setStats({
+        registeredEvents: confirmedBookings.length,
+        upcomingEvents: upcomingBookings.length,
+        attendedEvents: attendedCount,
+        ticketsPurchased: tickets.length,
+        activeTickets,
+        usedTickets,
+        upcomingThisWeek: thisWeekBookings.length,
+        nextWeekEvents: nextWeekBookings.length
+      });
+
+      // Fetch upcoming events with event details
+      // For events without full details, fetch them separately
+      const upcomingEventsData: UpcomingEvent[] = [];
+      for (const booking of upcomingBookings.slice(0, 3)) {
+        if (booking.event?.name) {
+          const eventStart = new Date(booking.event.bookingStartDate);
+          upcomingEventsData.push({
+            id: booking.event.id || booking.id,
+            title: booking.event.name,
+            date: eventStart.toLocaleDateString(),
+            time: eventStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            location: booking.event.venue?.name || 'TBA',
+            status: 'registered',
+            ticketType: booking.ticketType || null
+          });
+        } else {
+          // If event details not included, fetch them
+          try {
+            const eventResponse = await eventAPI.getEventById(booking.eventId);
+            if (eventResponse.data) {
+              const eventStart = new Date(eventResponse.data.bookingStartDate);
+              upcomingEventsData.push({
+                id: eventResponse.data.id,
+                title: eventResponse.data.name,
+                date: eventStart.toLocaleDateString(),
+                time: eventStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                location: eventResponse.data.venue?.name || 'TBA',
+                status: 'registered',
+                ticketType: booking.ticketType || null
+              });
+            }
+          } catch (err) {
+            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to fetch event details', { eventId: booking.eventId });
+          }
+        }
+      }
+      setUpcomingEvents(upcomingEventsData);
+
+      // Fetch recent registrations (last 5 bookings, ordered by date)
+      const recentBookings = bookings
+        .filter((b: any) => b.status === 'CONFIRMED')
+        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 5);
+
+      const recentRegistrationsData: RecentRegistration[] = recentBookings.map((booking: any) => ({
+        id: booking.id,
+        event: booking.event?.name || 'Unknown Event',
+        date: new Date(booking.createdAt).toLocaleDateString(),
+        status: booking.status.toLowerCase(),
+        ticketType: booking.ticketType || null
+      }));
+      setRecentRegistrations(recentRegistrationsData);
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Dashboard data loaded successfully', {
+        stats,
+        upcomingEventsCount: upcomingEventsData.length,
+        recentRegistrationsCount: recentRegistrationsData.length
+      });
+    } catch (err) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load dashboard data', err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Loading and auth checks are handled by the HOC
 
@@ -169,9 +273,11 @@ function AttendeeDashboard() {
               <Calendar className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.registeredEvents}</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                {loading ? '...' : stats.registeredEvents}
+              </div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.upcomingEvents} upcoming
+                {loading ? '...' : `${stats.upcomingEvents} upcoming`}
               </p>
             </CardContent>
           </Card>
@@ -184,9 +290,11 @@ function AttendeeDashboard() {
               <Ticket className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.ticketsPurchased}</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                {loading ? '...' : stats.ticketsPurchased}
+              </div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.activeTickets} active
+                {loading ? '...' : `${stats.activeTickets} active`}
               </p>
             </CardContent>
           </Card>
@@ -194,14 +302,16 @@ function AttendeeDashboard() {
           <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Points Earned
+                Attended Events
               </CardTitle>
               <Award className="h-4 w-4 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.pointsEarned}</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                {loading ? '...' : stats.attendedEvents}
+              </div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.pointsThisMonth} this month
+                {loading ? '...' : `${stats.usedTickets} tickets used`}
               </p>
             </CardContent>
           </Card>
@@ -214,9 +324,11 @@ function AttendeeDashboard() {
               <Clock className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.upcomingThisWeek}</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                {loading ? '...' : stats.upcomingThisWeek}
+              </div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.nextWeekEvents} next week
+                {loading ? '...' : `${stats.nextWeekEvents} next week`}
               </p>
             </CardContent>
           </Card>
@@ -285,41 +397,55 @@ function AttendeeDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockUpcomingEvents.map((event) => (
-                  <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
-                      <div className="flex items-center space-x-4 mt-1">
-                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          {event.date} at {event.time}
-                        </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          {event.location}
-                        </span>
+              {loading ? (
+                <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                  Loading upcoming events...
+                </div>
+              ) : upcomingEvents.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                  No upcoming events
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {upcomingEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
+                        <div className="flex items-center space-x-4 mt-1">
+                          <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {event.date} at {event.time}
+                          </span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            {event.location}
+                          </span>
+                        </div>
+                        {event.ticketType && (
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {event.ticketType}
+                          </span>
+                        )}
                       </div>
-                      {event.ticketType && (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {event.ticketType}
-                        </span>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        <Badge
+                          variant={event.status === 'registered' ? 'default' : 'secondary'}
+                          className={event.status === 'registered' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
+                        >
+                          {event.status}
+                        </Badge>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge
-                        variant={event.status === 'registered' ? 'default' : 'secondary'}
-                        className={event.status === 'registered' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
-                      >
-                        {event.status}
-                      </Badge>
-                      <Button size="sm" variant="outline">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -335,34 +461,43 @@ function AttendeeDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockRecentRegistrations.map((registration) => (
-                <div key={registration.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-slate-900 dark:text-white">{registration.event}</h4>
-                    <div className="flex items-center space-x-4 mt-1">
-                      <span className="text-sm text-slate-600 dark:text-slate-400">
-                        {registration.ticketType}
-                      </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        Registered on {registration.date}
-                      </span>
+            {loading ? (
+              <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                Loading recent registrations...
+              </div>
+            ) : recentRegistrations.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                No recent registrations
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {recentRegistrations.map((registration) => (
+                  <div key={registration.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-slate-900 dark:text-white">{registration.event}</h4>
+                      <div className="flex items-center space-x-4 mt-1">
+                        {registration.ticketType && (
+                          <span className="text-sm text-slate-600 dark:text-slate-400">
+                            {registration.ticketType}
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Registered on {registration.date}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge
+                        variant="default"
+                        className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                      >
+                        {registration.status}
+                      </Badge>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge
-                      variant="default"
-                      className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    >
-                      {registration.status}
-                    </Badge>
-                    <Button size="sm" variant="outline">
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>
