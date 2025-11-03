@@ -546,8 +546,28 @@ function SpeakerEventManagementPage() {
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         </div>
                     )}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {events.map((event) => {
+                    <div className="space-y-8">
+                        {/* Available Events */}
+                        {events.filter(event => {
+                            const now = new Date();
+                            const eventEndDate = new Date(event.bookingEndDate);
+                            return now <= eventEndDate;
+                        }).length > 0 && (
+                            <div>
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                                    <Calendar className="h-5 w-5 text-blue-600" />
+                                    Available Events ({events.filter(event => {
+                                        const now = new Date();
+                                        const eventEndDate = new Date(event.bookingEndDate);
+                                        return now <= eventEndDate;
+                                    }).length})
+                                </h2>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {events.filter(event => {
+                                        const now = new Date();
+                                        const eventEndDate = new Date(event.bookingEndDate);
+                                        return now <= eventEndDate;
+                                    }).map((event) => {
                         const invitation = eventInvitationMap.get(event.id);
                         const isAccepted = invitation?.status === 'ACCEPTED';
                         const now = new Date();
@@ -670,7 +690,122 @@ function SpeakerEventManagementPage() {
                             </CardContent>
                         </Card>
                         );
-                    })}
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Past Events */}
+                        {events.filter(event => {
+                            const now = new Date();
+                            const eventEndDate = new Date(event.bookingEndDate);
+                            return now > eventEndDate;
+                        }).length > 0 && (
+                            <div>
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                                    <AlertCircle className="h-5 w-5 text-gray-500" />
+                                    Past Events ({events.filter(event => {
+                                        const now = new Date();
+                                        const eventEndDate = new Date(event.bookingEndDate);
+                                        return now > eventEndDate;
+                                    }).length})
+                                </h2>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {events.filter(event => {
+                                        const now = new Date();
+                                        const eventEndDate = new Date(event.bookingEndDate);
+                                        return now > eventEndDate;
+                                    }).map((event) => {
+                                        const invitation = eventInvitationMap.get(event.id);
+                                        const isAccepted = invitation?.status === 'ACCEPTED';
+                                        const now = new Date();
+                                        const eventEndDate = new Date(event.bookingEndDate);
+                                        const isEventEnded = now > eventEndDate;
+                                        
+                                        return (
+                                        <Card key={event.id}
+                                              className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow opacity-75">
+                                            <CardHeader>
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            {isAccepted && <CheckCircle className="h-5 w-5 text-green-500" />}
+                                                            <CardTitle
+                                                                className="text-lg font-semibold text-slate-900 dark:text-white">
+                                                                {event.name}
+                                                            </CardTitle>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2 mb-2">
+                                                            <Badge className={statusColors[event.status]}>
+                                                                {event.status.replace('_', ' ')}
+                                                            </Badge>
+                                                            {invitation && (
+                                                                <Badge className={`${invitation.status === 'PENDING' ? 'bg-yellow-500' : invitation.status === 'ACCEPTED' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+                                                                    {invitation.status}
+                                                                </Badge>
+                                                            )}
+                                                            <Badge className="bg-gray-500 text-white dark:bg-gray-600 dark:text-gray-100">
+                                                                ENDED
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </CardHeader>
+
+                                            <CardContent>
+                                                <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2">
+                                                    {event.description}
+                                                </p>
+
+                                                {/* Event Details */}
+                                                <div className="space-y-3 mb-4">
+                                                    <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                                                        <MapPin className="h-4 w-4 mr-2"/>
+                                                        <span>{event.venue.name}</span>
+                                                    </div>
+
+                                                    <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                                                        <Clock className="h-4 w-4 mr-2"/>
+                                                        <span>
+                                          {new Date(event.bookingStartDate).toLocaleDateString()} - {new Date(event.bookingEndDate).toLocaleDateString()}
+                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                                                        <Users className="h-4 w-4 mr-2"/>
+                                                        <span>
+                                          {eventRegistrationCounts.get(event.id) ?? 0}/{event.venue.capacity} registered
+                                          ({getRegistrationPercentage(eventRegistrationCounts.get(event.id) ?? 0, event.venue.capacity)}%)
+                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Progress Bar */}
+                                                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-4">
+                                                    <div
+                                                        className="bg-blue-600 h-2 rounded-full"
+                                                        style={{width: `${getRegistrationPercentage(eventRegistrationCounts.get(event.id) ?? 0, event.venue.capacity)}%`}}
+                                                    ></div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div className="flex flex-wrap gap-2">
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant="outline"
+                                                        onClick={() => router.push(`/dashboard/speaker/events/${event.id}`)}
+                                                    >
+                                                        <Eye className="h-4 w-4 mr-1"/>
+                                                        View Details
+                                                    </Button>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                     {events.length === 0 && !loading && (
                         <div className="col-span-full">
@@ -702,8 +837,34 @@ function SpeakerEventManagementPage() {
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         </div>
                     )}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {invitations.map((invitation) => {
+                    <div className="space-y-8">
+                        {/* Available Invitations */}
+                        {invitations.filter(invitation => {
+                            const event = invitedEvents.get(invitation.eventId);
+                            if (!event) return false;
+                            const now = new Date();
+                            const eventEndDate = new Date(event.bookingEndDate);
+                            return now <= eventEndDate;
+                        }).length > 0 && (
+                            <div>
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                                    <Calendar className="h-5 w-5 text-blue-600" />
+                                    Available Events ({invitations.filter(invitation => {
+                                        const event = invitedEvents.get(invitation.eventId);
+                                        if (!event) return false;
+                                        const now = new Date();
+                                        const eventEndDate = new Date(event.bookingEndDate);
+                                        return now <= eventEndDate;
+                                    }).length})
+                                </h2>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {invitations.filter(invitation => {
+                                        const event = invitedEvents.get(invitation.eventId);
+                                        if (!event) return false;
+                                        const now = new Date();
+                                        const eventEndDate = new Date(event.bookingEndDate);
+                                        return now <= eventEndDate;
+                                    }).map((invitation) => {
                         const event = invitedEvents.get(invitation.eventId);
                         if (!event) return null;
 
@@ -832,7 +993,10 @@ function SpeakerEventManagementPage() {
                                 </CardContent>
                             </Card>
                         );
-                    })}
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                     {invitations.length === 0 && !loading && (
                         <div className="col-span-full">
