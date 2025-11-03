@@ -8,27 +8,20 @@ import {Input} from "@/components/ui/input";
 import {
     LogOut,
     Calendar,
-    Plus,
     Search,
-    Filter,
     Eye,
-    Edit,
-    Trash2,
     Users,
     Clock,
     MapPin,
     ArrowLeft,
-    MoreHorizontal,
     Play,
-    Pause,
-    Archive,
     AlertCircle,
     Mail,
     CheckCircle,
     XCircle
 } from "lucide-react";
 import {useRouter} from "next/navigation";
-import {useEffect, useState} from "react";
+import {useEffect, useState, useRef, useCallback} from "react";
 import {useLogger} from "@/lib/logger/LoggerProvider";
 import { EventJoinInterface } from '@/components/attendance/EventJoinInterface';
 
@@ -36,6 +29,7 @@ import {eventAPI} from "@/lib/api/event.api";
 import {EventResponse, EventStatus, EventFilters} from "@/lib/api/types/event.types";
 import {withSpeakerAuth} from "@/components/hoc/withAuth";
 import {speakerApiClient, SpeakerInvitation} from "@/lib/api/speaker.api";
+import {speakerBookingAPI} from "@/lib/api/booking.api";
 
 const statusColors = {
   [EventStatus.DRAFT]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -53,73 +47,169 @@ function SpeakerEventManagementPage() {
     const router = useRouter();
     const logger = useLogger();
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedTimeframe, setSelectedTimeframe] = useState('ALL');
+    const [selectedInvitationStatus, setSelectedInvitationStatus] = useState('ALL');
     const [activeTab, setActiveTab] = useState<'my-events' | 'invited-events'>('my-events');
 
     // API state management
     const [events, setEvents] = useState<EventResponse[]>([]);
     const [invitations, setInvitations] = useState<SpeakerInvitation[]>([]);
     const [invitedEvents, setInvitedEvents] = useState<Map<string, EventResponse>>(new Map());
-    const [loading, setLoading] = useState(true);
+    const [eventRegistrationCounts, setEventRegistrationCounts] = useState<Map<string, number>>(new Map());
+    // Map eventId to invitation status for "All Events" tab
+    const [eventInvitationMap, setEventInvitationMap] = useState<Map<string, SpeakerInvitation>>(new Map());
+    const [loading, setLoading] = useState(false);
+    const [initialLoad, setInitialLoad] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [actionLoading, setActionLoading] = useState<string | null>(null);
-    const [pagination, setPagination] = useState({
+    const [eventsPagination, setEventsPagination] = useState({
         page: 1,
         limit: 20,
         total: 0,
         totalPages: 0
     });
+    const [invitationsPagination, setInvitationsPagination] = useState({
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false
+    });
+
+    // Ref to maintain focus on search input
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const isSearchingRef = useRef(false);
+
+    // Debounce search term
+    useEffect(() => {
+        if (searchTerm) {
+            isSearchingRef.current = true;
+        }
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            if (activeTab === 'my-events') {
+                setEventsPagination(prev => ({ ...prev, page: 1 }));
+            } else {
+                setInvitationsPagination(prev => ({ ...prev, page: 1 }));
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchTerm, activeTab]);
 
     // Load events from API - Show all published events in "All Events" tab
-    const loadEvents = async () => {
+    const loadEvents = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
 
             const filters: EventFilters = {
-                page: pagination.page,
-                limit: pagination.limit,
-                // Note: Published events API only returns PUBLISHED events, so status filter is not needed
+                search: debouncedSearch || undefined,
+                timeframe: selectedTimeframe !== 'ALL' ? selectedTimeframe : undefined,
+                page: eventsPagination.page,
+                limit: eventsPagination.limit,
             };
 
             logger.debug(LOGGER_COMPONENT_NAME, 'Loading all published events with filters', filters);
 
-            // Use getPublishedEvents to show ALL published events, not just speaker's own events
             const response = await eventAPI.getPublishedEvents(filters);
 
             if (response.success) {
                 setEvents(response.data.events);
-                setPagination(prev => ({
+                setEventsPagination(prev => ({
                     ...prev,
                     total: response.data.total,
                     totalPages: response.data.totalPages
                 }));
                 logger.debug(LOGGER_COMPONENT_NAME, 'All events loaded successfully', { count: response.data.events.length });
+
+                // Fetch registration counts for all events
+                const countsMap = new Map<string, number>();
+                await Promise.all(
+                    response.data.events.map(async (event) => {
+                        try {
+                            const registrationData = await speakerBookingAPI.getEventRegistrationCount(event.id);
+                            countsMap.set(event.id, registrationData.totalUsers);
+                        } catch (err) {
+                            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load registration count for event', { 
+                                eventId: event.id,
+                                error: err instanceof Error ? err.message : String(err)
+                            });
+                            countsMap.set(event.id, 0); // Default to 0 if fetch fails
+                        }
+                    })
+                );
+                setEventRegistrationCounts(countsMap);
+                
+                // Load speaker's invitations to check which events they've accepted
+                if (user?.id) {
+                    try {
+                        const speakerProfile = await speakerApiClient.getSpeakerProfile(user.id);
+                        const invitationResult = await speakerApiClient.getSpeakerInvitations(speakerProfile.id, {
+                            page: 1,
+                            limit: 1000 // Get all invitations to map them
+                        });
+                        
+                        const invitationMap = new Map<string, SpeakerInvitation>();
+                        invitationResult.invitations.forEach(invitation => {
+                            invitationMap.set(invitation.eventId, invitation);
+                        });
+                        setEventInvitationMap(invitationMap);
+                    } catch (err) {
+                        logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load invitations for event mapping', err instanceof Error ? err : new Error(String(err)));
+                    }
+                }
             } else {
                 throw new Error('Failed to load events');
+            }
+            
+            // Mark initial load as complete
+            if (initialLoad) {
+                setInitialLoad(false);
+            }
+            
+            // Restore focus to search input after loading if user was searching
+            if (isSearchingRef.current && searchInputRef.current) {
+                requestAnimationFrame(() => {
+                    if (searchInputRef.current) {
+                        searchInputRef.current.focus();
+                    }
+                });
             }
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to load events';
             setError(errorMessage);
             logger.error(LOGGER_COMPONENT_NAME, 'Failed to load events', err instanceof Error ? err : new Error(String(err)));
+            if (initialLoad) {
+                setInitialLoad(false);
+            }
         } finally {
             setLoading(false);
         }
-    };
+    }, [debouncedSearch, selectedTimeframe, eventsPagination.page, eventsPagination.limit, initialLoad, user?.id]);
 
     // Load invitations and their events
-    const loadInvitations = async () => {
+    const loadInvitations = useCallback(async () => {
         if (!user?.id) return;
 
         try {
             setLoading(true);
+            setError(null);
             const speakerProfile = await speakerApiClient.getSpeakerProfile(user.id);
-            const allInvitations = await speakerApiClient.getSpeakerInvitations(speakerProfile.id);
-            setInvitations(allInvitations);
+            const result = await speakerApiClient.getSpeakerInvitations(speakerProfile.id, {
+                search: debouncedSearch || undefined,
+                status: selectedInvitationStatus !== 'ALL' ? selectedInvitationStatus : undefined,
+                page: invitationsPagination.page,
+                limit: invitationsPagination.limit
+            });
+            
+            setInvitations(result.invitations);
+            setInvitationsPagination(result.pagination);
 
             // Load event details for each invitation
             const eventMap = new Map<string, EventResponse>();
-            for (const invitation of allInvitations) {
+            for (const invitation of result.invitations) {
                 try {
                     const eventResponse = await eventAPI.getEventById(invitation.eventId);
                     eventMap.set(invitation.eventId, eventResponse.data);
@@ -131,12 +221,29 @@ function SpeakerEventManagementPage() {
                 }
             }
             setInvitedEvents(eventMap);
+            
+            // Mark initial load as complete
+            if (initialLoad) {
+                setInitialLoad(false);
+            }
+            
+            // Restore focus to search input after loading if user was searching
+            if (isSearchingRef.current && searchInputRef.current) {
+                requestAnimationFrame(() => {
+                    if (searchInputRef.current) {
+                        searchInputRef.current.focus();
+                    }
+                });
+            }
         } catch (err) {
             logger.error(LOGGER_COMPONENT_NAME, 'Failed to load invitations', err instanceof Error ? err : new Error(String(err)));
+            if (initialLoad) {
+                setInitialLoad(false);
+            }
         } finally {
             setLoading(false);
         }
-    };
+    }, [user?.id, debouncedSearch, selectedInvitationStatus, invitationsPagination.page, invitationsPagination.limit, initialLoad]);
 
     useEffect(() => {
         if (activeTab === 'my-events') {
@@ -144,56 +251,20 @@ function SpeakerEventManagementPage() {
         } else {
             loadInvitations();
         }
-    }, [pagination.page, activeTab]);
+    }, [activeTab, loadEvents, loadInvitations]);
 
-    // Filter events based on search and timeframe (status filtering is done server-side)
-    const filteredEvents = events.filter(event => {
-        const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            event.venue.name.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const now = new Date();
-        const eventStart = new Date(event.bookingStartDate);
-        const matchesTimeframe = selectedTimeframe === 'ALL' ||
-            (selectedTimeframe === 'UPCOMING' && eventStart > now) ||
-            (selectedTimeframe === 'ONGOING' && eventStart <= now && new Date(event.bookingEndDate) >= now) ||
-            (selectedTimeframe === 'PAST' && new Date(event.bookingEndDate) < now);
-
-        return matchesSearch && matchesTimeframe;
-    });
-
-    const handleEventAction = async (eventId: string, action: string) => {
-        try {
-            setActionLoading(eventId);
-            logger.debug(LOGGER_COMPONENT_NAME, `Event ${eventId} action: ${action}`);
-
-            let response;
-            switch (action) {
-                case 'submit':
-                    response = await eventAPI.submitEvent(eventId);
-                    break;
-                case 'delete':
-                    response = await eventAPI.deleteEvent(eventId);
-                    break;
-                default:
-                    throw new Error(`Unknown action: ${action}`);
-            }
-
-            if (response.success) {
-                logger.info(LOGGER_COMPONENT_NAME, `Event ${eventId} ${action} successful`);
-                // Reload events to reflect changes
-                await loadEvents();
-            } else {
-                throw new Error(`Failed to ${action} event`);
-            }
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : `Failed to ${action} event`;
-            setError(errorMessage);
-            logger.error(LOGGER_COMPONENT_NAME, `Failed to ${action} event ${eventId}`, err instanceof Error ? err : new Error(String(err)));
-        } finally {
-            setActionLoading(null);
+    // Update when filters change
+    useEffect(() => {
+        if (activeTab === 'my-events') {
+            loadEvents();
         }
-    };
+    }, [debouncedSearch, selectedTimeframe, eventsPagination.page, loadEvents]);
+
+    useEffect(() => {
+        if (activeTab === 'invited-events') {
+            loadInvitations();
+        }
+    }, [debouncedSearch, selectedInvitationStatus, invitationsPagination.page, loadInvitations]);
 
     const getRegistrationPercentage = (registered: number, capacity: number) => {
         if (capacity <= 0) {
@@ -202,16 +273,52 @@ function SpeakerEventManagementPage() {
         return Math.round((registered / capacity) * 100);
     };
 
-    // Calculate stats from real data (all events shown are published)
-    const stats = {
-        total: events.length,
-        published: events.length, // All events in this tab are published
-        draft: 0, // Draft events are not shown in "All Events" tab
-        pending: 0, // Pending events are not shown in "All Events" tab
-        rejected: 0 // Rejected events are not shown in "All Events" tab
-    };
+    // Calculate stats from invitations data
+    const [invitationStats, setInvitationStats] = useState({
+        total: 0,
+        pending: 0,
+        accepted: 0,
+        upcoming: 0
+    });
 
-    if (loading) {
+    // Load invitation stats
+    useEffect(() => {
+        const loadInvitationStats = async () => {
+            if (!user?.id) return;
+            
+            try {
+                const speakerProfile = await speakerApiClient.getSpeakerProfile(user.id);
+                const stats = await speakerApiClient.getInvitationStats(speakerProfile.id);
+                
+                // Count upcoming accepted events
+                let upcomingCount = 0;
+                const now = new Date();
+                for (const invitation of invitations) {
+                    if (invitation.status === 'ACCEPTED') {
+                        const event = invitedEvents.get(invitation.eventId);
+                        if (event && new Date(event.bookingStartDate) > now) {
+                            upcomingCount++;
+                        }
+                    }
+                }
+                
+                setInvitationStats({
+                    total: stats.total,
+                    pending: stats.pending,
+                    accepted: stats.accepted,
+                    upcoming: upcomingCount
+                });
+            } catch (err) {
+                logger.error(LOGGER_COMPONENT_NAME, 'Failed to load invitation stats', err instanceof Error ? err : new Error(String(err)));
+            }
+        };
+
+        if (user?.id) {
+            loadInvitationStats();
+        }
+    }, [user?.id, invitations, invitedEvents]);
+
+    if (initialLoad && loading) {
         return (
             <div
                 className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -260,7 +367,7 @@ function SpeakerEventManagementPage() {
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => router.push('/dashboard/admin')}
+                                onClick={() => router.push('/dashboard/speaker')}
                                 className="text-slate-600 hover:text-slate-900"
                             >
                                 <ArrowLeft className="h-4 w-4 mr-2"/>
@@ -272,14 +379,6 @@ function SpeakerEventManagementPage() {
                         </div>
 
                         <div className="flex items-center space-x-4">
-                            <Button
-                                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                                onClick={() => router.push('/dashboard/speaker/events/create')}
-                            >
-                                <Plus className="h-4 w-4 mr-2"/>
-                                Create Event
-                            </Button>
-
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -302,7 +401,7 @@ function SpeakerEventManagementPage() {
                         Event Management
                     </h2>
                     <p className="text-slate-600 dark:text-slate-400">
-                        Browse all published events, manage your own events, and join invited events.
+                        Browse all published events and manage your event invitations.
                     </p>
                 </div>
 
@@ -340,10 +439,10 @@ function SpeakerEventManagementPage() {
                     <Card className="border-slate-200 dark:border-slate-700">
                         <CardContent className="p-6">
                             <div className="flex items-center">
-                                <Calendar className="h-8 w-8 text-blue-600"/>
+                                <Mail className="h-8 w-8 text-blue-600"/>
                                 <div className="ml-4">
-                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Events</p>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.total}</p>
+                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Invitations</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{invitationStats.total}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -352,34 +451,34 @@ function SpeakerEventManagementPage() {
                     <Card className="border-slate-200 dark:border-slate-700">
                         <CardContent className="p-6">
                             <div className="flex items-center">
-                                <Play className="h-8 w-8 text-green-600"/>
-                                <div className="ml-4">
-                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Published</p>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.published}</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-slate-200 dark:border-slate-700">
-                        <CardContent className="p-6">
-                            <div className="flex items-center">
-                                <Pause className="h-8 w-8 text-yellow-600"/>
-                                <div className="ml-4">
-                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Draft</p>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.draft}</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-slate-200 dark:border-slate-700">
-                        <CardContent className="p-6">
-                            <div className="flex items-center">
-                                <AlertCircle className="h-8 w-8 text-orange-600"/>
+                                <AlertCircle className="h-8 w-8 text-yellow-600"/>
                                 <div className="ml-4">
                                     <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Pending</p>
-                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.pending}</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{invitationStats.pending}</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-slate-200 dark:border-slate-700">
+                        <CardContent className="p-6">
+                            <div className="flex items-center">
+                                <CheckCircle className="h-8 w-8 text-green-600"/>
+                                <div className="ml-4">
+                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Accepted</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{invitationStats.accepted}</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-slate-200 dark:border-slate-700">
+                        <CardContent className="p-6">
+                            <div className="flex items-center">
+                                <Calendar className="h-8 w-8 text-purple-600"/>
+                                <div className="ml-4">
+                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Upcoming</p>
+                                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{invitationStats.upcoming}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -398,55 +497,92 @@ function SpeakerEventManagementPage() {
                             <div className="relative">
                                 <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400"/>
                                 <Input
-                                    placeholder="Search events..."
+                                    ref={searchInputRef}
+                                    placeholder={activeTab === 'my-events' ? "Search events..." : "Search invitations..."}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-10"
                                 />
                             </div>
 
-                            <select
-                                value={selectedTimeframe}
-                                onChange={(e) => setSelectedTimeframe(e.target.value)}
-                                className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                            >
-                                <option value="ALL">All Time</option>
-                                <option value="UPCOMING">Upcoming</option>
-                                <option value="ONGOING">Ongoing</option>
-                                <option value="PAST">Past</option>
-                            </select>
+                            {activeTab === 'my-events' ? (
+                                <select
+                                    value={selectedTimeframe}
+                                    onChange={(e) => {
+                                        setSelectedTimeframe(e.target.value);
+                                        setEventsPagination(prev => ({ ...prev, page: 1 }));
+                                    }}
+                                    className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                >
+                                    <option value="ALL">All Time</option>
+                                    <option value="UPCOMING">Upcoming</option>
+                                    <option value="ONGOING">Ongoing</option>
+                                    <option value="PAST">Past</option>
+                                </select>
+                            ) : (
+                                <select
+                                    value={selectedInvitationStatus}
+                                    onChange={(e) => {
+                                        setSelectedInvitationStatus(e.target.value);
+                                        setInvitationsPagination(prev => ({ ...prev, page: 1 }));
+                                    }}
+                                    className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                >
+                                    <option value="ALL">All Status</option>
+                                    <option value="PENDING">Pending</option>
+                                    <option value="ACCEPTED">Accepted</option>
+                                    <option value="DECLINED">Declined</option>
+                                </select>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
 
                 {/* Events Grid - My Events */}
                 {activeTab === 'my-events' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredEvents.map((event) => (
+                <div className="relative">
+                    {loading && !initialLoad && (
+                        <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 z-10 flex items-center justify-center rounded-lg">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        </div>
+                    )}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {events.map((event) => {
+                        const invitation = eventInvitationMap.get(event.id);
+                        const isAccepted = invitation?.status === 'ACCEPTED';
+                        const now = new Date();
+                        const eventEndDate = new Date(event.bookingEndDate);
+                        const isEventEnded = now > eventEndDate;
+                        
+                        return (
                         <Card key={event.id}
                               className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
                             <CardHeader>
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                        <CardTitle
-                                            className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                                            {event.name}
-                                        </CardTitle>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="mb-2 p-0 h-auto text-blue-600 hover:text-blue-800"
-                                            onClick={() => router.push(`/dashboard/speaker/events/${event.id}`)}
-                                        >
-                                            View Details →
-                                        </Button>
-                                        <Badge className={statusColors[event.status]}>
-                                            {event.status.replace('_', ' ')}
-                                        </Badge>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            {isAccepted && <CheckCircle className="h-5 w-5 text-green-500" />}
+                                            <CardTitle
+                                                className="text-lg font-semibold text-slate-900 dark:text-white">
+                                                {event.name}
+                                            </CardTitle>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            <Badge className={statusColors[event.status]}>
+                                                {event.status.replace('_', ' ')}
+                                            </Badge>
+                                            {invitation && (
+                                                <Badge className={`${invitation.status === 'PENDING' ? 'bg-yellow-500' : invitation.status === 'ACCEPTED' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+                                                    {invitation.status}
+                                                </Badge>
+                                            )}
+                                            {isEventEnded && (
+                                                <Badge className="bg-gray-500 text-white dark:bg-gray-600 dark:text-gray-100">
+                                                    ENDED
+                                                </Badge>
+                                            )}
+                                        </div>
                                     </div>
-                                    <Button size="sm" variant="ghost">
-                                        <MoreHorizontal className="h-4 w-4"/>
-                                    </Button>
                                 </div>
                             </CardHeader>
 
@@ -472,8 +608,8 @@ function SpeakerEventManagementPage() {
                                     <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
                                         <Users className="h-4 w-4 mr-2"/>
                                         <span>
-                      {15}/{event.venue.capacity} registered
-                      ({getRegistrationPercentage(15, event.venue.capacity)}%)
+                      {eventRegistrationCounts.get(event.id) ?? 0}/{event.venue.capacity} registered
+                      ({getRegistrationPercentage(eventRegistrationCounts.get(event.id) ?? 0, event.venue.capacity)}%)
                     </span>
                                     </div>
                                 </div>
@@ -482,7 +618,7 @@ function SpeakerEventManagementPage() {
                                 <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-4">
                                     <div
                                         className="bg-blue-600 h-2 rounded-full"
-                                        style={{width: `${getRegistrationPercentage(15, event.venue.capacity)}%`}}
+                                        style={{width: `${getRegistrationPercentage(eventRegistrationCounts.get(event.id) ?? 0, event.venue.capacity)}%`}}
                                     ></div>
                                 </div>
 
@@ -497,51 +633,46 @@ function SpeakerEventManagementPage() {
                                         View Details
                                     </Button>
 
-                                    {/* Only show edit/delete/submit actions if speaker is the event creator */}
-                                    {event.speakerId === user?.id && (
-                                        <>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => router.push(`/dashboard/speaker/events/edit/${event.id}`)}
-                                                disabled={event.status !== EventStatus.DRAFT && event.status !== EventStatus.REJECTED}
-                                            >
-                                                <Edit className="h-4 w-4 mr-1"/>
-                                                Edit
-                                            </Button>
-
-                                            {(event.status === EventStatus.DRAFT || event.status === EventStatus.REJECTED) && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="default"
-                                                    onClick={() => handleEventAction(event.id, 'submit')}
-                                                    disabled={actionLoading === event.id}
-                                                >
-                                                    <Play className="h-4 w-4 mr-1"/>
-                                                    Submit for Approval
-                                                </Button>
-                                            )}
-
-                                            {event.status === EventStatus.DRAFT && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="destructive"
-                                                    onClick={() => handleEventAction(event.id, 'delete')}
-                                                    disabled={actionLoading === event.id}
-                                                >
-                                                    <Trash2 className="h-4 w-4 mr-1"/>
-                                                    Delete
-                                                </Button>
-                                            )}
-                                        </>
+                                    {isAccepted && event.status === EventStatus.PUBLISHED && (
+                                        <Button
+                                            size="sm"
+                                            variant="default"
+                                            onClick={() => router.push(`/dashboard/speaker/events/${event.id}/live`)}
+                                            disabled={isEventEnded}
+                                            className={isEventEnded 
+                                                ? "bg-gray-400 cursor-not-allowed" 
+                                                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                                            }
+                                        >
+                                            <Play className="h-4 w-4 mr-1"/>
+                                            {isEventEnded ? 'Event Ended' : 'Join Event'}
+                                        </Button>
                                     )}
                                 </div>
 
+                                {isAccepted && event.status === EventStatus.PUBLISHED && !isEventEnded && (
+                                    <div className="mt-4 pt-4 border-t">
+                                        <EventJoinInterface
+                                            eventId={event.id}
+                                            eventTitle={event.name}
+                                            eventStartTime={event.bookingStartDate}
+                                            eventEndTime={event.bookingEndDate}
+                                            eventVenue={event.venue.name}
+                                            eventCategory={event.category}
+                                            eventStatus={event.status}
+                                            eventDescription={event.description}
+                                            userRole={user?.role || 'SPEAKER'}
+                                            speakerId={user?.id}
+                                        />
+                                    </div>
+                                )}
+
                             </CardContent>
                         </Card>
-                    ))}
+                        );
+                    })}
 
-                    {filteredEvents.length === 0 && !loading && (
+                    {events.length === 0 && !loading && (
                         <div className="col-span-full">
                             <Card className="border-slate-200 dark:border-slate-700">
                                 <CardContent className="text-center py-12">
@@ -552,23 +683,26 @@ function SpeakerEventManagementPage() {
                                     <p className="text-slate-600 dark:text-slate-400 mb-4">
                                         No events match your search criteria.
                                     </p>
-                                    <Button
-                                        onClick={() => router.push('/dashboard/speaker/events/create')}
-                                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                                    >
-                                        <Plus className="h-4 w-4 mr-2"/>
-                                        Create Your First Event
-                                    </Button>
+                                    <p className="text-slate-600 dark:text-slate-400">
+                                        Check the "Invited Events" tab to see your invitations.
+                                    </p>
                                 </CardContent>
                             </Card>
                         </div>
                     )}
+                    </div>
                 </div>
                 )}
 
                 {/* Invited Events Grid */}
                 {activeTab === 'invited-events' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="relative">
+                    {loading && !initialLoad && (
+                        <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 z-10 flex items-center justify-center rounded-lg">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        </div>
+                    )}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                     {invitations.map((invitation) => {
                         const event = invitedEvents.get(invitation.eventId);
                         if (!event) return null;
@@ -597,12 +731,24 @@ function SpeakerEventManagementPage() {
                                                     {event.name}
                                                 </CardTitle>
                                             </div>
-                                            <Badge className={statusColors[event.status]}>
-                                                {event.status.replace('_', ' ')}
-                                            </Badge>
-                                            <Badge className={`ml-2 ${invitation.status === 'PENDING' ? 'bg-yellow-500' : invitation.status === 'ACCEPTED' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
-                                                {invitation.status}
-                                            </Badge>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Badge className={statusColors[event.status]}>
+                                                    {event.status.replace('_', ' ')}
+                                                </Badge>
+                                                <Badge className={`${invitation.status === 'PENDING' ? 'bg-yellow-500' : invitation.status === 'ACCEPTED' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+                                                    {invitation.status}
+                                                </Badge>
+                                                {(() => {
+                                                    const now = new Date();
+                                                    const eventEndDate = new Date(event.bookingEndDate);
+                                                    const isEventEnded = now > eventEndDate;
+                                                    return isEventEnded ? (
+                                                        <Badge className="bg-gray-500 text-white dark:bg-gray-600 dark:text-gray-100">
+                                                            ENDED
+                                                        </Badge>
+                                                    ) : null;
+                                                })()}
+                                            </div>
                                         </div>
                                     </div>
                                 </CardHeader>
@@ -634,35 +780,55 @@ function SpeakerEventManagementPage() {
                                             View Details
                                         </Button>
 
-                                        {invitation.status === 'ACCEPTED' && event.status === EventStatus.PUBLISHED && (
-                                            <Button
-                                                size="sm"
-                                                variant="default"
-                                                onClick={() => router.push(`/dashboard/speaker/events/${event.id}/live`)}
-                                                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                                            >
-                                                <Play className="h-4 w-4 mr-1"/>
-                                                Join Event
-                                            </Button>
-                                        )}
+                                        {invitation.status === 'ACCEPTED' && event.status === EventStatus.PUBLISHED && (() => {
+                                            const now = new Date();
+                                            const eventEndDate = new Date(event.bookingEndDate);
+                                            const isEventEnded = now > eventEndDate;
+                                            
+                                            return (
+                                                <Button
+                                                    size="sm"
+                                                    variant="default"
+                                                    onClick={() => router.push(`/dashboard/speaker/events/${event.id}/live`)}
+                                                    disabled={isEventEnded}
+                                                    className={isEventEnded 
+                                                        ? "bg-gray-400 cursor-not-allowed" 
+                                                        : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                                                    }
+                                                >
+                                                    <Play className="h-4 w-4 mr-1"/>
+                                                    {isEventEnded ? 'Event Ended' : 'Join Event'}
+                                                </Button>
+                                            );
+                                        })()}
                                     </div>
 
-                                    {invitation.status === 'ACCEPTED' && event.status === EventStatus.PUBLISHED && (
-                                        <div className="mt-4 pt-4 border-t">
-                                            <EventJoinInterface
-                                                eventId={event.id}
-                                                eventTitle={event.name}
-                                                eventStartTime={event.bookingStartDate}
-                                                eventEndTime={event.bookingEndDate}
-                                                eventVenue={event.venue.name}
-                                                eventCategory={event.category}
-                                                eventStatus={event.status}
-                                                eventDescription={event.description}
-                                                userRole={user?.role || 'SPEAKER'}
-                                                speakerId={user?.id}
-                                            />
-                                        </div>
-                                    )}
+                                    {invitation.status === 'ACCEPTED' && event.status === EventStatus.PUBLISHED && (() => {
+                                        const now = new Date();
+                                        const eventEndDate = new Date(event.bookingEndDate);
+                                        const isEventEnded = now > eventEndDate;
+                                        
+                                        if (!isEventEnded) {
+                                            return (
+                                                <div className="mt-4 pt-4 border-t">
+                                                    <EventJoinInterface
+                                                        eventId={event.id}
+                                                        eventTitle={event.name}
+                                                        eventStartTime={event.bookingStartDate}
+                                                        eventEndTime={event.bookingEndDate}
+                                                        eventVenue={event.venue.name}
+                                                        eventCategory={event.category}
+                                                        eventStatus={event.status}
+                                                        eventDescription={event.description}
+                                                        userRole={user?.role || 'SPEAKER'}
+                                                        speakerId={user?.id}
+                                                    />
+                                                </div>
+                                            );
+                                        }
+                                        
+                                        return null;
+                                    })()}
                                 </CardContent>
                             </Card>
                         );
@@ -683,11 +849,12 @@ function SpeakerEventManagementPage() {
                             </Card>
                         </div>
                     )}
+                    </div>
                 </div>
                 )}
 
                 {/* Pagination */}
-                {pagination.totalPages > 1 && (
+                {activeTab === 'my-events' && eventsPagination.total > 0 && (
                     <div className="mt-8 flex justify-center">
                         <Card className="border-slate-200 dark:border-slate-700">
                             <CardContent className="p-4">
@@ -695,21 +862,21 @@ function SpeakerEventManagementPage() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                                        disabled={pagination.page === 1 || loading}
+                                        onClick={() => setEventsPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                                        disabled={eventsPagination.page === 1 || loading || eventsPagination.totalPages <= 1}
                                     >
                                         Previous
                                     </Button>
 
                                     <span className="text-sm text-slate-600 dark:text-slate-400">
-                                        Page {pagination.page} of {pagination.totalPages}
+                                        Page {eventsPagination.page} of {Math.max(1, eventsPagination.totalPages)}
                                     </span>
 
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                                        disabled={pagination.page === pagination.totalPages || loading}
+                                        onClick={() => setEventsPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                                        disabled={eventsPagination.page >= eventsPagination.totalPages || loading || eventsPagination.totalPages <= 1}
                                     >
                                         Next
                                     </Button>
@@ -717,7 +884,45 @@ function SpeakerEventManagementPage() {
 
                                 <div className="mt-2 text-center">
                                     <span className="text-xs text-slate-500 dark:text-slate-500">
-                                        Showing {events.length} of {pagination.total} events
+                                        Showing {events.length} of {eventsPagination.total} events
+                                    </span>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
+                {activeTab === 'invited-events' && invitationsPagination.total > 0 && (
+                    <div className="mt-8 flex justify-center">
+                        <Card className="border-slate-200 dark:border-slate-700">
+                            <CardContent className="p-4">
+                                <div className="flex items-center space-x-4">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setInvitationsPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                                        disabled={invitationsPagination.page === 1 || loading || invitationsPagination.totalPages <= 1}
+                                    >
+                                        Previous
+                                    </Button>
+
+                                    <span className="text-sm text-slate-600 dark:text-slate-400">
+                                        Page {invitationsPagination.page} of {Math.max(1, invitationsPagination.totalPages)}
+                                    </span>
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setInvitationsPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                                        disabled={invitationsPagination.page >= invitationsPagination.totalPages || loading || invitationsPagination.totalPages <= 1}
+                                    >
+                                        Next
+                                    </Button>
+                                </div>
+
+                                <div className="mt-2 text-center">
+                                    <span className="text-xs text-slate-500 dark:text-slate-500">
+                                        Showing {invitations.length} of {invitationsPagination.total} invitations
                                     </span>
                                 </div>
                             </CardContent>
