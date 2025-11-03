@@ -390,4 +390,121 @@ export function registerRoutes(app: Express, authService: AuthService) {
             res.status(500).json({error: 'Failed to fetch user statistics'});
         }
     });
+
+    /**
+     * @route   GET /api/auth/admin/users
+     * @desc    Get all users list for admin dashboard with search, filters, and pagination.
+     * @access  Protected - Admin only
+     * @query   search: string (optional) - Search by name or email
+     * @query   role: string (optional) - Filter by role (ADMIN, USER, SPEAKER)
+     * @query   status: string (optional) - Filter by status (ACTIVE, INACTIVE)
+     * @query   page: number (optional) - Page number (default: 1)
+     * @query   limit: number (optional) - Items per page (default: 10, max: 100)
+     */
+    app.get('/admin/users', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+            
+            // If user not in context, fetch it
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+            
+            // Check if user is admin
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            // Extract query parameters
+            const search = req.query.search as string | undefined;
+            const role = req.query.role as string | undefined;
+            const status = req.query.status as string | undefined;
+            const page = Math.max(1, parseInt(req.query.page as string) || 1);
+            const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
+            const skip = (page - 1) * limit;
+
+            logger.info("/admin/users - Fetching users", { 
+                adminId: userId, 
+                search, 
+                role, 
+                status, 
+                page, 
+                limit 
+            });
+
+            const { prisma } = await import('../database');
+            
+            // Build where clause
+            const where: any = {};
+            
+            // Search filter (name or email)
+            if (search) {
+                where.OR = [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } }
+                ];
+            }
+            
+            // Role filter
+            if (role && role !== 'ALL') {
+                where.role = role;
+            }
+            
+            // Status filter
+            if (status && status !== 'ALL') {
+                where.isActive = status === 'ACTIVE';
+            }
+
+            // Get total count for pagination
+            const total = await prisma.user.count({ where });
+            
+            // Get paginated users
+            const users = await prisma.user.findMany({
+                where,
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true,
+                    isActive: true,
+                    emailVerified: true,
+                    createdAt: true,
+                    updatedAt: true
+                },
+                orderBy: {
+                    createdAt: 'desc'
+                },
+                skip,
+                take: limit
+            });
+
+            const totalPages = Math.ceil(total / limit);
+
+            res.json({
+                success: true,
+                data: users.map(u => ({
+                    id: u.id,
+                    name: u.name,
+                    email: u.email,
+                    role: u.role,
+                    isActive: u.isActive,
+                    emailVerified: u.emailVerified ? u.emailVerified.toISOString() : null,
+                    createdAt: u.createdAt.toISOString(),
+                    updatedAt: u.updatedAt.toISOString()
+                })),
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages,
+                    hasNextPage: page < totalPages,
+                    hasPreviousPage: page > 1
+                }
+            });
+        } catch (error: any) {
+            logger.error("/admin/users - Failed to fetch users", error);
+            res.status(500).json({error: 'Failed to fetch users'});
+        }
+    });
 }
