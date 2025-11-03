@@ -9,78 +9,17 @@ import {
   LogOut,
   Users,
   Calendar,
-  Settings,
   UserCheck,
-  AlertTriangle,
-  TrendingUp,
   BarChart3,
   Plus,
   Eye,
-  Edit,
-  Trash2,
   Ticket
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {useLogger} from "@/lib/logger/LoggerProvider";
 import {withAdminAuth} from "@/components/hoc/withAuth";
-
-// Mock data for development
-const mockStats = {
-  totalUsers: 156,
-  totalEvents: 8,
-  activeEvents: 3,
-  flaggedUsers: 2,
-  totalRegistrations: 342,
-  upcomingEvents: 3
-};
-
-const mockRecentEvents = [
-  {
-    id: '1',
-    title: 'Tech Conference 2024',
-    status: 'published',
-    registrations: 45,
-    capacity: 100,
-    startDate: '2024-02-15',
-    endDate: '2024-02-17'
-  },
-  {
-    id: '2',
-    title: 'Design Workshop',
-    status: 'draft',
-    registrations: 12,
-    capacity: 50,
-    startDate: '2024-02-20',
-    endDate: '2024-02-21'
-  },
-  {
-    id: '3',
-    title: 'AI Summit',
-    status: 'published',
-    registrations: 89,
-    capacity: 150,
-    startDate: '2024-03-01',
-    endDate: '2024-03-03'
-  }
-];
-
-const mockFlaggedUsers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    reason: 'Spam registrations',
-    flaggedAt: '2024-01-15'
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    reason: 'Inappropriate behavior',
-    flaggedAt: '2024-01-20'
-  }
-];
+import { adminApiClient, DashboardStats } from "@/lib/api/admin.api";
 
 const LOGGER_COMPONENT_NAME = 'AdminDashboard';
 
@@ -88,10 +27,30 @@ function AdminDashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const logger = useLogger();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Admin dashboard loaded', { userRole: user?.role });
+    loadDashboardStats();
   }, [user, logger]);
+
+  const loadDashboardStats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      logger.info(LOGGER_COMPONENT_NAME, 'Loading dashboard statistics');
+      const dashboardStats = await adminApiClient.getDashboardStats();
+      setStats(dashboardStats);
+      logger.info(LOGGER_COMPONENT_NAME, 'Dashboard statistics loaded successfully', dashboardStats);
+    } catch (err) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load dashboard statistics', err as Error);
+      setError('Failed to load dashboard statistics. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Loading and auth checks are handled by the HOC
 
@@ -163,10 +122,20 @@ function AdminDashboard() {
               <Users className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalUsers}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.flaggedUsers} flagged
-              </p>
+              {loading ? (
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">...</div>
+              ) : error ? (
+                <div className="text-sm text-red-600 dark:text-red-400">Error</div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stats?.totalUsers ?? 0}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Total registered
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -178,10 +147,20 @@ function AdminDashboard() {
               <Calendar className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalEvents}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.activeEvents} active
-              </p>
+              {loading ? (
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">...</div>
+              ) : error ? (
+                <div className="text-sm text-red-600 dark:text-red-400">Error</div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stats?.totalEvents ?? 0}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {stats?.activeEvents ?? 0} active
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -193,27 +172,23 @@ function AdminDashboard() {
               <UserCheck className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.totalRegistrations}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Across all events
-              </p>
+              {loading ? (
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">...</div>
+              ) : error ? (
+                <div className="text-sm text-red-600 dark:text-red-400">Error</div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stats?.totalRegistrations ?? 0}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Across all events
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Flagged Users
-              </CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.flaggedUsers}</div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Need review
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Quick Actions */}
@@ -248,29 +223,11 @@ function AdminDashboard() {
 
                 <Button
                   variant="outline"
-                  className="h-20 flex flex-col items-center justify-center space-y-2 border-orange-200 bg-orange-50 hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/20"
-                  onClick={() => router.push('/dashboard/admin/events/pending')}
-                >
-                  <AlertTriangle className="h-5 w-5 text-orange-600" />
-                  <span className="text-sm">Pending Approvals</span>
-                </Button>
-
-                <Button
-                  variant="outline"
                   className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
                   onClick={() => router.push('/dashboard/admin/users')}
                 >
                   <Users className="h-5 w-5" />
                   <span className="text-sm">Manage Users</span>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
-                  onClick={() => router.push('/dashboard/admin/users/flagged')}
-                >
-                  <AlertTriangle className="h-5 w-5" />
-                  <span className="text-sm">Review Flags</span>
                 </Button>
 
                 <Button
@@ -305,68 +262,23 @@ function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockRecentEvents.map((event) => (
-                  <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
-                      <div className="flex items-center space-x-4 text-sm text-slate-600 dark:text-slate-400">
-                        <span>{event.registrations}/{event.capacity} registrations</span>
-                        <Badge
-                          variant={event.status === 'published' ? 'default' : 'secondary'}
-                          className={event.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}
-                        >
-                          {event.status}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="outline">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+              <div className="p-4 text-center">
+                <p className="text-slate-600 dark:text-slate-400 mb-4">
+                  View all events to see the latest updates
+                </p>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => router.push('/dashboard/admin/events')}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View All Events
+                </Button>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Flagged Users Alert */}
-        {mockFlaggedUsers.length > 0 && (
-          <Card className="border-orange-200 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold text-orange-900 dark:text-orange-100 flex items-center">
-                <AlertTriangle className="h-5 w-5 mr-2" />
-                Flagged Users Requiring Review
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {mockFlaggedUsers.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border border-orange-200 dark:border-orange-700">
-                    <div>
-                      <h4 className="font-medium text-slate-900 dark:text-white">{user.name}</h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">{user.email}</p>
-                      <p className="text-sm text-orange-600 dark:text-orange-400">Reason: {user.reason}</p>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="outline">
-                        Review
-                      </Button>
-                      <Button size="sm" variant="destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </main>
     </div>
   );

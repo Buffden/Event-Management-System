@@ -460,4 +460,189 @@ router.put('/:ticketId/revoke', async (req: AuthRequest, res: Response) => {
   }
 });
 
+/**
+ * GET /admin/stats - Get booking statistics for admin dashboard
+ */
+router.get('/stats',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    logger.info('Fetching booking statistics (admin)', { adminId: req.user?.userId });
+
+    const totalRegistrations = await prisma.booking.count({
+      where: { status: 'CONFIRMED' }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalRegistrations
+      }
+    });
+  })
+);
+
+/**
+ * GET /admin/attendance-stats - Get overall attendance statistics across all events
+ * Only counts attendees (USER role), excludes admins and speakers
+ */
+router.get('/attendance-stats',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    logger.info('Fetching attendance statistics (admin)', { adminId: req.user?.userId });
+
+    // Get all confirmed bookings
+    const bookings = await prisma.booking.findMany({
+      where: { status: 'CONFIRMED' },
+      select: { 
+        id: true,
+        userId: true,
+        isAttended: true
+      }
+    });
+
+    // Get user info for all bookings to filter out admins and speakers
+    const { getUserInfo } = await import('../utils/auth-helpers');
+    const bookingsWithUserInfo = await Promise.all(
+      bookings.map(async (booking) => {
+        const userInfo = await getUserInfo(booking.userId);
+        return {
+          booking,
+          userInfo
+        };
+      })
+    );
+
+    // Filter to only include attendees (USER role), exclude ADMIN and SPEAKER
+    const attendeeBookings = bookingsWithUserInfo.filter(
+      ({ userInfo }) => userInfo && userInfo.role === 'USER'
+    );
+
+    const totalRegistrations = attendeeBookings.length;
+    const totalAttended = attendeeBookings.filter(({ booking }) => booking.isAttended === true).length;
+    const attendancePercentage = totalRegistrations > 0 
+      ? Number(((totalAttended / totalRegistrations) * 100).toFixed(2)) // Round to 2 decimal places
+      : 0;
+
+    logger.info('Attendance statistics calculated', {
+      totalBookings: bookings.length,
+      attendeeRegistrations: totalRegistrations,
+      attendeeAttended: totalAttended,
+      attendancePercentage
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalRegistrations,
+        totalAttended,
+        attendancePercentage
+      }
+    });
+  })
+);
+
+/**
+ * GET /admin/users/event-counts - Get event registration counts per user
+ */
+router.get('/users/event-counts',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    logger.info('Fetching user event counts (admin)', { adminId: req.user?.userId });
+
+    // Get all confirmed bookings grouped by userId
+    const bookings = await prisma.booking.findMany({
+      where: { status: 'CONFIRMED' },
+      select: { userId: true }
+    });
+
+    // Count events per user
+    const eventCounts: Record<string, number> = {};
+    bookings.forEach(booking => {
+      eventCounts[booking.userId] = (eventCounts[booking.userId] || 0) + 1;
+    });
+
+    res.json({
+      success: true,
+      data: eventCounts
+    });
+  })
+);
+
+/**
+ * GET /admin/reports/top-events - Get top performing events with registrations and attendance
+ * Only counts attendees (USER role), excludes admins and speakers
+ */
+router.get('/reports/top-events',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    logger.info('Fetching top performing events (admin)', { adminId: req.user?.userId });
+
+    const { getUserInfo } = await import('../utils/auth-helpers');
+    
+    // Get all confirmed bookings with event info
+    const bookings = await prisma.booking.findMany({
+      where: { status: 'CONFIRMED' },
+      select: {
+        eventId: true,
+        userId: true,
+        isAttended: true
+      }
+    });
+
+    // Get user info for all bookings to filter out admins and speakers
+    const bookingsWithUserInfo = await Promise.all(
+      bookings.map(async (booking) => {
+        const userInfo = await getUserInfo(booking.userId);
+        return {
+          booking,
+          userInfo
+        };
+      })
+    );
+
+    // Filter to only include attendees (USER role)
+    const attendeeBookings = bookingsWithUserInfo.filter(
+      ({ userInfo }) => userInfo && userInfo.role === 'USER'
+    );
+
+    // Group by eventId and calculate stats
+    const eventStats: Record<string, {
+      eventId: string;
+      registrations: number;
+      attended: number;
+      attendancePercentage: number;
+    }> = {};
+
+    attendeeBookings.forEach(({ booking }) => {
+      if (!eventStats[booking.eventId]) {
+        eventStats[booking.eventId] = {
+          eventId: booking.eventId,
+          registrations: 0,
+          attended: 0,
+          attendancePercentage: 0
+        };
+      }
+      eventStats[booking.eventId].registrations++;
+      if (booking.isAttended) {
+        eventStats[booking.eventId].attended++;
+      }
+    });
+
+    // Calculate attendance percentage for each event
+    Object.values(eventStats).forEach(stat => {
+      stat.attendancePercentage = stat.registrations > 0
+        ? Math.round((stat.attended / stat.registrations) * 100)
+        : 0;
+    });
+
+    // Get event names from event service (we'll need to call it or store event names)
+    // For now, we'll return event IDs and let frontend fetch names if needed
+    // Sort by registrations descending and take top 10
+    const topEvents = Object.values(eventStats)
+      .sort((a, b) => b.registrations - a.registrations)
+      .slice(0, 10);
+
+    res.json({
+      success: true,
+      data: topEvents
+    });
+  })
+);
+
 export default router;

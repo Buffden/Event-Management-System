@@ -6,54 +6,74 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, BarChart3, TrendingUp, Users, Calendar, Download, Filter } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {logger} from "@/lib/logger";
+import { adminApiClient } from "@/lib/api/admin.api";
 
 const COMPONENT_NAME = 'ReportsPage';
 
-// Mock data for reports
-const mockReportData = {
-  totalEvents: 8,
-  totalUsers: 156,
-  totalRegistrations: 342,
-  averageAttendance: 78,
-  topEvents: [
-    { name: 'Tech Conference 2024', registrations: 156, attendance: 89 },
-    { name: 'AI Summit', registrations: 142, attendance: 95 },
-    { name: 'Design Workshop', registrations: 44, attendance: 67 }
-  ],
-  userGrowth: [
-    { month: 'Oct 2023', users: 45 },
-    { month: 'Nov 2023', users: 67 },
-    { month: 'Dec 2023', users: 89 },
-    { month: 'Jan 2024', users: 112 },
-    { month: 'Feb 2024', users: 156 }
-  ],
-  eventStats: [
-    { status: 'Published', count: 5, percentage: 62.5 },
-    { status: 'Draft', count: 2, percentage: 25 },
-    { status: 'Archived', count: 1, percentage: 12.5 }
-  ]
-};
+interface ReportData {
+  totalEvents: number;
+  totalUsers: number;
+  totalRegistrations: number;
+  averageAttendance: number;
+  topEvents: Array<{
+    eventId: string;
+    name?: string;
+    registrations: number;
+    attendance: number;
+  }>;
+  eventStats: Array<{
+    status: string;
+    count: number;
+    percentage: number;
+  }>;
+  userGrowth: Array<{
+    month: string;
+    users: number;
+    newUsers: number;
+  }>;
+}
 
 export default function ReportsPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     } else if (!isLoading && user?.role !== 'ADMIN') {
       router.push('/dashboard');
+    } else if (isAuthenticated && user?.role === 'ADMIN') {
+      loadReportsData();
     }
   }, [isAuthenticated, isLoading, user, router]);
+
+  const loadReportsData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      logger.info(COMPONENT_NAME, 'Loading reports data');
+      const data = await adminApiClient.getReportsData();
+      setReportData(data);
+      logger.info(COMPONENT_NAME, 'Reports data loaded successfully');
+    } catch (err) {
+      logger.error(COMPONENT_NAME, 'Failed to load reports data', err as Error);
+      setError('Failed to load reports data. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleExportReport = (type: string) => {
     // TODO: Implement report export functionality
     logger.debug(COMPONENT_NAME, `Exporting ${type} report`);
   };
 
-  if (isLoading) {
+  if (isLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         <div className="text-center">
@@ -65,6 +85,21 @@ export default function ReportsPage() {
   }
 
   if (!isAuthenticated || user?.role !== 'ADMIN') {
+    return null;
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <Button onClick={loadReportsData}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!reportData) {
     return null;
   }
 
@@ -112,7 +147,7 @@ export default function ReportsPage() {
                 <Calendar className="h-8 w-8 text-blue-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Events</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockReportData.totalEvents}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{reportData.totalEvents}</p>
                 </div>
               </div>
             </CardContent>
@@ -124,7 +159,7 @@ export default function ReportsPage() {
                 <Users className="h-8 w-8 text-green-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Users</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockReportData.totalUsers}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{reportData.totalUsers}</p>
                 </div>
               </div>
             </CardContent>
@@ -136,7 +171,7 @@ export default function ReportsPage() {
                 <BarChart3 className="h-8 w-8 text-purple-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Registrations</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockReportData.totalRegistrations}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{reportData.totalRegistrations}</p>
                 </div>
               </div>
             </CardContent>
@@ -148,7 +183,7 @@ export default function ReportsPage() {
                 <TrendingUp className="h-8 w-8 text-orange-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Avg. Attendance</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockReportData.averageAttendance}%</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{reportData.averageAttendance.toFixed(1)}%</p>
                 </div>
               </div>
             </CardContent>
@@ -210,22 +245,28 @@ export default function ReportsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockReportData.topEvents.map((event, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-slate-900 dark:text-white">{event.name}</h4>
-                      <div className="flex items-center space-x-4 text-sm text-slate-600 dark:text-slate-400">
-                        <span>{event.registrations} registrations</span>
-                        <span>{event.attendance}% attendance</span>
+              {reportData.topEvents.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-slate-600 dark:text-slate-400">No events with registrations yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reportData.topEvents.map((event, index) => (
+                    <div key={event.eventId} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-slate-900 dark:text-white">{event.name || `Event ${event.eventId.substring(0, 8)}`}</h4>
+                        <div className="flex items-center space-x-4 text-sm text-slate-600 dark:text-slate-400">
+                          <span>{event.registrations} registrations</span>
+                          <span>{event.attendance}% attendance</span>
+                        </div>
                       </div>
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        #{index + 1}
+                      </Badge>
                     </div>
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                      #{index + 1}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -240,25 +281,31 @@ export default function ReportsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockReportData.eventStats.map((stat, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{stat.status}</span>
-                      <span className="text-sm text-slate-900 dark:text-white">{stat.count} events</span>
+              {reportData.eventStats.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-slate-600 dark:text-slate-400">No events found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reportData.eventStats.map((stat, index) => (
+                    <div key={index} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{stat.status}</span>
+                        <span className="text-sm text-slate-900 dark:text-white">{stat.count} events</span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full" 
+                          style={{ width: `${stat.percentage.toFixed(1)}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">{stat.percentage.toFixed(1)}%</span>
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full" 
-                        style={{ width: `${stat.percentage}%` }}
-                      ></div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">{stat.percentage}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -289,25 +336,33 @@ export default function ReportsPage() {
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-700">
                       <th className="text-left py-2 px-4 font-medium text-slate-600 dark:text-slate-400">Month</th>
+                      <th className="text-left py-2 px-4 font-medium text-slate-600 dark:text-slate-400">Total Users</th>
                       <th className="text-left py-2 px-4 font-medium text-slate-600 dark:text-slate-400">New Users</th>
-                      <th className="text-left py-2 px-4 font-medium text-slate-600 dark:text-slate-400">Growth</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {mockReportData.userGrowth.map((data, index) => (
-                      <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
-                        <td className="py-2 px-4 text-slate-900 dark:text-white">{data.month}</td>
-                        <td className="py-2 px-4 text-slate-900 dark:text-white">{data.users}</td>
-                        <td className="py-2 px-4">
-                          <Badge 
-                            variant="default" 
-                            className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                          >
-                            +{data.users - (index > 0 ? mockReportData.userGrowth[index - 1].users : 0)}
-                          </Badge>
+                    {reportData.userGrowth.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="py-8 text-center text-slate-600 dark:text-slate-400">
+                          No user growth data available
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      reportData.userGrowth.map((data, index) => (
+                        <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
+                          <td className="py-2 px-4 text-slate-900 dark:text-white">{data.month}</td>
+                          <td className="py-2 px-4 text-slate-900 dark:text-white">{data.users}</td>
+                          <td className="py-2 px-4">
+                            <Badge 
+                              variant="default" 
+                              className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                            >
+                              +{data.newUsers}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
