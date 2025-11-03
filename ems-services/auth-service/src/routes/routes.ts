@@ -507,4 +507,73 @@ export function registerRoutes(app: Express, authService: AuthService) {
             res.status(500).json({error: 'Failed to fetch users'});
         }
     });
+
+    /**
+     * @route   GET /api/auth/admin/reports/user-growth
+     * @desc    Get user growth trend (monthly user registrations).
+     * @access  Protected - Admin only
+     */
+    app.get('/admin/reports/user-growth', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+            
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+            
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            logger.info("/admin/reports/user-growth - Fetching user growth data", { adminId: userId });
+
+            const { prisma } = await import('../database');
+            
+            // Get all users ordered by creation date
+            const users = await prisma.user.findMany({
+                select: {
+                    createdAt: true
+                },
+                orderBy: {
+                    createdAt: 'asc'
+                }
+            });
+
+            // Group users by month
+            const monthlyGrowth: Record<string, number> = {};
+            users.forEach(user => {
+                const date = new Date(user.createdAt);
+                const monthKey = `${date.toLocaleString('default', { month: 'short' })} ${date.getFullYear()}`;
+                monthlyGrowth[monthKey] = (monthlyGrowth[monthKey] || 0) + 1;
+            });
+
+            // Convert to array format and calculate cumulative totals
+            const growthData = Object.entries(monthlyGrowth)
+                .map(([month, count]) => {
+                    // Calculate cumulative users up to this month
+                    const monthIndex = Object.keys(monthlyGrowth).indexOf(month);
+                    const previousMonths = Object.values(monthlyGrowth).slice(0, monthIndex);
+                    const cumulativeUsers = previousMonths.reduce((sum, val) => sum + val, 0) + count;
+                    
+                    return {
+                        month,
+                        users: cumulativeUsers,
+                        newUsers: count
+                    };
+                })
+                .sort((a, b) => {
+                    // Sort by date (simple string comparison should work for format "MMM YYYY")
+                    return a.month.localeCompare(b.month);
+                });
+
+            res.json({
+                success: true,
+                data: growthData
+            });
+        } catch (error: any) {
+            logger.error("/admin/reports/user-growth - Failed to fetch user growth data", error);
+            res.status(500).json({error: 'Failed to fetch user growth data'});
+        }
+    });
 }
