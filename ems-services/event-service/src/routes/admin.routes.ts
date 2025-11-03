@@ -334,4 +334,41 @@ router.get('/stats',
   })
 );
 
+/**
+ * GET /admin/reports/event-status - Get event status distribution
+ */
+router.get('/reports/event-status',
+  asyncHandler(async (req: Request, res: Response) => {
+    logger.info('Fetching event status distribution (admin)');
+
+    const { prisma } = await import('../database');
+    const { EventStatus } = await import('../../generated/prisma');
+
+    const totalEvents = await prisma.event.count();
+    
+    const statusCounts = await Promise.all([
+      prisma.event.count({ where: { status: EventStatus.PUBLISHED } }),
+      prisma.event.count({ where: { status: EventStatus.DRAFT } }),
+      prisma.event.count({ where: { status: EventStatus.PENDING_APPROVAL } }),
+      prisma.event.count({ where: { status: EventStatus.REJECTED } }),
+      prisma.event.count({ where: { status: EventStatus.CANCELLED } }),
+      prisma.event.count({ where: { status: EventStatus.COMPLETED } })
+    ]);
+
+    const eventStats = [
+      { status: 'Published', count: statusCounts[0], percentage: totalEvents > 0 ? (statusCounts[0] / totalEvents) * 100 : 0 },
+      { status: 'Draft', count: statusCounts[1], percentage: totalEvents > 0 ? (statusCounts[1] / totalEvents) * 100 : 0 },
+      { status: 'Pending Approval', count: statusCounts[2], percentage: totalEvents > 0 ? (statusCounts[2] / totalEvents) * 100 : 0 },
+      { status: 'Rejected', count: statusCounts[3], percentage: totalEvents > 0 ? (statusCounts[3] / totalEvents) * 100 : 0 },
+      { status: 'Cancelled', count: statusCounts[4], percentage: totalEvents > 0 ? (statusCounts[4] / totalEvents) * 100 : 0 },
+      { status: 'Completed', count: statusCounts[5], percentage: totalEvents > 0 ? (statusCounts[5] / totalEvents) * 100 : 0 }
+    ].filter(stat => stat.count > 0); // Only return statuses that have events
+
+    res.json({
+      success: true,
+      data: eventStats
+    });
+  })
+);
+
 export default router;
