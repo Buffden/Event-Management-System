@@ -259,6 +259,144 @@ export class AdminApiClient extends BaseApiClient {
     }
   }
 
+  // User Management
+  async getAllUsers(filters?: {
+    search?: string;
+    role?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    data: Array<{
+      id: string;
+      name: string | null;
+      email: string;
+      role: string;
+      isActive: boolean;
+      emailVerified: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching users', filters);
+      
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (filters?.search) params.append('search', filters.search);
+      if (filters?.role && filters.role !== 'ALL') params.append('role', filters.role);
+      if (filters?.status && filters.status !== 'ALL') params.append('status', filters.status);
+      if (filters?.page) params.append('page', filters.page.toString());
+      if (filters?.limit) params.append('limit', filters.limit.toString());
+      
+      const queryString = params.toString();
+      const url = `/api/auth/admin/users${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'Users retrieved', { 
+        count: result.data.length,
+        pagination: result.pagination
+      });
+      
+      return {
+        data: result.data || [],
+        pagination: result.pagination || {
+          page: 1,
+          limit: 10,
+          total: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false
+        }
+      };
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch users', error as Error);
+      throw error;
+    }
+  }
+
+  async getUserEventCounts(): Promise<Record<string, number>> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching user event counts');
+      
+      const response = await fetch('/api/booking/admin/users/event-counts', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'User event counts retrieved');
+      return result.data || {};
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch user event counts', error as Error);
+      throw error;
+    }
+  }
+
+  async getAttendanceStats(): Promise<{
+    totalRegistrations: number;
+    totalAttended: number;
+    attendancePercentage: number;
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching attendance statistics');
+      
+      const response = await fetch('/api/booking/admin/attendance-stats', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'Attendance statistics retrieved', result.data);
+      
+      return result.data || {
+        totalRegistrations: 0,
+        totalAttended: 0,
+        attendancePercentage: 0
+      };
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch attendance statistics', error as Error);
+      throw error;
+    }
+  }
+
   // Override getToken to return string instead of string | null
   public getToken(): string {
     const token = super.getToken();
