@@ -124,9 +124,9 @@ function SpeakerEventManagementPage() {
                     const eventResponse = await eventAPI.getEventById(invitation.eventId);
                     eventMap.set(invitation.eventId, eventResponse.data);
                 } catch (err) {
-                    logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load event for invitation', { 
-                        invitationId: invitation.id, 
-                        eventId: invitation.eventId 
+                    logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load event for invitation', {
+                        invitationId: invitation.id,
+                        eventId: invitation.eventId
                     });
                 }
             }
@@ -488,8 +488,8 @@ function SpeakerEventManagementPage() {
 
                                 {/* Actions */}
                                 <div className="flex flex-wrap gap-2">
-                                    <Button 
-                                        size="sm" 
+                                    <Button
+                                        size="sm"
                                         variant="outline"
                                         onClick={() => router.push(`/dashboard/speaker/events/${event.id}`)}
                                     >
@@ -536,6 +536,24 @@ function SpeakerEventManagementPage() {
                                         </>
                                     )}
                                 </div>
+
+                                {/* Event Join Interface - Show for all published events */}
+                                {event.status === EventStatus.PUBLISHED && (
+                                    <div className="mt-4 pt-4 border-t">
+                                        <EventJoinInterface
+                                            eventId={event.id}
+                                            eventTitle={event.name}
+                                            eventStartTime={event.bookingStartDate}
+                                            eventEndTime={event.bookingEndDate}
+                                            eventVenue={event.venue.name}
+                                            eventCategory={event.category}
+                                            eventStatus={event.status}
+                                            eventDescription={event.description}
+                                            userRole={user?.role || 'SPEAKER'}
+                                            speakerId={user?.id}
+                                        />
+                                    </div>
+                                )}
 
                             </CardContent>
                         </Card>
@@ -625,8 +643,8 @@ function SpeakerEventManagementPage() {
                                     </div>
 
                                     <div className="flex flex-wrap gap-2">
-                                        <Button 
-                                            size="sm" 
+                                        <Button
+                                            size="sm"
                                             variant="outline"
                                             onClick={() => router.push(`/dashboard/speaker/events/${event.id}`)}
                                         >
