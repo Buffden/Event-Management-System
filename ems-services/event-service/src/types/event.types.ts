@@ -61,6 +61,8 @@ export interface EventFilters {
   speakerId?: string;
   bookingStartDate?: string;
   bookingEndDate?: string;
+  search?: string; // Search by name, description, or venue name
+  timeframe?: string; // UPCOMING, ONGOING, PAST, ALL
   page?: number;
   limit?: number;
 }

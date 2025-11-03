@@ -609,6 +609,8 @@ class EventService {
                 speakerId,
                 bookingStartDate,
                 bookingEndDate,
+                search,
+                timeframe,
                 page = 1,
                 limit = 10
             } = filters;
@@ -644,6 +646,38 @@ class EventService {
                 }
                 if (bookingEndDate) {
                     where.bookingStartDate.lte = new Date(bookingEndDate);
+                }
+            }
+
+            // Search filter - search by name, description, or venue name
+            if (search) {
+                where.OR = [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { description: { contains: search, mode: 'insensitive' } },
+                    { venue: { name: { contains: search, mode: 'insensitive' } } }
+                ];
+            }
+
+            // Timeframe filter
+            const now = new Date();
+            if (timeframe && timeframe !== 'ALL') {
+                if (timeframe === 'UPCOMING') {
+                    where.bookingStartDate = {
+                        ...where.bookingStartDate,
+                        gt: now
+                    };
+                } else if (timeframe === 'ONGOING') {
+                    where.bookingStartDate = {
+                        ...where.bookingStartDate,
+                        lte: now
+                    };
+                    where.bookingEndDate = {
+                        gte: now
+                    };
+                } else if (timeframe === 'PAST') {
+                    where.bookingEndDate = {
+                        lt: now
+                    };
                 }
             }
 
