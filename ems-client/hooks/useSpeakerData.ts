@@ -85,8 +85,8 @@ export function useSpeakerData() {
   const loadAllInvitations = useCallback(async (speakerId: string) => {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading all invitations', { speakerId });
-      const invitations = await speakerApiClient.getSpeakerInvitations(speakerId);
-      return invitations;
+      const result = await speakerApiClient.getSpeakerInvitations(speakerId);
+      return result.invitations;
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load all invitations', error as Error, { speakerId });
       throw error;
