@@ -460,4 +460,24 @@ router.put('/:ticketId/revoke', async (req: AuthRequest, res: Response) => {
   }
 });
 
+/**
+ * GET /admin/stats - Get booking statistics for admin dashboard
+ */
+router.get('/stats',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    logger.info('Fetching booking statistics (admin)', { adminId: req.user?.userId });
+
+    const totalRegistrations = await prisma.booking.count({
+      where: { status: 'CONFIRMED' }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalRegistrations
+      }
+    });
+  })
+);
+
 export default router;

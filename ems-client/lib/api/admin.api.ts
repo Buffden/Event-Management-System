@@ -25,6 +25,13 @@ export interface SpeakerInvitation {
   updatedAt: string;
 }
 
+export interface DashboardStats {
+  totalUsers: number;
+  totalEvents: number;
+  activeEvents: number;
+  totalRegistrations: number;
+}
+
 export class AdminApiClient extends BaseApiClient {
   protected readonly LOGGER_COMPONENT_NAME: string = LOGGER_COMPONENT_NAME;
 
@@ -192,6 +199,62 @@ export class AdminApiClient extends BaseApiClient {
       return result.data;
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to get invitation', error as Error);
+      throw error;
+    }
+  }
+
+  // Dashboard Statistics
+  async getDashboardStats(): Promise<DashboardStats> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching dashboard statistics');
+      
+      const token = this.getToken();
+      
+      // Fetch stats from all services in parallel
+      const [userStats, eventStats, bookingStats] = await Promise.all([
+        fetch('/api/auth/admin/stats', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(res => {
+          if (!res.ok) throw new Error(`Auth service error: ${res.status}`);
+          return res.json();
+        }),
+        fetch('/api/event/admin/stats', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(res => {
+          if (!res.ok) throw new Error(`Event service error: ${res.status}`);
+          return res.json();
+        }),
+        fetch('/api/booking/admin/stats', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(res => {
+          if (!res.ok) throw new Error(`Booking service error: ${res.status}`);
+          return res.json();
+        })
+      ]);
+
+      const stats: DashboardStats = {
+        totalUsers: userStats.data?.totalUsers || 0,
+        totalEvents: eventStats.data?.totalEvents || 0,
+        activeEvents: eventStats.data?.activeEvents || 0,
+        totalRegistrations: bookingStats.data?.totalRegistrations || 0
+      };
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Dashboard statistics retrieved', stats);
+      return stats;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch dashboard statistics', error as Error);
       throw error;
     }
   }

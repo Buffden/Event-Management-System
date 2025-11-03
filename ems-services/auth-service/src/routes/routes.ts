@@ -352,4 +352,42 @@ export function registerRoutes(app: Express, authService: AuthService) {
             return res.status(400).json({error: error.message});
         }
     });
+
+    /**
+     * @route   GET /api/auth/admin/stats
+     * @desc    Get user statistics for admin dashboard.
+     * @access  Protected - Admin only
+     */
+    app.get('/admin/stats', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+            
+            // If user not in context, fetch it
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+            
+            // Check if user is admin
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            logger.info("/admin/stats - Fetching user statistics", { adminId: userId });
+
+            const { prisma } = await import('../database');
+            
+            const totalUsers = await prisma.user.count();
+
+            res.json({
+                success: true,
+                data: {
+                    totalUsers
+                }
+            });
+        } catch (error: any) {
+            logger.error("/admin/stats - Failed to fetch user statistics", error);
+            res.status(500).json({error: 'Failed to fetch user statistics'});
+        }
+    });
 }

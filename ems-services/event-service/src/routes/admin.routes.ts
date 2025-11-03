@@ -307,4 +307,31 @@ router.get('/admin/venues/:id',
   })
 );
 
+/**
+ * GET /admin/stats - Get event statistics for admin dashboard
+ */
+router.get('/stats',
+  asyncHandler(async (req: Request, res: Response) => {
+    logger.info('Fetching event statistics (admin)');
+
+    const { prisma } = await import('../database');
+    const { EventStatus } = await import('../../generated/prisma');
+
+    const [totalEvents, activeEvents] = await Promise.all([
+      prisma.event.count(),
+      prisma.event.count({
+        where: { status: EventStatus.PUBLISHED }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalEvents,
+        activeEvents
+      }
+    });
+  })
+);
+
 export default router;
