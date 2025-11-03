@@ -10,88 +10,63 @@ import {
   LogOut, 
   Users, 
   Search,
-  Filter,
-  MoreHorizontal,
   Shield,
-  ShieldCheck,
-  UserX,
   UserCheck,
-  Mail,
-  Calendar,
-  AlertTriangle,
-  ArrowLeft
+  TrendingUp,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {logger} from "@/lib/logger";
+import { adminApiClient } from "@/lib/api/admin.api";
 
 const COMPONENT_NAME = 'UserManagementPage';
 
-// Mock data for development
-const mockUsers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    role: 'USER',
-    isActive: true,
-    emailVerified: '2024-01-15',
-    createdAt: '2024-01-10',
-    lastLogin: '2024-01-20',
-    eventsRegistered: 3
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    role: 'SPEAKER',
-    isActive: true,
-    emailVerified: '2024-01-12',
-    createdAt: '2024-01-08',
-    lastLogin: '2024-01-19',
-    eventsRegistered: 1
-  },
-  {
-    id: '3',
-    name: 'Bob Johnson',
-    email: 'bob@example.com',
-    role: 'USER',
-    isActive: false,
-    emailVerified: null,
-    createdAt: '2024-01-05',
-    lastLogin: '2024-01-15',
-    eventsRegistered: 0
-  },
-  {
-    id: '4',
-    name: 'Alice Wilson',
-    email: 'alice@example.com',
-    role: 'ADMIN',
-    isActive: true,
-    emailVerified: '2024-01-01',
-    createdAt: '2024-01-01',
-    lastLogin: '2024-01-20',
-    eventsRegistered: 5
-  },
-  {
-    id: '5',
-    name: 'Charlie Brown',
-    email: 'charlie@example.com',
-    role: 'USER',
-    isActive: true,
-    emailVerified: '2024-01-18',
-    createdAt: '2024-01-15',
-    lastLogin: '2024-01-21',
-    eventsRegistered: 2
-  }
-];
+interface User {
+  id: string;
+  name: string | null;
+  email: string;
+  role: string;
+  isActive: boolean;
+  emailVerified: string | null;
+  createdAt: string;
+  updatedAt: string;
+  eventsRegistered?: number;
+}
 
 export default function UserManagementPage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false
+  });
+  const [totalStats, setTotalStats] = useState({
+    total: 0,
+    active: 0,
+    admins: 0,
+    attendancePercentage: 0
+  });
+  
+  // Ref to maintain focus on search input
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const isSearchingRef = useRef(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -101,29 +76,140 @@ export default function UserManagementPage() {
     }
   }, [isAuthenticated, isLoading, user, router]);
 
-  // Filter users based on search and filters
-  const filteredUsers = mockUsers.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = selectedRole === 'ALL' || user.role === selectedRole;
-    const matchesStatus = selectedStatus === 'ALL' || 
-                         (selectedStatus === 'ACTIVE' && user.isActive) ||
-                         (selectedStatus === 'INACTIVE' && !user.isActive);
-    
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+  // Debounce search term
+  useEffect(() => {
+    if (searchTerm) {
+      isSearchingRef.current = true;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1); // Reset to first page on search
+    }, 500);
 
-  const handleRoleChange = (userId: string, newRole: string) => {
-    // TODO: Implement role change API call
-    logger.debug(COMPONENT_NAME, `Change user ${userId} role to ${newRole}`);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Load users when filters change
+  const loadUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      logger.info(COMPONENT_NAME, 'Loading users', { 
+        search: debouncedSearch, 
+        role: selectedRole, 
+        status: selectedStatus, 
+        page, 
+        limit 
+      });
+      
+      const [usersResponse, eventCounts] = await Promise.all([
+        adminApiClient.getAllUsers({
+          search: debouncedSearch || undefined,
+          role: selectedRole,
+          status: selectedStatus,
+          page,
+          limit
+        }),
+        adminApiClient.getUserEventCounts()
+      ]);
+
+      // Merge event counts with users
+      const usersWithEvents = usersResponse.data.map((u) => ({
+        ...u,
+        eventsRegistered: eventCounts[u.id] || 0
+      }));
+
+      setUsers(usersWithEvents);
+      setPagination(usersResponse.pagination);
+      
+      logger.info(COMPONENT_NAME, 'Users loaded successfully', { 
+        count: usersWithEvents.length,
+        pagination: usersResponse.pagination
+      });
+      
+      // Mark initial load as complete
+      if (initialLoad) {
+        setInitialLoad(false);
+      }
+      
+      // Restore focus to search input after loading if user was searching
+      if (isSearchingRef.current && searchInputRef.current) {
+        // Use requestAnimationFrame to ensure DOM is updated
+        requestAnimationFrame(() => {
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
+        });
+      }
+    } catch (err) {
+      logger.error(COMPONENT_NAME, 'Failed to load users', err as Error);
+      setError('Failed to load users. Please try again later.');
+      if (initialLoad) {
+        setInitialLoad(false);
+      }
+    } finally {
+      setLoading(false);
+      isSearchingRef.current = false;
+    }
+  }, [debouncedSearch, selectedRole, selectedStatus, page, limit, initialLoad]);
+
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'ADMIN') {
+      loadUsers();
+    }
+  }, [isAuthenticated, user, loadUsers]);
+
+  // Load initial stats (always load total stats, not filtered)
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'ADMIN') {
+      loadInitialStats();
+    }
+  }, [isAuthenticated, user]);
+
+  const loadInitialStats = async () => {
+    try {
+      // Get stats from dashboard stats endpoint and attendance stats
+      const [dashboardStats, attendanceStats] = await Promise.all([
+        adminApiClient.getDashboardStats(),
+        adminApiClient.getAttendanceStats()
+      ]);
+      
+      // Get all users to calculate active and admin counts
+      const allUsersResponse = await adminApiClient.getAllUsers({ limit: 1000 });
+      const allUsers = allUsersResponse.data;
+      
+      setTotalStats({
+        total: dashboardStats.totalUsers,
+        active: allUsers.filter(u => u.isActive).length,
+        admins: allUsers.filter(u => u.role === 'ADMIN').length,
+        attendancePercentage: attendanceStats.attendancePercentage
+      });
+    } catch (err) {
+      logger.error(COMPONENT_NAME, 'Failed to load initial stats', err as Error);
+    }
   };
 
-  const handleStatusToggle = (userId: string, currentStatus: boolean) => {
-    // TODO: Implement status toggle API call
-    logger.debug(COMPONENT_NAME, `Toggle user ${userId} status from ${currentStatus} to ${!currentStatus}`);
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
   };
 
-  if (isLoading) {
+  const handleRoleChange = (value: string) => {
+    setSelectedRole(value);
+    setPage(1); // Reset to first page
+  };
+
+  const handleStatusChange = (value: string) => {
+    setSelectedStatus(value);
+    setPage(1); // Reset to first page
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Only show full page loading on initial load
+  if (isLoading || (initialLoad && loading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         <div className="text-center">
@@ -209,7 +295,10 @@ export default function UserManagementPage() {
                 <Users className="h-8 w-8 text-blue-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Users</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{mockUsers.length}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {totalStats.total || 0}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">All users</p>
                 </div>
               </div>
             </CardContent>
@@ -222,8 +311,9 @@ export default function UserManagementPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Active Users</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {mockUsers.filter(u => u.isActive).length}
+                    {totalStats.active || 0}
                   </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">All users</p>
                 </div>
               </div>
             </CardContent>
@@ -236,8 +326,9 @@ export default function UserManagementPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Admins</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {mockUsers.filter(u => u.role === 'ADMIN').length}
+                    {totalStats.admins || 0}
                   </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">All users</p>
                 </div>
               </div>
             </CardContent>
@@ -246,12 +337,13 @@ export default function UserManagementPage() {
           <Card className="border-slate-200 dark:border-slate-700">
             <CardContent className="p-6">
               <div className="flex items-center">
-                <AlertTriangle className="h-8 w-8 text-orange-600" />
+                <TrendingUp className="h-8 w-8 text-orange-600" />
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Inactive Users</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Avg Attendance</p>
                   <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {mockUsers.filter(u => !u.isActive).length}
+                    {totalStats.attendancePercentage.toFixed(1)}%
                   </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Across all events</p>
                 </div>
               </div>
             </CardContent>
@@ -270,16 +362,20 @@ export default function UserManagementPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 <Input
+                  ref={searchInputRef}
                   placeholder="Search by name or email..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10"
+                  onFocus={() => {
+                    isSearchingRef.current = true;
+                  }}
                 />
               </div>
               
               <select
                 value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
+                onChange={(e) => handleRoleChange(e.target.value)}
                 className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
               >
                 <option value="ALL">All Roles</option>
@@ -290,7 +386,7 @@ export default function UserManagementPage() {
               
               <select
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
+                onChange={(e) => handleStatusChange(e.target.value)}
                 className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
               >
                 <option value="ALL">All Status</option>
@@ -303,18 +399,32 @@ export default function UserManagementPage() {
         </Card>
 
         {/* Users Table */}
-        <Card className="border-slate-200 dark:border-slate-700">
+        <Card className="border-slate-200 dark:border-slate-700 relative">
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
-              Users ({filteredUsers.length})
+              Users ({pagination.total})
             </CardTitle>
             <CardDescription className="text-slate-600 dark:text-slate-400">
-              Manage user accounts and permissions
+              Showing {users.length} of {pagination.total} users
+              {pagination.totalPages > 1 && ` (Page ${pagination.page} of ${pagination.totalPages})`}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
+          <CardContent className="relative">
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-red-800 dark:text-red-200">{error}</p>
+              </div>
+            )}
+            {loading && users.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-slate-600 dark:text-slate-400">Loading users...</p>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">User</th>
@@ -322,26 +432,24 @@ export default function UserManagementPage() {
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Status</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Email Verified</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Events</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Last Login</th>
-                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => (
+                  {users.map((user) => (
                     <tr key={user.id} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="py-4 px-4">
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-8 w-8">
                             <AvatarImage 
-                              src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`} 
-                              alt={user.name} 
+                              src={user.name ? `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}` : `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`} 
+                              alt={user.name || user.email} 
                             />
                             <AvatarFallback className="text-xs">
-                              {user.name.split(' ').map(n => n[0]).join('')}
+                              {user.name ? user.name.split(' ').map((n: string) => n[0]).join('') : user.email[0].toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium text-slate-900 dark:text-white">{user.name}</p>
+                            <p className="font-medium text-slate-900 dark:text-white">{user.name || 'No name'}</p>
                             <p className="text-sm text-slate-600 dark:text-slate-400">{user.email}</p>
                           </div>
                         </div>
@@ -375,61 +483,84 @@ export default function UserManagementPage() {
                         </Badge>
                       </td>
                       <td className="py-4 px-4">
-                        <span className="text-slate-900 dark:text-white">{user.eventsRegistered}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-slate-600 dark:text-slate-400">
-                          {new Date(user.lastLogin).toLocaleDateString()}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex space-x-2">
-                          {user.role !== 'ADMIN' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRoleChange(user.id, user.role === 'USER' ? 'SPEAKER' : 'USER')}
-                            >
-                              <ShieldCheck className="h-4 w-4 mr-1" />
-                              {user.role === 'USER' ? 'Make Speaker' : 'Make User'}
-                            </Button>
-                          )}
-                          
-                          <Button
-                            size="sm"
-                            variant={user.isActive ? 'destructive' : 'default'}
-                            onClick={() => handleStatusToggle(user.id, user.isActive)}
-                          >
-                            {user.isActive ? (
-                              <>
-                                <UserX className="h-4 w-4 mr-1" />
-                                Suspend
-                              </>
-                            ) : (
-                              <>
-                                <UserCheck className="h-4 w-4 mr-1" />
-                                Activate
-                              </>
-                            )}
-                          </Button>
-                          
-                          <Button size="sm" variant="outline">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <span className="text-slate-900 dark:text-white">{user.eventsRegistered ?? 0}</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               
-              {filteredUsers.length === 0 && (
+              {users.length === 0 && !loading && (
                 <div className="text-center py-8">
                   <Users className="h-12 w-12 text-slate-400 mx-auto mb-4" />
                   <p className="text-slate-600 dark:text-slate-400">No users found matching your criteria</p>
                 </div>
               )}
-            </div>
+              </div>
+            )}
+            {loading && users.length > 0 && (
+              <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} users
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    disabled={!pagination.hasPreviousPage || loading}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Previous
+                  </Button>
+                  
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (pagination.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (pagination.page <= 3) {
+                        pageNum = i + 1;
+                      } else if (pagination.page >= pagination.totalPages - 2) {
+                        pageNum = pagination.totalPages - 4 + i;
+                      } else {
+                        pageNum = pagination.page - 2 + i;
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={pagination.page === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(pageNum)}
+                          disabled={loading}
+                          className="min-w-[40px]"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    disabled={!pagination.hasNextPage || loading}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>
