@@ -565,4 +565,84 @@ router.get('/users/event-counts',
   })
 );
 
+/**
+ * GET /admin/reports/top-events - Get top performing events with registrations and attendance
+ * Only counts attendees (USER role), excludes admins and speakers
+ */
+router.get('/reports/top-events',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    logger.info('Fetching top performing events (admin)', { adminId: req.user?.userId });
+
+    const { getUserInfo } = await import('../utils/auth-helpers');
+    
+    // Get all confirmed bookings with event info
+    const bookings = await prisma.booking.findMany({
+      where: { status: 'CONFIRMED' },
+      select: {
+        eventId: true,
+        userId: true,
+        isAttended: true
+      }
+    });
+
+    // Get user info for all bookings to filter out admins and speakers
+    const bookingsWithUserInfo = await Promise.all(
+      bookings.map(async (booking) => {
+        const userInfo = await getUserInfo(booking.userId);
+        return {
+          booking,
+          userInfo
+        };
+      })
+    );
+
+    // Filter to only include attendees (USER role)
+    const attendeeBookings = bookingsWithUserInfo.filter(
+      ({ userInfo }) => userInfo && userInfo.role === 'USER'
+    );
+
+    // Group by eventId and calculate stats
+    const eventStats: Record<string, {
+      eventId: string;
+      registrations: number;
+      attended: number;
+      attendancePercentage: number;
+    }> = {};
+
+    attendeeBookings.forEach(({ booking }) => {
+      if (!eventStats[booking.eventId]) {
+        eventStats[booking.eventId] = {
+          eventId: booking.eventId,
+          registrations: 0,
+          attended: 0,
+          attendancePercentage: 0
+        };
+      }
+      eventStats[booking.eventId].registrations++;
+      if (booking.isAttended) {
+        eventStats[booking.eventId].attended++;
+      }
+    });
+
+    // Calculate attendance percentage for each event
+    Object.values(eventStats).forEach(stat => {
+      stat.attendancePercentage = stat.registrations > 0
+        ? Math.round((stat.attended / stat.registrations) * 100)
+        : 0;
+    });
+
+    // Get event names from event service (we'll need to call it or store event names)
+    // For now, we'll return event IDs and let frontend fetch names if needed
+    // Sort by registrations descending and take top 10
+    const topEvents = Object.values(eventStats)
+      .sort((a, b) => b.registrations - a.registrations)
+      .slice(0, 10);
+
+    res.json({
+      success: true,
+      data: topEvents
+    });
+  })
+);
+
 export default router;
