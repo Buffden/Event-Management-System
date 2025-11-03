@@ -397,6 +397,116 @@ export class AdminApiClient extends BaseApiClient {
     }
   }
 
+  // Reports
+  async getReportsData(): Promise<{
+    totalEvents: number;
+    totalUsers: number;
+    totalRegistrations: number;
+    averageAttendance: number;
+    topEvents: Array<{
+      eventId: string;
+      name?: string;
+      registrations: number;
+      attendance: number;
+    }>;
+    eventStats: Array<{
+      status: string;
+      count: number;
+      percentage: number;
+    }>;
+    userGrowth: Array<{
+      month: string;
+      users: number;
+      newUsers: number;
+    }>;
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching reports data');
+      
+      const [dashboardStats, attendanceStats, topEventsResponse, eventStatusResponse, userGrowthResponse] = await Promise.all([
+        this.getDashboardStats(),
+        this.getAttendanceStats(),
+        fetch('/api/booking/admin/reports/top-events', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${this.getToken()}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(res => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        }),
+        fetch('/api/event/admin/reports/event-status', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${this.getToken()}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(res => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        }),
+        fetch('/api/auth/admin/reports/user-growth', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${this.getToken()}`,
+            'Content-Type': 'application/json',
+          },
+        }).then(res => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        })
+      ]);
+
+      // Fetch event names for top events
+      const topEventsWithNames = await Promise.all(
+        (topEventsResponse.data || []).map(async (event: { eventId: string; registrations: number; attended: number; attendancePercentage: number }) => {
+          try {
+            const eventResponse = await fetch(`/api/event/events/${event.eventId}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${this.getToken()}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            if (eventResponse.ok) {
+              const eventData = await eventResponse.json();
+              return {
+                eventId: event.eventId,
+                name: eventData.data?.name || `Event ${event.eventId.substring(0, 8)}`,
+                registrations: event.registrations,
+                attendance: event.attendancePercentage
+              };
+            }
+          } catch (err) {
+            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to fetch event name', { eventId: event.eventId });
+          }
+          return {
+            eventId: event.eventId,
+            name: `Event ${event.eventId.substring(0, 8)}`,
+            registrations: event.registrations,
+            attendance: event.attendancePercentage
+          };
+        })
+      );
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Reports data retrieved successfully');
+      
+      return {
+        totalEvents: dashboardStats.totalEvents,
+        totalUsers: dashboardStats.totalUsers,
+        totalRegistrations: dashboardStats.totalRegistrations,
+        averageAttendance: attendanceStats.attendancePercentage,
+        topEvents: topEventsWithNames,
+        eventStats: eventStatusResponse.data || [],
+        userGrowth: userGrowthResponse.data || []
+      };
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch reports data', error as Error);
+      throw error;
+    }
+  }
+
   // Override getToken to return string instead of string | null
   public getToken(): string {
     const token = super.getToken();
