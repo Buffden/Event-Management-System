@@ -72,6 +72,25 @@ class BookingApiClient extends BaseApiClient {
       method: 'PUT'
     });
   }
+
+  // Speaker methods
+  async getEventRegistrationCount(eventId: string): Promise<{
+    eventId: string;
+    totalUsers: number;
+    confirmedBookings: number;
+    cancelledBookings: number;
+  }> {
+    const response = await this.request<{
+      success: boolean;
+      data: {
+        eventId: string;
+        totalUsers: number;
+        confirmedBookings: number;
+        cancelledBookings: number;
+      };
+    }>(`/${eventId}/num-registered`);
+    return response.data;
+  }
 }
 
 const bookingApiClient = new BookingApiClient();
@@ -132,4 +151,11 @@ export const adminTicketAPI = {
    * Revoke a ticket
    */
   revokeTicket: (ticketId: string) => bookingApiClient.revokeTicket(ticketId)
+};
+
+export const speakerBookingAPI = {
+  /**
+   * Get registration count for an event (speaker only)
+   */
+  getEventRegistrationCount: (eventId: string) => bookingApiClient.getEventRegistrationCount(eventId)
 };
