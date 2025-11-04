@@ -27,6 +27,31 @@ class BookingApiClient extends BaseApiClient {
     return this.request<BookingListResponse>(endpoint);
   }
 
+  // Dashboard methods
+  async getDashboardStats(): Promise<{
+    registeredEvents: number;
+    upcomingEvents: number;
+    attendedEvents: number;
+    ticketsPurchased: number;
+    activeTickets: number;
+    usedTickets: number;
+    upcomingThisWeek: number;
+    nextWeekEvents: number;
+  }> {
+    const response = await this.request<{ success: boolean; data: any }>('/bookings/dashboard/stats');
+    return response.data;
+  }
+
+  async getUpcomingEvents(limit: number = 5): Promise<any[]> {
+    const response = await this.request<{ success: boolean; data: any[] }>(`/bookings/dashboard/upcoming-events?limit=${limit}`);
+    return response.data;
+  }
+
+  async getRecentRegistrations(limit: number = 5): Promise<any[]> {
+    const response = await this.request<{ success: boolean; data: any[] }>(`/bookings/dashboard/recent-registrations?limit=${limit}`);
+    return response.data;
+  }
+
   async getBooking(bookingId: string): Promise<BookingResponse> {
     return this.request<BookingResponse>(`/bookings/${bookingId}`);
   }
@@ -106,6 +131,23 @@ export const bookingAPI = {
    * Cancel a booking
    */
   cancelBooking: (bookingId: string) => bookingApiClient.cancelBooking(bookingId)
+};
+
+export const attendeeDashboardAPI = {
+  /**
+   * Get dashboard statistics for the authenticated user
+   */
+  getDashboardStats: () => bookingApiClient.getDashboardStats(),
+
+  /**
+   * Get upcoming events for the authenticated user
+   */
+  getUpcomingEvents: (limit?: number) => bookingApiClient.getUpcomingEvents(limit),
+
+  /**
+   * Get recent registrations for the authenticated user
+   */
+  getRecentRegistrations: (limit?: number) => bookingApiClient.getRecentRegistrations(limit)
 };
 
 export const ticketAPI = {

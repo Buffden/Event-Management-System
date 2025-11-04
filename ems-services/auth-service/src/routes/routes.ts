@@ -362,12 +362,12 @@ export function registerRoutes(app: Express, authService: AuthService) {
         try {
             const userId = contextService.getCurrentUserId();
             let user = contextService.getCurrentUser();
-            
+
             // If user not in context, fetch it
             if (!user) {
                 user = await authService.getProfile(userId);
             }
-            
+
             // Check if user is admin
             if (!user || user.role !== 'ADMIN') {
                 return res.status(403).json({error: 'Access denied: Admin only'});
@@ -376,7 +376,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
             logger.info("/admin/stats - Fetching user statistics", { adminId: userId });
 
             const { prisma } = await import('../database');
-            
+
             const totalUsers = await prisma.user.count();
 
             res.json({
@@ -405,12 +405,12 @@ export function registerRoutes(app: Express, authService: AuthService) {
         try {
             const userId = contextService.getCurrentUserId();
             let user = contextService.getCurrentUser();
-            
+
             // If user not in context, fetch it
             if (!user) {
                 user = await authService.getProfile(userId);
             }
-            
+
             // Check if user is admin
             if (!user || user.role !== 'ADMIN') {
                 return res.status(403).json({error: 'Access denied: Admin only'});
@@ -424,20 +424,20 @@ export function registerRoutes(app: Express, authService: AuthService) {
             const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
             const skip = (page - 1) * limit;
 
-            logger.info("/admin/users - Fetching users", { 
-                adminId: userId, 
-                search, 
-                role, 
-                status, 
-                page, 
-                limit 
+            logger.info("/admin/users - Fetching users", {
+                adminId: userId,
+                search,
+                role,
+                status,
+                page,
+                limit
             });
 
             const { prisma } = await import('../database');
-            
+
             // Build where clause
             const where: any = {};
-            
+
             // Search filter (name or email)
             if (search) {
                 where.OR = [
@@ -445,12 +445,12 @@ export function registerRoutes(app: Express, authService: AuthService) {
                     { email: { contains: search, mode: 'insensitive' } }
                 ];
             }
-            
+
             // Role filter
             if (role && role !== 'ALL') {
                 where.role = role;
             }
-            
+
             // Status filter
             if (status && status !== 'ALL') {
                 where.isActive = status === 'ACTIVE';
@@ -458,7 +458,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
 
             // Get total count for pagination
             const total = await prisma.user.count({ where });
-            
+
             // Get paginated users
             const users = await prisma.user.findMany({
                 where,
@@ -509,6 +509,95 @@ export function registerRoutes(app: Express, authService: AuthService) {
     });
 
     /**
+     * @route   POST /api/auth/admin/activate-users
+     * @desc    Activate multiple users by setting isActive=true and emailVerified=now()
+     * @access  Protected - Admin only
+     * @body    { emails: string[] } - Array of user email addresses to activate
+     */
+    app.post('/admin/activate-users', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+
+            // If user not in context, fetch it
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+
+            // Check if user is admin
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            const { emails } = req.body;
+
+            // Validate request body
+            if (!emails || !Array.isArray(emails) || emails.length === 0) {
+                return res.status(400).json({error: 'emails array is required and must not be empty'});
+            }
+
+            logger.info("/admin/activate-users - Activating users", {
+                adminId: userId,
+                emailCount: emails.length
+            });
+
+            const { prisma } = await import('../database');
+
+            let activated = 0;
+            let notFound = 0;
+            const currentDate = new Date();
+
+            // Process each email
+            for (const email of emails) {
+                if (!email || typeof email !== 'string') {
+                    continue; // Skip invalid emails
+                }
+
+                try {
+                    const updateResult = await prisma.user.updateMany({
+                        where: {
+                            email: email.trim().toLowerCase()
+                        },
+                        data: {
+                            isActive: true,
+                            emailVerified: currentDate
+                        }
+                    });
+
+                    if (updateResult.count > 0) {
+                        activated++;
+                        logger.debug("/admin/activate-users - User activated", { email });
+                    } else {
+                        notFound++;
+                        logger.debug("/admin/activate-users - User not found", { email });
+                    }
+                } catch (error: any) {
+                    logger.error("/admin/activate-users - Error activating user", error, { email });
+                    notFound++; // Count as not found on error
+                }
+            }
+
+            logger.info("/admin/activate-users - Activation complete", {
+                adminId: userId,
+                activated,
+                notFound,
+                total: emails.length
+            });
+
+            res.json({
+                success: true,
+                activated,
+                notFound,
+                total: emails.length,
+                message: `Activated ${activated} user(s), ${notFound} user(s) not found`
+            });
+        } catch (error: any) {
+            logger.error("/admin/activate-users - Failed to activate users", error);
+            res.status(500).json({error: 'Failed to activate users'});
+        }
+    });
+
+    /**
      * @route   GET /api/auth/admin/reports/user-growth
      * @desc    Get user growth trend (monthly user registrations).
      * @access  Protected - Admin only
@@ -517,11 +606,11 @@ export function registerRoutes(app: Express, authService: AuthService) {
         try {
             const userId = contextService.getCurrentUserId();
             let user = contextService.getCurrentUser();
-            
+
             if (!user) {
                 user = await authService.getProfile(userId);
             }
-            
+
             if (!user || user.role !== 'ADMIN') {
                 return res.status(403).json({error: 'Access denied: Admin only'});
             }
@@ -529,7 +618,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
             logger.info("/admin/reports/user-growth - Fetching user growth data", { adminId: userId });
 
             const { prisma } = await import('../database');
-            
+
             // Get all users ordered by creation date
             const users = await prisma.user.findMany({
                 select: {
@@ -555,7 +644,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
                     const monthIndex = Object.keys(monthlyGrowth).indexOf(month);
                     const previousMonths = Object.values(monthlyGrowth).slice(0, monthIndex);
                     const cumulativeUsers = previousMonths.reduce((sum, val) => sum + val, 0) + count;
-                    
+
                     return {
                         month,
                         users: cumulativeUsers,

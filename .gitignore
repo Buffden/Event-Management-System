@@ -12,7 +12,7 @@
 
 # python dependencies
 **/.venv
-
+**/*.pyc
 # testing
 /coverage
 
