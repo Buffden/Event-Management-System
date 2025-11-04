@@ -6,6 +6,7 @@ import {
     EventPublishedNotification,
     BookingConfirmedNotification,
     BookingCancelledNotification,
+    TicketGeneratedNotification,
     EventReminderNotification,
     WelcomeEmail,
     MESSAGE_TYPE
@@ -40,6 +41,8 @@ class EmailTemplateService {
                 return this.generateBookingConfirmedEmail(notification);
             case MESSAGE_TYPE.BOOKING_CANCELLED_NOTIFICATION:
                 return this.generateBookingCancelledEmail(notification);
+            case MESSAGE_TYPE.TICKET_GENERATED_NOTIFICATION:
+                return this.generateTicketGeneratedEmail(notification);
             case MESSAGE_TYPE.EVENT_REMINDER_NOTIFICATION:
                 return this.generateEventReminderEmail(notification);
             case MESSAGE_TYPE.WELCOME_EMAIL:
@@ -422,6 +425,104 @@ class EmailTemplateService {
                             </div>
 
                             <p>We're sorry to see you go! If you change your mind, you can always register for this or other events in the future.</p>
+                        </div>
+                        <div class="footer">
+                            <p>© 2024 ${this.appName}. All rights reserved.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `
+        };
+    }
+
+    private generateTicketGeneratedEmail(notification: TicketGeneratedNotification) {
+        const { message } = notification;
+        const expiresAtDate = new Date(message.expiresAt);
+        const expiresAtFormatted = expiresAtDate.toLocaleString();
+
+        return {
+            subject: `${this.appName} - Your Ticket: ${message.eventName}`,
+            body: `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Your Event Ticket</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                        .ticket-section { background: white; padding: 25px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #667eea; }
+                        .qr-code { text-align: center; margin: 20px 0; }
+                        .qr-code img { max-width: 200px; border: 2px solid #ddd; border-radius: 5px; padding: 10px; background: white; }
+                        .ticket-info { background: #f0f0f0; padding: 15px; border-radius: 5px; margin: 15px 0; }
+                        .ticket-info-item { margin: 10px 0; }
+                        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+                        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+                        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 5px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>🎫 Your Event Ticket</h1>
+                        </div>
+                        <div class="content">
+                            <h2>Hello ${message.attendeeName},</h2>
+                            <p>Your ticket has been generated! Here's everything you need for the event.</p>
+
+                            <div class="ticket-section">
+                                <h3>Event Details:</h3>
+                                <div class="ticket-info">
+                                    <div class="ticket-info-item"><strong>Event Name:</strong> ${message.eventName}</div>
+                                    <div class="ticket-info-item"><strong>Event Date:</strong> ${new Date(message.eventDate).toLocaleDateString()}</div>
+                                    <div class="ticket-info-item"><strong>Venue:</strong> ${message.venueName}</div>
+                                    <div class="ticket-info-item"><strong>Ticket ID:</strong> ${message.ticketId}</div>
+                                    <div class="ticket-info-item"><strong>Booking ID:</strong> ${message.bookingId}</div>
+                                    <div class="ticket-info-item"><strong>Ticket Expires:</strong> ${expiresAtFormatted}</div>
+                                </div>
+                            </div>
+
+                            ${message.qrCodeData ? `
+                            <div class="ticket-section">
+                                <h3>Your QR Code:</h3>
+                                <div class="qr-code">
+                                    <img src="data:image/png;base64,${message.qrCodeData}" alt="QR Code" />
+                                </div>
+                                <p style="text-align: center; font-size: 14px; color: #666;">
+                                    Present this QR code at the event entrance for entry.
+                                </p>
+                            </div>
+                            ` : `
+                            <div class="ticket-section">
+                                <h3>QR Code:</h3>
+                                <p style="text-align: center; color: #666;">
+                                    QR code will be available when you view your ticket online.
+                                </p>
+                            </div>
+                            `}
+
+                            <div class="warning">
+                                <strong>⚠️ Important:</strong>
+                                <ul style="margin: 10px 0; padding-left: 20px;">
+                                    <li>Please arrive at least 15 minutes before the event starts</li>
+                                    <li>Keep this ticket safe - you'll need it to enter the event</li>
+                                    <li>The QR code will expire 2 hours after the event ends</li>
+                                    <li>Make sure your device has sufficient battery to display the QR code</li>
+                                </ul>
+                            </div>
+
+                            ${message.ticketDownloadUrl ? `
+                            <div style="text-align: center;">
+                                <a href="${message.ticketDownloadUrl}" class="button">View Ticket Online</a>
+                            </div>
+                            ` : ''}
+
+                            <p>If you have any questions or need assistance, please contact our support team.</p>
+                            <p>We look forward to seeing you at the event!</p>
                         </div>
                         <div class="footer">
                             <p>© 2024 ${this.appName}. All rights reserved.</p>

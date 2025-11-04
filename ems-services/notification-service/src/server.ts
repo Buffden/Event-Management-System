@@ -3,6 +3,7 @@ config();
 
 import { NotificationConsumer } from './consumers/notification.consumer';
 import { BookingEventConsumer } from './consumers/booking-event.consumer';
+import { TicketEventConsumer } from './consumers/ticket-event.consumer';
 
 async function startServer() {
     const rabbitmqUrl = process.env.RABBITMQ_URL;
@@ -14,15 +15,18 @@ async function startServer() {
 
     const notificationConsumer = new NotificationConsumer(rabbitmqUrl);
     const bookingEventConsumer = new BookingEventConsumer(rabbitmqUrl);
-    
+    const ticketEventConsumer = new TicketEventConsumer(rabbitmqUrl);
+
     await notificationConsumer.start();
     await bookingEventConsumer.start();
+    await ticketEventConsumer.start();
 
     // Handle graceful shutdown
     const gracefulShutdown = async () => {
         console.log('Received shutdown signal.');
         await notificationConsumer.stop();
         await bookingEventConsumer.stop();
+        await ticketEventConsumer.stop();
         process.exit(0);
     };
 
