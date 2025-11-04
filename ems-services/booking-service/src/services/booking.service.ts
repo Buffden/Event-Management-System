@@ -373,7 +373,7 @@ class BookingService {
         },
         include: {
           event: true,
-          tickets: {
+          ticket: {
             select: {
               id: true,
               status: true
@@ -385,9 +385,34 @@ class BookingService {
       // Count registered events (all confirmed bookings)
       const registeredEvents = allBookings.length;
 
+      // Fetch event details from event-service to get bookingStartDate
+      const eventServiceUrl = process.env.EVENT_SERVICE_URL || 'http://event-service:3000';
+      const eventDetailsMap = new Map<string, { bookingStartDate: string; bookingEndDate: string }>();
+
+      // Fetch event details for all unique event IDs
+      const uniqueEventIds = Array.from(new Set(allBookings.map(b => b.eventId)));
+      await Promise.all(
+        uniqueEventIds.map(async (eventId) => {
+          try {
+            const eventResponse = await axios.get(`${eventServiceUrl}/events/${eventId}`, {
+              timeout: 5000
+            });
+            const eventDetails = eventResponse.data.data || eventResponse.data;
+            eventDetailsMap.set(eventId, {
+              bookingStartDate: eventDetails.bookingStartDate,
+              bookingEndDate: eventDetails.bookingEndDate
+            });
+          } catch (error) {
+            logger.warn('Failed to fetch event details for stats', { eventId });
+          }
+        })
+      );
+
       // Count upcoming events (events with bookingStartDate in the future)
       const upcomingEvents = allBookings.filter(booking => {
-        const eventStart = new Date(booking.event.bookingStartDate);
+        const eventDetails = eventDetailsMap.get(booking.eventId);
+        if (!eventDetails) return false;
+        const eventStart = new Date(eventDetails.bookingStartDate);
         return eventStart > now;
       }).length;
 
@@ -400,26 +425,31 @@ class BookingService {
       let usedTickets = 0;
 
       allBookings.forEach(booking => {
-        ticketsPurchased += booking.tickets.length;
-        booking.tickets.forEach(ticket => {
+        if (booking.ticket) {
+          ticketsPurchased++;
+          const ticket = booking.ticket;
           if (ticket.status === 'ISSUED' || ticket.status === 'SCANNED') {
             activeTickets++;
           }
           if (ticket.status === 'SCANNED') {
             usedTickets++;
           }
-        });
+        }
       });
 
       // Count upcoming events this week
       const upcomingThisWeek = allBookings.filter(booking => {
-        const eventStart = new Date(booking.event.bookingStartDate);
+        const eventDetails = eventDetailsMap.get(booking.eventId);
+        if (!eventDetails) return false;
+        const eventStart = new Date(eventDetails.bookingStartDate);
         return eventStart > now && eventStart <= oneWeekFromNow;
       }).length;
 
       // Count events next week
       const nextWeekEvents = allBookings.filter(booking => {
-        const eventStart = new Date(booking.event.bookingStartDate);
+        const eventDetails = eventDetailsMap.get(booking.eventId);
+        if (!eventDetails) return false;
+        const eventStart = new Date(eventDetails.bookingStartDate);
         return eventStart > oneWeekFromNow && eventStart <= twoWeeksFromNow;
       }).length;
 
@@ -454,7 +484,7 @@ class BookingService {
         },
         include: {
           event: true,
-          tickets: {
+          ticket: {
             select: {
               id: true,
               status: true
@@ -462,58 +492,76 @@ class BookingService {
           }
         },
         orderBy: {
-          event: {
-            bookingStartDate: 'asc'
-          }
+          createdAt: 'desc'
         }
       });
 
-      // Filter to only upcoming events and limit results
-      const upcomingBookings = bookings
-        .filter(booking => {
-          const eventStart = new Date(booking.event.bookingStartDate);
-          return eventStart > now;
-        })
-        .slice(0, limit);
-
-      // Fetch event details from event-service for each booking
+      // Fetch event details from event-service for all bookings
       const eventServiceUrl = process.env.EVENT_SERVICE_URL || 'http://event-service:3000';
 
-      const eventsWithDetails = await Promise.all(
-        upcomingBookings.map(async (booking) => {
+      const bookingsWithEventDetails = await Promise.all(
+        bookings.map(async (booking) => {
           try {
             const eventResponse = await axios.get(`${eventServiceUrl}/events/${booking.eventId}`, {
               timeout: 5000
             });
             const eventDetails = eventResponse.data.data || eventResponse.data;
-
             return {
-              id: booking.eventId,
-              title: eventDetails.name || 'Unknown Event',
-              date: new Date(booking.event.bookingStartDate).toISOString().split('T')[0],
-              time: new Date(booking.event.bookingStartDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-              location: eventDetails.venue?.name || 'TBD',
-              attendees: eventDetails.venue?.capacity || 0,
-              status: 'registered',
-              ticketType: booking.tickets.length > 0 ? 'Standard' : null,
-              bookingId: booking.id
+              booking,
+              eventDetails
             };
           } catch (error) {
             logger.warn('Failed to fetch event details', { eventId: booking.eventId });
             return {
-              id: booking.eventId,
-              title: 'Event',
-              date: new Date(booking.event.bookingStartDate).toISOString().split('T')[0],
-              time: new Date(booking.event.bookingStartDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-              location: 'TBD',
-              attendees: 0,
-              status: 'registered',
-              ticketType: booking.tickets.length > 0 ? 'Standard' : null,
-              bookingId: booking.id
+              booking,
+              eventDetails: null
             };
           }
         })
       );
+
+      // Filter to only upcoming events and sort by start date
+      const upcomingBookings = bookingsWithEventDetails
+        .filter(({ booking, eventDetails }) => {
+          if (!eventDetails) return false;
+          const eventStart = new Date(eventDetails.bookingStartDate);
+          return eventStart > now;
+        })
+        .sort((a, b) => {
+          if (!a.eventDetails || !b.eventDetails) return 0;
+          const dateA = new Date(a.eventDetails.bookingStartDate);
+          const dateB = new Date(b.eventDetails.bookingStartDate);
+          return dateA.getTime() - dateB.getTime();
+        })
+        .slice(0, limit);
+
+      const eventsWithDetails = upcomingBookings.map(({ booking, eventDetails }) => {
+        if (!eventDetails) {
+          return {
+            id: booking.eventId,
+            title: 'Event',
+            date: new Date().toISOString().split('T')[0],
+            time: 'TBD',
+            location: 'TBD',
+            attendees: 0,
+            status: 'registered',
+            ticketType: booking.ticket ? 'Standard' : null,
+            bookingId: booking.id
+          };
+        }
+
+        return {
+          id: booking.eventId,
+          title: eventDetails.name || 'Unknown Event',
+          date: new Date(eventDetails.bookingStartDate).toISOString().split('T')[0],
+          time: new Date(eventDetails.bookingStartDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          location: eventDetails.venue?.name || 'TBD',
+          attendees: eventDetails.venue?.capacity || 0,
+          status: 'registered',
+          ticketType: booking.ticket ? 'Standard' : null,
+          bookingId: booking.id
+        };
+      });
 
       return eventsWithDetails;
     } catch (error) {
@@ -536,7 +584,7 @@ class BookingService {
         },
         include: {
           event: true,
-          tickets: {
+          ticket: {
             select: {
               id: true,
               status: true
@@ -565,7 +613,7 @@ class BookingService {
               event: eventDetails.name || 'Unknown Event',
               date: booking.createdAt.toISOString().split('T')[0],
               status: 'confirmed',
-              ticketType: booking.tickets.length > 0 ? 'Standard' : null,
+              ticketType: booking.ticket ? 'Standard' : null,
               bookingId: booking.id
             };
           } catch (error) {
@@ -575,7 +623,7 @@ class BookingService {
               event: 'Event',
               date: booking.createdAt.toISOString().split('T')[0],
               status: 'confirmed',
-              ticketType: booking.tickets.length > 0 ? 'Standard' : null,
+              ticketType: booking.ticket ? 'Standard' : null,
               bookingId: booking.id
             };
           }
