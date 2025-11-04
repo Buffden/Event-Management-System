@@ -1,0 +1,15 @@
+# Requirements for seed.py script
+#
+# Install dependencies:
+#   pip install -r scripts/requirements.txt
+#
+# Or install individually:
+#   pip install requests                # Required for HTTP API calls
+#   pip install faker                   # Required for generating creative event names
+
+# Required: HTTP library for API requests
+requests>=2.28.0
+
+# Required: Library for generating creative event names
+faker>=18.0.0
+
