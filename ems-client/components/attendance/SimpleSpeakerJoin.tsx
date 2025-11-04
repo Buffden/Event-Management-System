@@ -59,7 +59,7 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
   const [joinMessage, setJoinMessage] = useState('');
   const [hasAcceptedInvitation, setHasAcceptedInvitation] = useState(false);
   const [isCheckingInvitation, setIsCheckingInvitation] = useState(true);
-
+  
   // Material selection state
   const [availableMaterials, setAvailableMaterials] = useState<any[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
@@ -106,21 +106,22 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
         setIsCheckingInvitation(true);
         // Get speaker profile from userId
         const speakerProfile = await speakerApiClient.getSpeakerProfile(speakerId);
-
+        
         // Get all invitations for this speaker
-        const invitations = await speakerApiClient.getSpeakerInvitations(speakerProfile.id);
-
+        const result = await speakerApiClient.getSpeakerInvitations(speakerProfile.id);
+        const invitations = result.invitations;
+        
         // Check if there's an accepted invitation for this event
         const acceptedInvitation = invitations.find(
           inv => inv.eventId === eventId && inv.status === 'ACCEPTED'
         );
-
+        
         setHasAcceptedInvitation(!!acceptedInvitation);
         setProfileId(speakerProfile.id);
         if (acceptedInvitation) {
           setInvitationId(acceptedInvitation.id);
         }
-
+        
         // Note: isAttended is not in the SpeakerInvitation type from the API
         // We'll check it separately if needed
       } catch (error) {
@@ -155,13 +156,13 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
   useEffect(() => {
     const loadMaterials = async () => {
       if (!profileId) return;
-
+      
       setIsLoadingMaterials(true);
       try {
         // Get speaker materials
         const speakerMaterials = await speakerApiClient.getSpeakerMaterials(profileId);
         setAvailableMaterials(speakerMaterials);
-
+        
         if (speakerMaterials.length === 0) {
           setMaterialsMessage('No materials available. Please upload materials first.');
         }
@@ -177,8 +178,8 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
   }, [profileId, logger]);
 
   const handleMaterialToggle = (materialId: string) => {
-    setSelectedMaterials(prev =>
-      prev.includes(materialId)
+    setSelectedMaterials(prev => 
+      prev.includes(materialId) 
         ? prev.filter(id => id !== materialId)
         : [...prev, materialId]
     );
@@ -187,16 +188,16 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
   const handleJoinEvent = async () => {
     setIsJoining(true);
     setJoinMessage('');
-
+    
     try {
       // First, update materials if any are selected and we have invitationId
       if (selectedMaterials.length > 0 && invitationId) {
         try {
           await attendanceApiClient.updateMaterialsForEvent(invitationId, selectedMaterials);
-          logger.info(LOGGER_COMPONENT_NAME, 'Materials updated for event', {
-            eventId,
+          logger.info(LOGGER_COMPONENT_NAME, 'Materials updated for event', { 
+            eventId, 
             invitationId,
-            selectedMaterials
+            selectedMaterials 
           });
         } catch (materialError) {
           logger.warn(LOGGER_COMPONENT_NAME, 'Failed to update materials, continuing with join', materialError as Error);
@@ -205,22 +206,22 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
 
       // Join as speaker
       const response = await attendanceApiClient.speakerJoinEvent(eventId);
-
-      logger.debug(LOGGER_COMPONENT_NAME, 'Join event response received', {
-        response,
+      
+      logger.debug(LOGGER_COMPONENT_NAME, 'Join event response received', { 
+        response, 
         hasSuccess: 'success' in response,
         successValue: response?.success,
-        eventId
+        eventId 
       });
 
       if (response && response.success === true) {
         setHasJoined(true);
         setJoinMessage(response.message || 'Successfully joined the event!');
-        logger.info(LOGGER_COMPONENT_NAME, 'Speaker joined event successfully', {
-          eventId,
-          message: response.message
+        logger.info(LOGGER_COMPONENT_NAME, 'Speaker joined event successfully', { 
+          eventId, 
+          message: response.message 
         });
-
+        
         // Refresh attendance count (don't let this fail the join)
         try {
           const metrics = await attendanceApiClient.getAttendanceMetrics(eventId);
@@ -229,7 +230,7 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
           logger.warn(LOGGER_COMPONENT_NAME, 'Failed to refresh attendance metrics, but join was successful', metricsError as Error);
           // Don't fail the join if metrics refresh fails
         }
-
+        
         // Redirect to live auditorium after 2 seconds
         setTimeout(() => {
           router.push(`/dashboard/speaker/events/${eventId}/live`);
@@ -238,8 +239,8 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
         const errorMsg = response?.message || 'Failed to join event. Please try again.';
         setJoinMessage(errorMsg);
         setHasJoined(false);
-        logger.warn(LOGGER_COMPONENT_NAME, 'Failed to join event', {
-          eventId,
+        logger.warn(LOGGER_COMPONENT_NAME, 'Failed to join event', { 
+          eventId, 
           response,
           message: errorMsg
         });
@@ -288,7 +289,7 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
           {eventCategory}
         </CardDescription>
       </CardHeader>
-
+      
       <CardContent className="space-y-4">
         {/* Attendance Info */}
         <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -316,7 +317,7 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
                 <span className="text-sm font-medium">Select Materials for This Event</span>
               </div>
             </div>
-
+            
             {isLoadingMaterials ? (
               <div className="text-center py-4">
                 <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground" />
@@ -352,11 +353,11 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
                     className="pl-10"
                   />
                 </div>
-
+                
                 {/* Materials List */}
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {availableMaterials
-                    .filter(material =>
+                    .filter(material => 
                       material.fileName.toLowerCase().includes(searchTerm.toLowerCase())
                     )
                     .map((material) => (
@@ -366,7 +367,7 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
                         checked={selectedMaterials.includes(material.id)}
                         onCheckedChange={() => handleMaterialToggle(material.id)}
                       />
-                      <label
+                      <label 
                         htmlFor={material.id}
                         className="text-sm flex-1 cursor-pointer"
                       >
@@ -378,13 +379,13 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
                     </div>
                   ))}
                 </div>
-
+                
                 {searchTerm && availableMaterials.filter(m => m.fileName.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
                   <div className="text-center py-2 text-xs text-muted-foreground">
                     No materials found matching "{searchTerm}"
                   </div>
                 )}
-
+                
                 {selectedMaterials.length > 0 && (
                   <div className="text-xs text-blue-600">
                     {selectedMaterials.length} material(s) selected
@@ -392,7 +393,7 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
                 )}
               </>
             )}
-
+            
             {materialsMessage && !isLoadingMaterials && availableMaterials.length === 0 && (
               <div className="text-xs text-red-600 flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />
@@ -418,20 +419,20 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
                 </p>
               </div>
             ) : canJoin ? (
-              <Button
-                onClick={handleJoinEvent}
-                disabled={isJoining || hasJoined || availableMaterials.length === 0 || (availableMaterials.length > 0 && selectedMaterials.length === 0)}
+              <Button 
+                onClick={handleJoinEvent} 
+                disabled={isJoining || hasJoined || availableMaterials.length === 0 || (availableMaterials.length > 0 && selectedMaterials.length === 0)} 
                 className={`w-full ${
-                  hasJoined
-                    ? 'bg-green-600 hover:bg-green-700'
+                  hasJoined 
+                    ? 'bg-green-600 hover:bg-green-700' 
                     : (availableMaterials.length === 0 || (availableMaterials.length > 0 && selectedMaterials.length === 0))
                       ? 'bg-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700'
                 } text-white`}
               >
                 {isJoining && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {hasJoined
-                  ? 'Joined as Speaker ✓'
+                {hasJoined 
+                  ? 'Joined as Speaker ✓' 
                   : availableMaterials.length === 0
                     ? 'Upload Materials First'
                     : (availableMaterials.length > 0 && selectedMaterials.length === 0)
@@ -444,7 +445,7 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
                 {timeUntilStart || 'Event Not Started'}
               </Button>
             )}
-
+            
             {/* Join Status Message */}
             {joinMessage && (
               <div className={`text-center text-sm flex items-center justify-center gap-1 ${
@@ -454,7 +455,7 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
                 {joinMessage}
               </div>
             )}
-
+            
             {/* Material Selection Reminder */}
             {canJoin && !hasJoined && hasAcceptedInvitation && availableMaterials.length > 0 && selectedMaterials.length === 0 && (
               <div className="text-center text-xs text-orange-600 flex items-center justify-center gap-1">
@@ -462,7 +463,7 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
                 Please select at least one material to join this event
               </div>
             )}
-
+            
             {/* No Materials Warning */}
             {canJoin && !hasJoined && hasAcceptedInvitation && availableMaterials.length === 0 && !isLoadingMaterials && (
               <div className="text-center text-xs text-red-600 flex items-center justify-center gap-1">

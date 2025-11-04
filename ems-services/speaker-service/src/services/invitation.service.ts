@@ -83,20 +83,75 @@ export class InvitationService {
   }
 
   /**
-   * Get invitations for a speaker
+   * Get invitations for a speaker with search, filters, and pagination
    */
-  async getSpeakerInvitations(speakerId: string): Promise<SpeakerInvitation[]> {
+  async getSpeakerInvitations(
+    speakerId: string,
+    filters?: {
+      search?: string;
+      status?: string;
+      page?: number;
+      limit?: number;
+    }
+  ): Promise<{
+    invitations: SpeakerInvitation[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     try {
-      logger.debug('Retrieving speaker invitations', { speakerId });
+      logger.debug('Retrieving speaker invitations', { speakerId, filters });
 
-      const invitations = await prisma.speakerInvitation.findMany({
-        where: { speakerId },
+      const { search, status, page = 1, limit = 20 } = filters || {};
+      const skip = (page - 1) * limit;
+
+      // Build where clause
+      const where: any = { speakerId };
+
+      // Status filter
+      if (status && status !== 'ALL') {
+        where.status = status.toUpperCase();
+      }
+
+      // Fetch all invitations matching the status filter
+      // Note: Event search is not available in backend since Event is in a different service/database
+      // Search filtering by event name/description will be handled client-side
+      let allInvitations = await prisma.speakerInvitation.findMany({
+        where,
         orderBy: {
           createdAt: 'desc'
         }
       });
 
-      return invitations;
+      // If search is provided, we need to filter by event details
+      // Since Event is in a different service, we'll need to fetch event details
+      // For now, we'll apply search on eventId if it matches (simplified)
+      // Client-side can do more sophisticated search on event details
+      if (search) {
+        const searchLower = search.toLowerCase();
+        // Simple search on eventId - client will handle full event name search
+        allInvitations = allInvitations.filter(inv => 
+          inv.eventId.toLowerCase().includes(searchLower)
+        );
+      }
+
+      const total = allInvitations.length;
+      const totalPages = Math.ceil(total / limit);
+
+      // Apply pagination
+      const paginatedInvitations = allInvitations.slice(skip, skip + limit);
+      
+      // Return invitations without event data (event details are fetched separately by frontend)
+      const invitations = paginatedInvitations;
+
+      return {
+        invitations,
+        total,
+        page,
+        limit,
+        totalPages
+      };
     } catch (error) {
       logger.error('Error retrieving speaker invitations', error as Error);
       throw error;

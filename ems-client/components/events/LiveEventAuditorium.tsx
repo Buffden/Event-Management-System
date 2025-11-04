@@ -121,7 +121,24 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading event details', { eventId });
       const eventResponse = await eventAPI.getEventById(eventId);
-      setEvent(eventResponse.data);
+      const event = eventResponse.data;
+      
+      // Check if event has expired
+      const now = new Date();
+      const eventEndDate = new Date(event.bookingEndDate);
+      
+      if (now > eventEndDate) {
+        logger.warn(LOGGER_COMPONENT_NAME, 'Event has expired', { 
+          eventId, 
+          eventEndDate: event.bookingEndDate,
+          currentTime: now.toISOString()
+        });
+        setError('This event has already ended. Live access is no longer available.');
+        setEvent(event); // Still set event to show details
+        return;
+      }
+      
+      setEvent(event);
       setError(null);
     } catch (err) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event', err as Error);
