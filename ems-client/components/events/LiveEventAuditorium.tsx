@@ -51,9 +51,9 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   const router = useRouter();
   const params = useParams();
   const logger = useLogger();
-  
+
   const eventId = params.id as string;
-  
+
   const [event, setEvent] = useState<EventResponse | null>(null);
   const [attendance, setAttendance] = useState<LiveAttendanceResponse | null>(null);
   const [speakerAttendance, setSpeakerAttendance] = useState<SpeakerAttendanceResponse | null>(null);
@@ -93,7 +93,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
             try {
               const invitations = await adminApiClient.getEventInvitations(eventId);
               const acceptedInvitation = invitations.find(inv => inv.status === 'ACCEPTED');
-              
+
               if (acceptedInvitation) {
                 const speakerProfile = await adminApiClient.getSpeakerProfile(acceptedInvitation.speakerId);
                 setSpeakerInfo({
@@ -122,14 +122,14 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading event details', { eventId });
       const eventResponse = await eventAPI.getEventById(eventId);
       const event = eventResponse.data;
-      
+
       // Check if event has expired
       const now = new Date();
       const eventEndDate = new Date(event.bookingEndDate);
-      
+
       if (now > eventEndDate) {
-        logger.warn(LOGGER_COMPONENT_NAME, 'Event has expired', { 
-          eventId, 
+        logger.warn(LOGGER_COMPONENT_NAME, 'Event has expired', {
+          eventId,
           eventEndDate: event.bookingEndDate,
           currentTime: now.toISOString()
         });
@@ -137,7 +137,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
         setEvent(event); // Still set event to show details
         return;
       }
-      
+
       setEvent(event);
       setError(null);
     } catch (err) {
@@ -152,12 +152,12 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       // Try to load speaker attendance - all authenticated users can now access it
       const speakerData = await attendanceAPI.getSpeakerAttendance(eventId).catch(() => null);
       setSpeakerAttendance(speakerData);
-      
+
       // Update speaker info from speaker attendance data
       if (speakerData) {
         await loadSpeakerInfo(eventId, speakerData);
       }
-      
+
       // Load selected materials if speaker has joined and selected materials
       if (speakerData && speakerData.speakers.length > 0) {
         const joinedSpeaker = speakerData.speakers.find(s => s.isAttended);
@@ -179,13 +179,13 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
   const loadAttendance = async () => {
     if (!event) return;
-    
+
     // Load speaker attendance for all roles
     await loadSpeakerAttendanceForAll();
-    
+
     // Load detailed attendance data only for ADMIN and SPEAKER roles
     if (userRole !== 'ADMIN' && userRole !== 'SPEAKER') return;
-    
+
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading attendance data', { eventId });
       const attendanceData = await attendanceAPI.getLiveAttendance(eventId);
@@ -207,7 +207,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
           if (token) {
             headers['Authorization'] = `Bearer ${token}`;
           }
-          
+
           const response = await fetch(`/api/materials/${materialId}`, {
             headers
           });
@@ -222,7 +222,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
           return null;
         }
       });
-      
+
       const materials = await Promise.all(materialPromises);
       setSelectedMaterials(materials.filter(m => m !== null) as PresentationMaterial[]);
     } catch (err) {
@@ -242,7 +242,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       await loadEvent();
       setLoading(false);
     };
-    
+
     loadData();
   }, [eventId]);
 
@@ -255,7 +255,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   // Auto-refresh attendance data every 15 seconds for live experience
   useEffect(() => {
     if (!event) return;
-    
+
     const interval = setInterval(() => {
       loadAttendance();
     }, 15000);
@@ -288,7 +288,19 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
               <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2 text-white">Error Loading Event</h3>
               <p className="text-slate-400 mb-4">{error}</p>
-              <Button onClick={() => router.back()} variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
+              <Button
+                onClick={() => {
+                  if (userRole === 'ADMIN') {
+                    router.push(`/dashboard/admin/events/${eventId}`);
+                  } else if (userRole === 'SPEAKER') {
+                    router.push(`/dashboard/speaker/events/${eventId}`);
+                  } else {
+                    router.push(`/dashboard/attendee/events/${eventId}`);
+                  }
+                }}
+                variant="outline"
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Exit Auditorium
               </Button>
@@ -317,7 +329,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   // Separate attendees into joined and not joined
   const joinedAttendees = attendance?.attendees.filter(attendee => attendee.isAttended) || [];
   const notJoinedAttendees = attendance?.attendees.filter(attendee => !attendee.isAttended) || [];
-  
+
   // Get speaker info from speaker attendance
   const speakerHasJoined = speakerAttendance?.speakers && speakerAttendance.speakers.length > 0 && speakerAttendance.speakers[0].isAttended;
 
@@ -329,7 +341,15 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Button
-                onClick={() => router.back()}
+                onClick={() => {
+                  if (userRole === 'ADMIN') {
+                    router.push(`/dashboard/admin/events/${eventId}`);
+                  } else if (userRole === 'SPEAKER') {
+                    router.push(`/dashboard/speaker/events/${eventId}`);
+                  } else {
+                    router.push(`/dashboard/attendee/events/${eventId}`);
+                  }
+                }}
                 variant="ghost"
                 size="sm"
                 className="text-slate-300 hover:text-white hover:bg-slate-700"
@@ -346,7 +366,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Button
                 onClick={refreshData}
@@ -449,11 +469,11 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                                     'Authorization': `Bearer ${attendanceAPI.getToken()}`
                                   }
                                 });
-                                
+
                                 if (!response.ok) {
                                   throw new Error(`Failed to download material: ${response.statusText}`);
                                 }
-                                
+
                                 const blob = await response.blob();
                                 const url = window.URL.createObjectURL(blob);
                                 const a = document.createElement('a');
@@ -557,7 +577,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                           <p className="text-xs text-slate-400">Registered</p>
                         </div>
                       </div>
-                      
+
                       <div className="text-center p-3 bg-purple-900/30 rounded-lg border border-purple-700">
                         <p className="text-2xl font-bold text-purple-400">{attendance.attendancePercentage}%</p>
                         <p className="text-xs text-slate-400">Attendance Rate</p>

@@ -50,19 +50,19 @@ interface EventDetailsPageProps {
   showSpeakerControls?: boolean;
 }
 
-export const EventDetailsPage = ({ 
-  userRole, 
-  showJoinInterface = true, 
-  showAdminControls = false, 
-  showSpeakerControls = false 
+export const EventDetailsPage = ({
+  userRole,
+  showJoinInterface = true,
+  showAdminControls = false,
+  showSpeakerControls = false
 }: EventDetailsPageProps) => {
   const { user } = useAuth();
   const router = useRouter();
   const params = useParams();
   const logger = useLogger();
-  
+
   const eventId = params.id as string;
-  
+
   const [event, setEvent] = useState<EventResponse | null>(null);
   const [attendance, setAttendance] = useState<LiveAttendanceResponse | null>(null);
   const [metrics, setMetrics] = useState<AttendanceMetricsResponse | null>(null);
@@ -71,7 +71,7 @@ export const EventDetailsPage = ({
     speakerEmail?: string | null;
     isAttended?: boolean;
   }
-  
+
   const [acceptedSpeakers, setAcceptedSpeakers] = useState<SpeakerInvitationWithInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,16 +95,16 @@ export const EventDetailsPage = ({
 
   const loadAcceptedSpeakers = async () => {
     if (!eventId) return;
-    
+
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading accepted speakers for event', { eventId });
-      
+
       // Fetch all invitations for this event
       const invitations = await adminAPI.getEventInvitations(eventId);
-      
+
       // Filter to only show speakers who have ACCEPTED invitations
       const accepted = invitations.filter(inv => inv.status === 'ACCEPTED');
-      
+
       // Fetch speaker profiles for accepted invitations
       const speakersWithInfo = await Promise.all(
         accepted.map(async (invitation) => {
@@ -128,12 +128,12 @@ export const EventDetailsPage = ({
           }
         })
       );
-      
+
       setAcceptedSpeakers(speakersWithInfo);
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Accepted speakers loaded', { 
-        eventId, 
-        count: speakersWithInfo.length 
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Accepted speakers loaded', {
+        eventId,
+        count: speakersWithInfo.length
       });
     } catch (err) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load accepted speakers', err as Error);
@@ -144,14 +144,14 @@ export const EventDetailsPage = ({
 
   const loadAttendance = async () => {
     if (!event) return;
-    
+
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading attendance data', { eventId });
-      
+
       // Load live attendance data
       const attendanceData = await attendanceAPI.getLiveAttendance(eventId);
       setAttendance(attendanceData);
-      
+
       // Load metrics (for admins and speakers)
       if (userRole === 'ADMIN' || userRole === 'SPEAKER') {
         const metricsData = await attendanceAPI.getAttendanceMetrics(eventId);
@@ -176,7 +176,7 @@ export const EventDetailsPage = ({
       await loadAcceptedSpeakers();
       setLoading(false);
     };
-    
+
     loadData();
   }, [eventId]);
 
@@ -189,7 +189,7 @@ export const EventDetailsPage = ({
   // Auto-refresh attendance data every 30 seconds
   useEffect(() => {
     if (!event) return;
-    
+
     const interval = setInterval(() => {
       loadAttendance();
     }, 30000);
@@ -256,7 +256,15 @@ export const EventDetailsPage = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Button
-                onClick={() => router.back()}
+                onClick={() => {
+                  if (userRole === 'ADMIN') {
+                    router.push('/dashboard/admin/events');
+                  } else if (userRole === 'SPEAKER') {
+                    router.push('/dashboard/speaker/events');
+                  } else {
+                    router.push('/dashboard/attendee/events');
+                  }
+                }}
                 variant="ghost"
                 size="sm"
               >
@@ -272,7 +280,7 @@ export const EventDetailsPage = ({
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Button
                 onClick={refreshData}
@@ -313,7 +321,7 @@ export const EventDetailsPage = ({
               </div>
             </div>
           </CardHeader>
-          
+
           <CardContent className="space-y-6">
             <div>
               <h3 className="font-semibold text-lg mb-3">Description</h3>
@@ -559,17 +567,17 @@ export const EventDetailsPage = ({
                     <h4 className="font-semibold mb-2">Event ID</h4>
                     <p className="text-slate-600 dark:text-slate-400 font-mono text-sm">{event.id}</p>
                   </div>
-                  
+
                   <div>
                     <h4 className="font-semibold mb-2">Created By</h4>
                     <p className="text-slate-600 dark:text-slate-400">Admin User</p>
                   </div>
-                  
+
                   <div>
                     <h4 className="font-semibold mb-2">Created At</h4>
                     <p className="text-slate-600 dark:text-slate-400">{formatDateTime(event.createdAt)}</p>
                   </div>
-                  
+
                   <div>
                     <h4 className="font-semibold mb-2">Last Updated</h4>
                     <p className="text-slate-600 dark:text-slate-400">{formatDateTime(event.updatedAt)}</p>
