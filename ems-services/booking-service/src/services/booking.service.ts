@@ -12,6 +12,7 @@ import {
 import { BookingStatus } from '../../generated/prisma';
 import { eventPublisherService } from './event-publisher.service';
 import { ticketService } from './ticket.service';
+import axios from 'axios';
 
 class BookingService {
   /**
@@ -75,7 +76,7 @@ class BookingService {
         eventId: booking.eventId,
         createdAt: booking.createdAt.toISOString()
       };
-      
+
       await eventPublisherService.publishBookingConfirmed(bookingMessage);
 
       // Booking confirmation email will be sent via notification-service pipeline triggered by booking.confirmed event
@@ -341,6 +342,297 @@ class BookingService {
       return result.count;
     } catch (error) {
       logger.error('Failed to cancel all event bookings', error as Error, { eventId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get dashboard statistics for a user
+   */
+  async getDashboardStats(userId: string): Promise<{
+    registeredEvents: number;
+    upcomingEvents: number;
+    attendedEvents: number;
+    ticketsPurchased: number;
+    activeTickets: number;
+    usedTickets: number;
+    upcomingThisWeek: number;
+    nextWeekEvents: number;
+  }> {
+    try {
+      logger.info('Fetching dashboard stats', { userId });
+      const now = new Date();
+      const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+      // Get all confirmed bookings for the user
+      const allBookings = await prisma.booking.findMany({
+        where: {
+          userId: userId,
+          status: BookingStatus.CONFIRMED
+        },
+        include: {
+          event: true,
+          ticket: {
+            select: {
+              id: true,
+              status: true
+            }
+          }
+        }
+      });
+
+      // Count registered events (all confirmed bookings)
+      const registeredEvents = allBookings.length;
+
+      // Fetch event details from event-service to get bookingStartDate
+      const eventServiceUrl = process.env.EVENT_SERVICE_URL || 'http://event-service:3000';
+      const eventDetailsMap = new Map<string, { bookingStartDate: string; bookingEndDate: string }>();
+
+      // Fetch event details for all unique event IDs
+      const uniqueEventIds = Array.from(new Set(allBookings.map(b => b.eventId)));
+      await Promise.all(
+        uniqueEventIds.map(async (eventId) => {
+          try {
+            const eventResponse = await axios.get(`${eventServiceUrl}/events/${eventId}`, {
+              timeout: 5000
+            });
+            const eventDetails = eventResponse.data.data || eventResponse.data;
+            eventDetailsMap.set(eventId, {
+              bookingStartDate: eventDetails.bookingStartDate,
+              bookingEndDate: eventDetails.bookingEndDate
+            });
+          } catch (error) {
+            logger.warn('Failed to fetch event details for stats', { eventId });
+          }
+        })
+      );
+
+      // Count upcoming events (events with bookingStartDate in the future)
+      const upcomingEvents = allBookings.filter(booking => {
+        const eventDetails = eventDetailsMap.get(booking.eventId);
+        if (!eventDetails) return false;
+        const eventStart = new Date(eventDetails.bookingStartDate);
+        return eventStart > now;
+      }).length;
+
+      // Count attended events (bookings where isAttended is true)
+      const attendedEvents = allBookings.filter(booking => booking.isAttended === true).length;
+
+      // Count tickets
+      let ticketsPurchased = 0;
+      let activeTickets = 0;
+      let usedTickets = 0;
+
+      allBookings.forEach(booking => {
+        if (booking.ticket) {
+          ticketsPurchased++;
+          const ticket = booking.ticket;
+          if (ticket.status === 'ISSUED' || ticket.status === 'SCANNED') {
+            activeTickets++;
+          }
+          if (ticket.status === 'SCANNED') {
+            usedTickets++;
+          }
+        }
+      });
+
+      // Count upcoming events this week
+      const upcomingThisWeek = allBookings.filter(booking => {
+        const eventDetails = eventDetailsMap.get(booking.eventId);
+        if (!eventDetails) return false;
+        const eventStart = new Date(eventDetails.bookingStartDate);
+        return eventStart > now && eventStart <= oneWeekFromNow;
+      }).length;
+
+      // Count events next week
+      const nextWeekEvents = allBookings.filter(booking => {
+        const eventDetails = eventDetailsMap.get(booking.eventId);
+        if (!eventDetails) return false;
+        const eventStart = new Date(eventDetails.bookingStartDate);
+        return eventStart > oneWeekFromNow && eventStart <= twoWeeksFromNow;
+      }).length;
+
+      return {
+        registeredEvents,
+        upcomingEvents,
+        attendedEvents,
+        ticketsPurchased,
+        activeTickets,
+        usedTickets,
+        upcomingThisWeek,
+        nextWeekEvents
+      };
+    } catch (error) {
+      logger.error('Failed to fetch dashboard stats', error as Error, { userId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get upcoming events for a user (with event details from event-service)
+   */
+  async getUpcomingEvents(userId: string, limit: number = 5): Promise<any[]> {
+    try {
+      logger.info('Fetching upcoming events', { userId, limit });
+      const now = new Date();
+
+      const bookings = await prisma.booking.findMany({
+        where: {
+          userId: userId,
+          status: BookingStatus.CONFIRMED
+        },
+        include: {
+          event: true,
+          ticket: {
+            select: {
+              id: true,
+              status: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      // Fetch event details from event-service for all bookings
+      const eventServiceUrl = process.env.EVENT_SERVICE_URL || 'http://event-service:3000';
+
+      const bookingsWithEventDetails = await Promise.all(
+        bookings.map(async (booking) => {
+          try {
+            const eventResponse = await axios.get(`${eventServiceUrl}/events/${booking.eventId}`, {
+              timeout: 5000
+            });
+            const eventDetails = eventResponse.data.data || eventResponse.data;
+            return {
+              booking,
+              eventDetails
+            };
+          } catch (error) {
+            logger.warn('Failed to fetch event details', { eventId: booking.eventId });
+            return {
+              booking,
+              eventDetails: null
+            };
+          }
+        })
+      );
+
+      // Filter to only upcoming events and sort by start date
+      const upcomingBookings = bookingsWithEventDetails
+        .filter(({ booking, eventDetails }) => {
+          if (!eventDetails) return false;
+          const eventStart = new Date(eventDetails.bookingStartDate);
+          return eventStart > now;
+        })
+        .sort((a, b) => {
+          if (!a.eventDetails || !b.eventDetails) return 0;
+          const dateA = new Date(a.eventDetails.bookingStartDate);
+          const dateB = new Date(b.eventDetails.bookingStartDate);
+          return dateA.getTime() - dateB.getTime();
+        })
+        .slice(0, limit);
+
+      const eventsWithDetails = upcomingBookings.map(({ booking, eventDetails }) => {
+        if (!eventDetails) {
+          return {
+            id: booking.eventId,
+            title: 'Event',
+            date: new Date().toISOString().split('T')[0],
+            time: 'TBD',
+            location: 'TBD',
+            attendees: 0,
+            status: 'registered',
+            ticketType: booking.ticket ? 'Standard' : null,
+            bookingId: booking.id
+          };
+        }
+
+        return {
+          id: booking.eventId,
+          title: eventDetails.name || 'Unknown Event',
+          date: new Date(eventDetails.bookingStartDate).toISOString().split('T')[0],
+          time: new Date(eventDetails.bookingStartDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          location: eventDetails.venue?.name || 'TBD',
+          attendees: eventDetails.venue?.capacity || 0,
+          status: 'registered',
+          ticketType: booking.ticket ? 'Standard' : null,
+          bookingId: booking.id
+        };
+      });
+
+      return eventsWithDetails;
+    } catch (error) {
+      logger.error('Failed to fetch upcoming events', error as Error, { userId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get recent registrations for a user
+   */
+  async getRecentRegistrations(userId: string, limit: number = 5): Promise<any[]> {
+    try {
+      logger.info('Fetching recent registrations', { userId, limit });
+
+      const bookings = await prisma.booking.findMany({
+        where: {
+          userId: userId,
+          status: BookingStatus.CONFIRMED
+        },
+        include: {
+          event: true,
+          ticket: {
+            select: {
+              id: true,
+              status: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: limit
+      });
+
+      // Fetch event details from event-service
+      const eventServiceUrl = process.env.EVENT_SERVICE_URL || 'http://event-service:3000';
+
+      const registrationsWithDetails = await Promise.all(
+        bookings.map(async (booking) => {
+          try {
+            const eventResponse = await axios.get(`${eventServiceUrl}/events/${booking.eventId}`, {
+              timeout: 5000
+            });
+            const eventDetails = eventResponse.data.data || eventResponse.data;
+
+            return {
+              id: booking.id,
+              event: eventDetails.name || 'Unknown Event',
+              date: booking.createdAt.toISOString().split('T')[0],
+              status: 'confirmed',
+              ticketType: booking.ticket ? 'Standard' : null,
+              bookingId: booking.id
+            };
+          } catch (error) {
+            logger.warn('Failed to fetch event details', { eventId: booking.eventId });
+            return {
+              id: booking.id,
+              event: 'Event',
+              date: booking.createdAt.toISOString().split('T')[0],
+              status: 'confirmed',
+              ticketType: booking.ticket ? 'Standard' : null,
+              bookingId: booking.id
+            };
+          }
+        })
+      );
+
+      return registrationsWithDetails;
+    } catch (error) {
+      logger.error('Failed to fetch recent registrations', error as Error, { userId });
       throw error;
     }
   }

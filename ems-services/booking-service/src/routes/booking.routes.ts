@@ -184,4 +184,60 @@ router.get('/bookings/event/:eventId/capacity',
   })
 );
 
+/**
+ * GET /bookings/dashboard/stats - Get dashboard statistics for the authenticated user
+ */
+router.get('/bookings/dashboard/stats',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.userId;
+
+    logger.info('Fetching dashboard stats', { userId });
+
+    const stats = await bookingService.getDashboardStats(userId);
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  })
+);
+
+/**
+ * GET /bookings/dashboard/upcoming-events - Get upcoming events for the authenticated user
+ */
+router.get('/bookings/dashboard/upcoming-events',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 5;
+
+    logger.info('Fetching upcoming events', { userId, limit });
+
+    const events = await bookingService.getUpcomingEvents(userId, limit);
+
+    res.json({
+      success: true,
+      data: events
+    });
+  })
+);
+
+/**
+ * GET /bookings/dashboard/recent-registrations - Get recent registrations for the authenticated user
+ */
+router.get('/bookings/dashboard/recent-registrations',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 5;
+
+    logger.info('Fetching recent registrations', { userId, limit });
+
+    const registrations = await bookingService.getRecentRegistrations(userId, limit);
+
+    res.json({
+      success: true,
+      data: registrations
+    });
+  })
+);
+
 export default router;

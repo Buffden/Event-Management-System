@@ -352,4 +352,317 @@ export function registerRoutes(app: Express, authService: AuthService) {
             return res.status(400).json({error: error.message});
         }
     });
+
+    /**
+     * @route   GET /api/auth/admin/stats
+     * @desc    Get user statistics for admin dashboard.
+     * @access  Protected - Admin only
+     */
+    app.get('/admin/stats', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+
+            // If user not in context, fetch it
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+
+            // Check if user is admin
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            logger.info("/admin/stats - Fetching user statistics", { adminId: userId });
+
+            const { prisma } = await import('../database');
+
+            const totalUsers = await prisma.user.count();
+
+            res.json({
+                success: true,
+                data: {
+                    totalUsers
+                }
+            });
+        } catch (error: any) {
+            logger.error("/admin/stats - Failed to fetch user statistics", error);
+            res.status(500).json({error: 'Failed to fetch user statistics'});
+        }
+    });
+
+    /**
+     * @route   GET /api/auth/admin/users
+     * @desc    Get all users list for admin dashboard with search, filters, and pagination.
+     * @access  Protected - Admin only
+     * @query   search: string (optional) - Search by name or email
+     * @query   role: string (optional) - Filter by role (ADMIN, USER, SPEAKER)
+     * @query   status: string (optional) - Filter by status (ACTIVE, INACTIVE)
+     * @query   page: number (optional) - Page number (default: 1)
+     * @query   limit: number (optional) - Items per page (default: 10, max: 100)
+     */
+    app.get('/admin/users', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+
+            // If user not in context, fetch it
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+
+            // Check if user is admin
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            // Extract query parameters
+            const search = req.query.search as string | undefined;
+            const role = req.query.role as string | undefined;
+            const status = req.query.status as string | undefined;
+            const page = Math.max(1, parseInt(req.query.page as string) || 1);
+            const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
+            const skip = (page - 1) * limit;
+
+            logger.info("/admin/users - Fetching users", {
+                adminId: userId,
+                search,
+                role,
+                status,
+                page,
+                limit
+            });
+
+            const { prisma } = await import('../database');
+
+            // Build where clause
+            const where: any = {};
+
+            // Search filter (name or email)
+            if (search) {
+                where.OR = [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } }
+                ];
+            }
+
+            // Role filter
+            if (role && role !== 'ALL') {
+                where.role = role;
+            }
+
+            // Status filter
+            if (status && status !== 'ALL') {
+                where.isActive = status === 'ACTIVE';
+            }
+
+            // Get total count for pagination
+            const total = await prisma.user.count({ where });
+
+            // Get paginated users
+            const users = await prisma.user.findMany({
+                where,
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true,
+                    isActive: true,
+                    emailVerified: true,
+                    createdAt: true,
+                    updatedAt: true
+                },
+                orderBy: {
+                    createdAt: 'desc'
+                },
+                skip,
+                take: limit
+            });
+
+            const totalPages = Math.ceil(total / limit);
+
+            res.json({
+                success: true,
+                data: users.map(u => ({
+                    id: u.id,
+                    name: u.name,
+                    email: u.email,
+                    role: u.role,
+                    isActive: u.isActive,
+                    emailVerified: u.emailVerified ? u.emailVerified.toISOString() : null,
+                    createdAt: u.createdAt.toISOString(),
+                    updatedAt: u.updatedAt.toISOString()
+                })),
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages,
+                    hasNextPage: page < totalPages,
+                    hasPreviousPage: page > 1
+                }
+            });
+        } catch (error: any) {
+            logger.error("/admin/users - Failed to fetch users", error);
+            res.status(500).json({error: 'Failed to fetch users'});
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/admin/activate-users
+     * @desc    Activate multiple users by setting isActive=true and emailVerified=now()
+     * @access  Protected - Admin only
+     * @body    { emails: string[] } - Array of user email addresses to activate
+     */
+    app.post('/admin/activate-users', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+
+            // If user not in context, fetch it
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+
+            // Check if user is admin
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            const { emails } = req.body;
+
+            // Validate request body
+            if (!emails || !Array.isArray(emails) || emails.length === 0) {
+                return res.status(400).json({error: 'emails array is required and must not be empty'});
+            }
+
+            logger.info("/admin/activate-users - Activating users", {
+                adminId: userId,
+                emailCount: emails.length
+            });
+
+            const { prisma } = await import('../database');
+
+            let activated = 0;
+            let notFound = 0;
+            const currentDate = new Date();
+
+            // Process each email
+            for (const email of emails) {
+                if (!email || typeof email !== 'string') {
+                    continue; // Skip invalid emails
+                }
+
+                try {
+                    const updateResult = await prisma.user.updateMany({
+                        where: {
+                            email: email.trim().toLowerCase()
+                        },
+                        data: {
+                            isActive: true,
+                            emailVerified: currentDate
+                        }
+                    });
+
+                    if (updateResult.count > 0) {
+                        activated++;
+                        logger.debug("/admin/activate-users - User activated", { email });
+                    } else {
+                        notFound++;
+                        logger.debug("/admin/activate-users - User not found", { email });
+                    }
+                } catch (error: any) {
+                    logger.error("/admin/activate-users - Error activating user", error, { email });
+                    notFound++; // Count as not found on error
+                }
+            }
+
+            logger.info("/admin/activate-users - Activation complete", {
+                adminId: userId,
+                activated,
+                notFound,
+                total: emails.length
+            });
+
+            res.json({
+                success: true,
+                activated,
+                notFound,
+                total: emails.length,
+                message: `Activated ${activated} user(s), ${notFound} user(s) not found`
+            });
+        } catch (error: any) {
+            logger.error("/admin/activate-users - Failed to activate users", error);
+            res.status(500).json({error: 'Failed to activate users'});
+        }
+    });
+
+    /**
+     * @route   GET /api/auth/admin/reports/user-growth
+     * @desc    Get user growth trend (monthly user registrations).
+     * @access  Protected - Admin only
+     */
+    app.get('/admin/reports/user-growth', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            logger.info("/admin/reports/user-growth - Fetching user growth data", { adminId: userId });
+
+            const { prisma } = await import('../database');
+
+            // Get all users ordered by creation date
+            const users = await prisma.user.findMany({
+                select: {
+                    createdAt: true
+                },
+                orderBy: {
+                    createdAt: 'asc'
+                }
+            });
+
+            // Group users by month
+            const monthlyGrowth: Record<string, number> = {};
+            users.forEach(user => {
+                const date = new Date(user.createdAt);
+                const monthKey = `${date.toLocaleString('default', { month: 'short' })} ${date.getFullYear()}`;
+                monthlyGrowth[monthKey] = (monthlyGrowth[monthKey] || 0) + 1;
+            });
+
+            // Convert to array format and calculate cumulative totals
+            const growthData = Object.entries(monthlyGrowth)
+                .map(([month, count]) => {
+                    // Calculate cumulative users up to this month
+                    const monthIndex = Object.keys(monthlyGrowth).indexOf(month);
+                    const previousMonths = Object.values(monthlyGrowth).slice(0, monthIndex);
+                    const cumulativeUsers = previousMonths.reduce((sum, val) => sum + val, 0) + count;
+
+                    return {
+                        month,
+                        users: cumulativeUsers,
+                        newUsers: count
+                    };
+                })
+                .sort((a, b) => {
+                    // Sort by date (simple string comparison should work for format "MMM YYYY")
+                    return a.month.localeCompare(b.month);
+                });
+
+            res.json({
+                success: true,
+                data: growthData
+            });
+        } catch (error: any) {
+            logger.error("/admin/reports/user-growth - Failed to fetch user growth data", error);
+            res.status(500).json({error: 'Failed to fetch user growth data'});
+        }
+    });
 }

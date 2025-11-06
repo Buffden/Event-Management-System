@@ -1,7 +1,7 @@
 import { BaseApiClient } from './base-api.client';
-import { 
-  CreateBookingRequest, 
-  BookingResponse, 
+import {
+  CreateBookingRequest,
+  BookingResponse,
   BookingListResponse,
   TicketResponse,
   TicketListResponse
@@ -25,6 +25,31 @@ class BookingApiClient extends BaseApiClient {
   async getUserBookings(userId?: string): Promise<BookingListResponse> {
     const endpoint = userId ? `/bookings?userId=${userId}` : '/bookings/my-bookings';
     return this.request<BookingListResponse>(endpoint);
+  }
+
+  // Dashboard methods
+  async getDashboardStats(): Promise<{
+    registeredEvents: number;
+    upcomingEvents: number;
+    attendedEvents: number;
+    ticketsPurchased: number;
+    activeTickets: number;
+    usedTickets: number;
+    upcomingThisWeek: number;
+    nextWeekEvents: number;
+  }> {
+    const response = await this.request<{ success: boolean; data: any }>('/bookings/dashboard/stats');
+    return response.data;
+  }
+
+  async getUpcomingEvents(limit: number = 5): Promise<any[]> {
+    const response = await this.request<{ success: boolean; data: any[] }>(`/bookings/dashboard/upcoming-events?limit=${limit}`);
+    return response.data;
+  }
+
+  async getRecentRegistrations(limit: number = 5): Promise<any[]> {
+    const response = await this.request<{ success: boolean; data: any[] }>(`/bookings/dashboard/recent-registrations?limit=${limit}`);
+    return response.data;
   }
 
   async getBooking(bookingId: string): Promise<BookingResponse> {
@@ -58,7 +83,7 @@ class BookingApiClient extends BaseApiClient {
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.limit) params.append('limit', filters.limit.toString());
     if (filters?.status) params.append('status', filters.status);
-    
+
     const endpoint = `/admin/tickets/events/${eventId}/tickets?${params.toString()}`;
     return this.request(endpoint);
   }
@@ -71,6 +96,16 @@ class BookingApiClient extends BaseApiClient {
     return this.request<{ success: boolean; message: string }>(`/admin/tickets/${ticketId}/revoke`, {
       method: 'PUT'
     });
+  }
+
+  // Speaker methods
+  async getEventRegistrationCount(eventId: string): Promise<{
+    eventId: string;
+    totalUsers: number;
+    confirmedBookings: number;
+    cancelledBookings: number;
+  }> {
+    return this.request(`/speaker/${eventId}/num-registered`);
   }
 }
 
@@ -98,6 +133,23 @@ export const bookingAPI = {
   cancelBooking: (bookingId: string) => bookingApiClient.cancelBooking(bookingId)
 };
 
+export const attendeeDashboardAPI = {
+  /**
+   * Get dashboard statistics for the authenticated user
+   */
+  getDashboardStats: () => bookingApiClient.getDashboardStats(),
+
+  /**
+   * Get upcoming events for the authenticated user
+   */
+  getUpcomingEvents: (limit?: number) => bookingApiClient.getUpcomingEvents(limit),
+
+  /**
+   * Get recent registrations for the authenticated user
+   */
+  getRecentRegistrations: (limit?: number) => bookingApiClient.getRecentRegistrations(limit)
+};
+
 export const ticketAPI = {
 
   /**
@@ -120,7 +172,7 @@ export const adminTicketAPI = {
   /**
    * Get all tickets for an event
    */
-  getEventTickets: (eventId: string, filters?: { page?: number; limit?: number; status?: string }) => 
+  getEventTickets: (eventId: string, filters?: { page?: number; limit?: number; status?: string }) =>
     bookingApiClient.getEventTickets(eventId, filters),
 
   /**
@@ -132,4 +184,12 @@ export const adminTicketAPI = {
    * Revoke a ticket
    */
   revokeTicket: (ticketId: string) => bookingApiClient.revokeTicket(ticketId)
+};
+
+export const speakerBookingAPI = {
+  /**
+   * Get number of registered users (confirmed bookings) for an event
+   * Speaker-only endpoint
+   */
+  getEventRegistrationCount: (eventId: string) => bookingApiClient.getEventRegistrationCount(eventId)
 };

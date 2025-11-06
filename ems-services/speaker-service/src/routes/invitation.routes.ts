@@ -88,11 +88,16 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Get invitations for a speaker
+// Get invitations for a speaker with search, filters, and pagination
 router.get('/speaker/:speakerId', async (req: Request, res: Response) => {
   try {
     const { speakerId } = req.params;
-    const { status } = req.query;
+    const { 
+      status, 
+      search, 
+      page = 1, 
+      limit = 20 
+    } = req.query;
     
     if (!speakerId) {
       return res.status(400).json({
@@ -102,24 +107,32 @@ router.get('/speaker/:speakerId', async (req: Request, res: Response) => {
       });
     }
 
-    let invitations;
-    if (status === 'pending') {
-      invitations = await invitationService.getPendingInvitations(speakerId);
-    } else if (status === 'accepted') {
-      invitations = await invitationService.getAcceptedInvitations(speakerId);
-    } else {
-      invitations = await invitationService.getSpeakerInvitations(speakerId);
-    }
+    const result = await invitationService.getSpeakerInvitations(speakerId, {
+      search: search as string,
+      status: status as string,
+      page: Number(page),
+      limit: Number(limit)
+    });
 
     logger.info('Speaker invitations retrieved', { 
       speakerId, 
-      count: invitations.length,
-      status: status || 'all'
+      count: result.invitations.length,
+      total: result.total,
+      page: result.page,
+      totalPages: result.totalPages
     });
     
     return res.json({
       success: true,
-      data: invitations,
+      data: result.invitations,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasNextPage: result.page < result.totalPages,
+        hasPreviousPage: result.page > 1
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {

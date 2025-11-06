@@ -1,5 +1,6 @@
 import { prisma } from '../database';
 import { logger } from '../utils/logger';
+import axios from 'axios';
 
 export interface SpeakerJoinEventRequest {
   speakerId: string;
@@ -33,6 +34,37 @@ export interface SpeakerAttendanceResponse {
 }
 
 export class SpeakerAttendanceService {
+  private readonly eventServiceUrl: string;
+
+  constructor() {
+    this.eventServiceUrl = process.env['GATEWAY_URL'] ? 
+      `${process.env['GATEWAY_URL']}/api/event` : 'http://ems-gateway/api/event';
+  }
+
+  /**
+   * Get event details from event service to check expiry
+   */
+  private async getEventDetails(eventId: string): Promise<{ bookingEndDate: string } | null> {
+    try {
+      const response = await axios.get(`${this.eventServiceUrl}/events/${eventId}`, {
+        timeout: 5000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.status === 200 && response.data.success) {
+        return {
+          bookingEndDate: response.data.data.bookingEndDate
+        };
+      }
+      return null;
+    } catch (error) {
+      logger.error('Failed to fetch event details from event service', error as Error, { eventId });
+      return null;
+    }
+  }
+
   /**
    * Speaker joins an event
    */
@@ -42,6 +74,27 @@ export class SpeakerAttendanceService {
         speakerId: data.speakerId, 
         eventId: data.eventId 
       });
+
+      // Check if event has expired by fetching event details from event service
+      const eventDetails = await this.getEventDetails(data.eventId);
+      if (eventDetails) {
+        const eventEndDate = new Date(eventDetails.bookingEndDate);
+        const now = new Date();
+        
+        if (now > eventEndDate) {
+          logger.warn('Speaker attempted to join expired event', { 
+            speakerId: data.speakerId, 
+            eventId: data.eventId,
+            eventEndDate: eventDetails.bookingEndDate,
+            currentTime: now.toISOString()
+          });
+          return {
+            success: false,
+            message: 'Cannot join event: Event has already ended',
+            isFirstJoin: false
+          };
+        }
+      }
 
       // Find the invitation for this speaker and event
       const invitation = await prisma.speakerInvitation.findFirst({

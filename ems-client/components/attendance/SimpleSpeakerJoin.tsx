@@ -108,7 +108,8 @@ export const SimpleSpeakerJoin: React.FC<SimpleSpeakerJoinProps> = ({
         const speakerProfile = await speakerApiClient.getSpeakerProfile(speakerId);
         
         // Get all invitations for this speaker
-        const invitations = await speakerApiClient.getSpeakerInvitations(speakerProfile.id);
+        const result = await speakerApiClient.getSpeakerInvitations(speakerProfile.id);
+        const invitations = result.invitations;
         
         // Check if there's an accepted invitation for this event
         const acceptedInvitation = invitations.find(

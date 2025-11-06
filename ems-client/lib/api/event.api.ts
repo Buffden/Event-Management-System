@@ -40,6 +40,8 @@ class EventApiClient extends BaseApiClient {
       if (filters.venueId) queryParams.append('venueId', filters.venueId.toString());
       if (filters.startDate) queryParams.append('startDate', filters.startDate);
       if (filters.endDate) queryParams.append('endDate', filters.endDate);
+      if (filters.search) queryParams.append('search', filters.search);
+      if (filters.timeframe) queryParams.append('timeframe', filters.timeframe);
       if (filters.page) queryParams.append('page', filters.page.toString());
       if (filters.limit) queryParams.append('limit', filters.limit.toString());
     }

@@ -18,76 +18,14 @@ import {
   TrendingUp,
   Award,
   MapPin,
-  Users
+  Users,
+  AlertCircle
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {useLogger} from "@/lib/logger/LoggerProvider";
 import {withUserAuth} from "@/components/hoc/withAuth";
-
-// Mock data for development
-const mockStats = {
-  registeredEvents: 8,
-  upcomingEvents: 3,
-  attendedEvents: 5,
-  ticketsPurchased: 12,
-  activeTickets: 4,
-  usedTickets: 8,
-  pointsEarned: 1250,
-  pointsThisMonth: 300,
-  upcomingThisWeek: 2,
-  nextWeekEvents: 1
-};
-
-const mockUpcomingEvents = [
-  {
-    id: '1',
-    title: 'TechConf 2024',
-    date: '2024-01-15',
-    time: '9:00 AM',
-    location: 'Convention Center',
-    attendees: 500,
-    status: 'registered',
-    ticketType: 'VIP Pass'
-  },
-  {
-    id: '2',
-    title: 'React Workshop',
-    date: '2024-01-18',
-    time: '2:00 PM',
-    location: 'Tech Hub',
-    attendees: 50,
-    status: 'registered',
-    ticketType: 'Standard'
-  },
-  {
-    id: '3',
-    title: 'Design Thinking Summit',
-    date: '2024-01-22',
-    time: '10:00 AM',
-    location: 'Innovation Lab',
-    attendees: 200,
-    status: 'interested',
-    ticketType: null
-  }
-];
-
-const mockRecentRegistrations = [
-  {
-    id: '1',
-    event: 'DevSummit 2024',
-    date: '2024-01-10',
-    status: 'confirmed',
-    ticketType: 'Early Bird'
-  },
-  {
-    id: '2',
-    event: 'UX Conference',
-    date: '2024-01-08',
-    status: 'confirmed',
-    ticketType: 'Standard'
-  }
-];
+import { attendeeDashboardAPI } from "@/lib/api/booking.api";
 
 const LOGGER_COMPONENT_NAME = 'AttendeeDashboard';
 
@@ -96,11 +34,79 @@ function AttendeeDashboard() {
   const router = useRouter();
   const logger = useLogger();
 
+  const [stats, setStats] = useState({
+    registeredEvents: 0,
+    upcomingEvents: 0,
+    attendedEvents: 0,
+    ticketsPurchased: 0,
+    activeTickets: 0,
+    usedTickets: 0,
+    upcomingThisWeek: 0,
+    nextWeekEvents: 0
+  });
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+  const [recentRegistrations, setRecentRegistrations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Attendee dashboard loaded', { userRole: user?.role });
+    loadDashboardData();
   }, [user, logger]);
 
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [statsData, upcomingData, recentData] = await Promise.all([
+        attendeeDashboardAPI.getDashboardStats(),
+        attendeeDashboardAPI.getUpcomingEvents(5),
+        attendeeDashboardAPI.getRecentRegistrations(5)
+      ]);
+
+      setStats(statsData);
+      setUpcomingEvents(upcomingData);
+      setRecentRegistrations(recentData);
+    } catch (err: any) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load dashboard data', err);
+      setError(err.message || 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Loading and auth checks are handled by the HOC
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600 dark:text-slate-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              Error Loading Dashboard
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
+            <Button onClick={loadDashboardData}>Retry</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -169,9 +175,9 @@ function AttendeeDashboard() {
               <Calendar className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.registeredEvents}</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.registeredEvents}</div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.upcomingEvents} upcoming
+                {stats.upcomingEvents} upcoming
               </p>
             </CardContent>
           </Card>
@@ -184,9 +190,9 @@ function AttendeeDashboard() {
               <Ticket className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.ticketsPurchased}</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.ticketsPurchased}</div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.activeTickets} active
+                {stats.activeTickets} active
               </p>
             </CardContent>
           </Card>
@@ -194,14 +200,14 @@ function AttendeeDashboard() {
           <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Points Earned
+                Attended Events
               </CardTitle>
               <Award className="h-4 w-4 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.pointsEarned}</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.attendedEvents}</div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.pointsThisMonth} this month
+                {stats.usedTickets} tickets used
               </p>
             </CardContent>
           </Card>
@@ -214,9 +220,9 @@ function AttendeeDashboard() {
               <Clock className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{mockStats.upcomingThisWeek}</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.upcomingThisWeek}</div>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                {mockStats.nextWeekEvents} next week
+                {stats.nextWeekEvents} next week
               </p>
             </CardContent>
           </Card>
@@ -286,39 +292,47 @@ function AttendeeDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockUpcomingEvents.map((event) => (
-                  <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
-                      <div className="flex items-center space-x-4 mt-1">
-                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          {event.date} at {event.time}
-                        </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          {event.location}
-                        </span>
+                {upcomingEvents.length === 0 ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No upcoming events</p>
+                ) : (
+                  upcomingEvents.map((event) => (
+                    <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
+                        <div className="flex items-center space-x-4 mt-1">
+                          <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            {event.date} at {event.time}
+                          </span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            {event.location}
+                          </span>
+                        </div>
+                        {event.ticketType && (
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {event.ticketType}
+                          </span>
+                        )}
                       </div>
-                      {event.ticketType && (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {event.ticketType}
-                        </span>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        <Badge
+                          variant={event.status === 'registered' ? 'default' : 'secondary'}
+                          className={event.status === 'registered' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
+                        >
+                          {event.status}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge
-                        variant={event.status === 'registered' ? 'default' : 'secondary'}
-                        className={event.status === 'registered' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
-                      >
-                        {event.status}
-                      </Badge>
-                      <Button size="sm" variant="outline">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -336,32 +350,38 @@ function AttendeeDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockRecentRegistrations.map((registration) => (
-                <div key={registration.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-slate-900 dark:text-white">{registration.event}</h4>
-                    <div className="flex items-center space-x-4 mt-1">
-                      <span className="text-sm text-slate-600 dark:text-slate-400">
-                        {registration.ticketType}
-                      </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        Registered on {registration.date}
-                      </span>
+              {recentRegistrations.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No recent registrations</p>
+              ) : (
+                recentRegistrations.map((registration) => (
+                  <div key={registration.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-slate-900 dark:text-white">{registration.event}</h4>
+                      <div className="flex items-center space-x-4 mt-1">
+                        {registration.ticketType && (
+                          <span className="text-sm text-slate-600 dark:text-slate-400">
+                            {registration.ticketType}
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Registered on {registration.date}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge
+                        variant="default"
+                        className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                      >
+                        {registration.status}
+                      </Badge>
+                      <Button size="sm" variant="outline">
+                        <Download className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge
-                      variant="default"
-                      className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    >
-                      {registration.status}
-                    </Badge>
-                    <Button size="sm" variant="outline">
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
