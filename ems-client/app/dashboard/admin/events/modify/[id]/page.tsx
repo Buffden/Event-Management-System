@@ -697,6 +697,7 @@ function AdminModifyEventPage() {
                           </div>
                         </div>
                         <Button
+                          type="button"
                           size="sm"
                           onClick={() => setShowSpeakerSearchModal(true)}
                           className="bg-blue-600 hover:bg-blue-700"
