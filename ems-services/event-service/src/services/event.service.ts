@@ -98,7 +98,7 @@ class EventService {
             // Get creator information to determine if they're an admin
             const creatorInfo = await this.getSpeakerInfo(speakerId);
             const isAdmin = creatorInfo?.role === 'ADMIN';
-            
+
             // Admin events are auto-published, speaker events start as DRAFT
             const initialStatus = isAdmin ? EventStatus.PUBLISHED : EventStatus.DRAFT;
 
@@ -173,8 +173,8 @@ class EventService {
             });
 
             logger.info('createEvent() - Event created successfully', {
-                eventId: event.id, 
-                speakerId, 
+                eventId: event.id,
+                speakerId,
                 status: event.status,
                 autoPublished: isAdmin
             });
@@ -200,7 +200,7 @@ class EventService {
     }
 
     /**
-     * Update an event (only if DRAFT or REJECTED)
+     * Update an event (only if DRAFT or REJECTED) - Speaker only
      */
     async updateEvent(eventId: string, data: UpdateEventRequest, speakerId: string): Promise<EventResponse> {
         try {
@@ -298,6 +298,110 @@ class EventService {
             return this.mapEventToResponse(event);
         } catch (error) {
             logger.error('updateEvent() - Failed to update event', error as Error, {eventId, speakerId, updateData: data});
+            throw error;
+        }
+    }
+
+    /**
+     * Update an event as admin (can update any status)
+     */
+    async updateEventAsAdmin(eventId: string, data: UpdateEventRequest): Promise<EventResponse> {
+        try {
+            logger.info('updateEventAsAdmin() - Admin updating event', {eventId});
+
+            const existingEvent = await prisma.event.findUnique({
+                where: {id: eventId},
+                include: {venue: true}
+            });
+
+            if (!existingEvent) {
+                logger.info("updateEventAsAdmin() - Event not found", {eventId});
+                throw new Error('Event not found');
+            }
+
+            // Validate venue if provided
+            if (data.venueId) {
+                logger.info("updateEventAsAdmin() - Validating provided venueId", {venueId: data.venueId});
+                const venue = await prisma.venue.findUnique({
+                    where: {id: data.venueId}
+                });
+
+                if (!venue) {
+                    logger.info("updateEventAsAdmin() - Venue not found", {venueId: data.venueId});
+                    throw new Error('Venue not found');
+                }
+            }
+
+            // Validate booking dates if provided
+            if (data.bookingStartDate || data.bookingEndDate) {
+                const bookingStart = data.bookingStartDate ? new Date(data.bookingStartDate) : existingEvent.bookingStartDate;
+                const bookingEnd = data.bookingEndDate ? new Date(data.bookingEndDate) : existingEvent.bookingEndDate;
+                logger.info("updateEventAsAdmin() - Validating booking dates", {bookingStart, bookingEnd});
+
+                if (bookingStart >= bookingEnd) {
+                    logger.error("updateEventAsAdmin() - booking start date must be before end date");
+                    throw new Error('Booking start date must be before end date');
+                }
+
+                // Check if venue is available for the new booking period (only for PUBLISHED events)
+                if (existingEvent.status === EventStatus.PUBLISHED) {
+                    const venueIdToCheck = data.venueId || existingEvent.venueId;
+                    const overlappingEvents = await prisma.event.findMany({
+                        where: {
+                            id: {not: eventId},
+                            venueId: venueIdToCheck,
+                            status: {in: [EventStatus.PUBLISHED, EventStatus.PENDING_APPROVAL]},
+                            OR: [
+                                {
+                                    bookingStartDate: {
+                                        lt: bookingEnd
+                                    },
+                                    bookingEndDate: {
+                                        gt: bookingStart
+                                    }
+                                }
+                            ]
+                        }
+                    });
+
+                    logger.info("updateEventAsAdmin() - Found overlapping events", {count: overlappingEvents.length});
+
+                    if (overlappingEvents.length > 0) {
+                        logger.error("updateEventAsAdmin() - venue is not available for the selected booking period");
+                        throw new Error('Venue is not available for the selected booking period');
+                    }
+                }
+            }
+
+            const updateData: any = {...data};
+            if (data.bookingStartDate) updateData.bookingStartDate = new Date(data.bookingStartDate);
+            if (data.bookingEndDate) updateData.bookingEndDate = new Date(data.bookingEndDate);
+
+            const event = await prisma.event.update({
+                where: {id: eventId},
+                data: updateData,
+                include: {venue: true}
+            });
+
+            logger.info('updateEventAsAdmin() - Event updated successfully by admin', {eventId});
+
+            // If event is PUBLISHED, publish event.updated message
+            if (event.status === EventStatus.PUBLISHED) {
+                try {
+                    await eventPublisherService.publishEventUpdated({
+                        eventId: event.id,
+                        updatedFields: data
+                    });
+                    logger.info('updateEventAsAdmin() - Published event.updated message', {eventId});
+                } catch (publishError) {
+                    logger.error('updateEventAsAdmin() - Failed to publish event.updated message', publishError as Error, {eventId});
+                    // Don't fail the update if publishing fails
+                }
+            }
+
+            return this.mapEventToResponse(event);
+        } catch (error) {
+            logger.error('updateEventAsAdmin() - Failed to update event', error as Error, {eventId, updateData: data});
             throw error;
         }
     }
