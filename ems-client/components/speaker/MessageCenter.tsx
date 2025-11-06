@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { 
-  MessageSquare, 
-  Send, 
-  Mail, 
-  MailOpen, 
+import {
+  MessageSquare,
+  Send,
+  Mail,
+  MailOpen,
   Clock,
   User,
   Reply,
@@ -31,13 +31,13 @@ interface MessageCenterProps {
   loading?: boolean;
 }
 
-export function MessageCenter({ 
-  messages, 
-  threads, 
-  unreadCount, 
-  onMarkAsRead, 
-  onSendMessage, 
-  loading = false 
+export function MessageCenter({
+  messages,
+  threads,
+  unreadCount,
+  onMarkAsRead,
+  onSendMessage,
+  loading = false
 }: MessageCenterProps) {
   const logger = useLogger();
   const [activeTab, setActiveTab] = useState<'messages' | 'threads'>('messages');
@@ -57,19 +57,42 @@ export function MessageCenter({
     try {
       setLoadingAdmins(true);
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading admin users for messaging');
-      
-      // For now, we'll use a mock list of admins
-      // In a real implementation, this would come from an API
-      const mockAdmins = [
-        { id: 'admin1', name: 'Admin User', email: 'admin@eventmanager.com' },
-        { id: 'admin2', name: 'System Administrator', email: 'system@eventmanager.com' }
-      ];
-      
-      setAdminUsers(mockAdmins);
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Admin users loaded for messaging', { count: mockAdmins.length });
+
+      // Try to fetch admin users from the API
+      // Note: This requires an endpoint that speakers can access
+      // For now, we'll use an empty list and show a message
+      // TODO: Implement an endpoint to fetch admin users for messaging
+      try {
+        const response = await fetch('/api/auth/admin/users?role=ADMIN&limit=100', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const admins = (result.data || []).map((user: any) => ({
+            id: user.id,
+            name: user.name || user.email,
+            email: user.email,
+          }));
+          setAdminUsers(admins);
+          logger.info(LOGGER_COMPONENT_NAME, 'Admin users loaded for messaging', { count: admins.length });
+        } else {
+          // If we can't fetch admins, use empty list
+          logger.warn(LOGGER_COMPONENT_NAME, 'Could not fetch admin users, using empty list');
+          setAdminUsers([]);
+        }
+      } catch (fetchError) {
+        // If fetch fails, use empty list
+        logger.warn(LOGGER_COMPONENT_NAME, 'Failed to fetch admin users, using empty list', fetchError as Error);
+        setAdminUsers([]);
+      }
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load admin users', error as Error);
+      setAdminUsers([]);
     } finally {
       setLoadingAdmins(false);
     }
@@ -89,20 +112,28 @@ export function MessageCenter({
     }
   };
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleSendMessage = async () => {
-    if (!composeData.toUserId || !composeData.subject || !composeData.content) return;
+    if (!composeData.toUserId || !composeData.subject || !composeData.content) {
+      setError('Please fill in all fields');
+      return;
+    }
 
     try {
       setSending(true);
+      setError(null);
       logger.debug(LOGGER_COMPONENT_NAME, 'Sending message', { toUserId: composeData.toUserId });
-      
+
       await onSendMessage(composeData);
-      
+
       setComposeData({ toUserId: '', subject: '', content: '' });
       setShowCompose(false);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Message sent successfully', { toUserId: composeData.toUserId });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+      setError(errorMessage);
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to send message', error as Error, { toUserId: composeData.toUserId });
     } finally {
       setSending(false);
@@ -176,25 +207,45 @@ export function MessageCenter({
             <CardDescription>Send a message to an administrator</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 To Administrator
               </label>
-              <select 
-                value={composeData.toUserId} 
-                onChange={(e) => setComposeData(prev => ({ ...prev, toUserId: e.target.value }))}
-                disabled={loadingAdmins}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select an administrator...</option>
-                {adminUsers.map((admin) => (
-                  <option key={admin.id} value={admin.id}>
-                    {admin.name} ({admin.email})
-                  </option>
-                ))}
-              </select>
+              {adminUsers.length > 0 ? (
+                <select
+                  value={composeData.toUserId}
+                  onChange={(e) => setComposeData(prev => ({ ...prev, toUserId: e.target.value }))}
+                  disabled={loadingAdmins}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select an administrator...</option>
+                  {adminUsers.map((admin) => (
+                    <option key={admin.id} value={admin.id}>
+                      {admin.name} ({admin.email})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  placeholder="Enter admin user ID"
+                  value={composeData.toUserId}
+                  onChange={(e) => setComposeData(prev => ({ ...prev, toUserId: e.target.value }))}
+                  disabled={loadingAdmins}
+                />
+              )}
               {loadingAdmins && (
                 <p className="text-sm text-gray-500 mt-1">Loading administrators...</p>
+              )}
+              {!loadingAdmins && adminUsers.length === 0 && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Could not load admin list. Please enter an admin user ID manually.
+                </p>
               )}
             </div>
             <div>
@@ -267,8 +318,8 @@ export function MessageCenter({
                 <div
                   key={message.id}
                   className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                    !message.readAt 
-                      ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800' 
+                    !message.readAt
+                      ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800'
                       : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                   onClick={() => {
