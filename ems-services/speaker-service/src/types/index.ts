@@ -73,9 +73,16 @@ export interface Message {
   subject: string;
   content: string;
   threadId?: string | null;
+  eventId?: string | null;
+  status: 'SENT' | 'DELIVERED' | 'READ';
   sentAt: Date;
+  deliveredAt?: Date | null;
   readAt?: Date | null;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentType?: string | null;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface CreateMessageRequest {
@@ -84,6 +91,10 @@ export interface CreateMessageRequest {
   subject: string;
   content: string;
   threadId?: string;
+  eventId?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
 }
 
 export interface MessageThread {

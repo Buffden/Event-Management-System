@@ -13,7 +13,8 @@ import {
   BarChart3,
   Plus,
   Eye,
-  Ticket
+  Ticket,
+  MessageSquare
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -247,6 +248,15 @@ function AdminDashboard() {
                   <Ticket className="h-5 w-5" />
                   <span className="text-sm">Manage Tickets</span>
                 </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
+                  onClick={() => router.push('/dashboard/admin/messages')}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  <span className="text-sm">Messages</span>
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -266,8 +276,8 @@ function AdminDashboard() {
                 <p className="text-slate-600 dark:text-slate-400 mb-4">
                   View all events to see the latest updates
                 </p>
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   variant="outline"
                   onClick={() => router.push('/dashboard/admin/events')}
                 >

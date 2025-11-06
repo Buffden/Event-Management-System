@@ -12,8 +12,8 @@ export class MessageService {
    */
   async createMessage(data: CreateMessageRequest): Promise<Message> {
     try {
-      logger.info('Creating message', { 
-        fromUserId: data.fromUserId, 
+      logger.info('Creating message', {
+        fromUserId: data.fromUserId,
         toUserId: data.toUserId,
         subject: data.subject
       });
@@ -27,11 +27,16 @@ export class MessageService {
           toUserId: data.toUserId,
           subject: data.subject,
           content: data.content,
-          threadId: threadId
+          threadId: threadId,
+          eventId: data.eventId || null,
+          attachmentUrl: data.attachmentUrl || null,
+          attachmentName: data.attachmentName || null,
+          attachmentType: data.attachmentType || null,
+          status: 'SENT'
         }
       });
 
-      logger.info('Message created successfully', { 
+      logger.info('Message created successfully', {
         messageId: message.id,
         threadId: threadId
       });
@@ -194,10 +199,33 @@ export class MessageService {
 
       // Sort threads by last message time and apply pagination
       threads.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
-      
+
       return threads.slice(offset, offset + limit);
     } catch (error) {
       logger.error('Error retrieving user threads', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Mark message as delivered
+   */
+  async markMessageAsDelivered(messageId: string): Promise<Message> {
+    try {
+      logger.info('Marking message as delivered', { messageId });
+
+      const message = await prisma.message.update({
+        where: { id: messageId },
+        data: {
+          status: 'DELIVERED',
+          deliveredAt: new Date()
+        }
+      });
+
+      logger.info('Message marked as delivered successfully', { messageId });
+      return message;
+    } catch (error) {
+      logger.error('Error marking message as delivered', error as Error);
       throw error;
     }
   }
@@ -212,6 +240,7 @@ export class MessageService {
       const message = await prisma.message.update({
         where: { id: messageId },
         data: {
+          status: 'READ',
           readAt: new Date()
         }
       });
@@ -283,6 +312,147 @@ export class MessageService {
       return await this.getMessageThread(threadId);
     } catch (error) {
       logger.error('Error retrieving conversation', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all messages from speakers (admin only)
+   */
+  async getAllSpeakerMessages(limit: number = 50, offset: number = 0): Promise<Message[]> {
+    try {
+      logger.debug('Retrieving all speaker messages', { limit, offset });
+
+      // Get all messages where fromUserId is a speaker
+      // Note: This assumes we can identify speakers by checking if they have a speaker profile
+      // For now, we'll get all messages and filter in the application layer
+      // In production, you might want to add a join with speaker_profiles table
+      const messages = await prisma.message.findMany({
+        orderBy: {
+          sentAt: 'desc'
+        },
+        take: limit,
+        skip: offset
+      });
+
+      return messages;
+    } catch (error) {
+      logger.error('Error retrieving all speaker messages', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get messages by event ID (admin only)
+   */
+  async getMessagesByEvent(eventId: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
+    try {
+      logger.debug('Retrieving messages by event', { eventId, limit, offset });
+
+      const messages = await prisma.message.findMany({
+        where: { eventId },
+        orderBy: {
+          sentAt: 'desc'
+        },
+        take: limit,
+        skip: offset
+      });
+
+      return messages;
+    } catch (error) {
+      logger.error('Error retrieving messages by event', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get messages by speaker (admin only)
+   */
+  async getMessagesBySpeaker(speakerUserId: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
+    try {
+      logger.debug('Retrieving messages by speaker', { speakerUserId, limit, offset });
+
+      const messages = await prisma.message.findMany({
+        where: { fromUserId: speakerUserId },
+        orderBy: {
+          sentAt: 'desc'
+        },
+        take: limit,
+        skip: offset
+      });
+
+      return messages;
+    } catch (error) {
+      logger.error('Error retrieving messages by speaker', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get message threads organized by speaker (admin only)
+   */
+  async getThreadsBySpeaker(speakerUserId: string, limit: number = 20, offset: number = 0): Promise<MessageThread[]> {
+    try {
+      logger.debug('Retrieving threads by speaker', { speakerUserId, limit, offset });
+
+      const messages = await prisma.message.findMany({
+        where: { fromUserId: speakerUserId },
+        orderBy: {
+          sentAt: 'desc'
+        }
+      });
+
+      // Group by threadId
+      const threadMap = new Map<string, Message[]>();
+      messages.forEach(message => {
+        if (message.threadId) {
+          if (!threadMap.has(message.threadId)) {
+            threadMap.set(message.threadId, []);
+          }
+          threadMap.get(message.threadId)!.push(message);
+        }
+      });
+
+      const threads: MessageThread[] = Array.from(threadMap.entries()).map(([threadId, threadMessages]) => {
+        const sortedMessages = threadMessages.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
+        const participants = Array.from(new Set([
+          ...sortedMessages.map(m => m.fromUserId),
+          ...sortedMessages.map(m => m.toUserId)
+        ]));
+
+        return {
+          threadId,
+          participants,
+          messages: sortedMessages,
+          lastMessageAt: sortedMessages[sortedMessages.length - 1]?.sentAt || new Date()
+        };
+      });
+
+      threads.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
+      return threads.slice(offset, offset + limit);
+    } catch (error) {
+      logger.error('Error retrieving threads by speaker', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get unread message count for admins (messages from speakers)
+   */
+  async getUnreadSpeakerMessageCount(): Promise<number> {
+    try {
+      logger.debug('Retrieving unread speaker message count');
+
+      const count = await prisma.message.count({
+        where: {
+          readAt: null,
+          status: { in: ['SENT', 'DELIVERED'] }
+        }
+      });
+
+      return count;
+    } catch (error) {
+      logger.error('Error retrieving unread speaker message count', error as Error);
       throw error;
     }
   }

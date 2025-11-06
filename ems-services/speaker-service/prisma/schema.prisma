@@ -20,6 +20,12 @@ enum InvitationStatus {
   EXPIRED
 }
 
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
 // Speaker profile model
 model SpeakerProfile {
   id          String   @id @default(cuid())
@@ -31,10 +37,10 @@ model SpeakerProfile {
   isAvailable Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   invitations SpeakerInvitation[]
   materials   PresentationMaterial[]
-  
+
   @@map("speaker_profiles")
 }
 
@@ -47,32 +53,44 @@ model SpeakerInvitation {
   status      InvitationStatus @default(PENDING)
   sentAt      DateTime         @default(now())
   respondedAt DateTime?
-  
+
   // Speaker joining and material selection
   joinedAt           DateTime?  // When speaker joined the event (null if not joined)
   materialsSelected  String[]   @default([]) // Array of material IDs selected for this event
   isAttended         Boolean    @default(false) // Whether speaker has attended the event
-  
+
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
-  
+
   speaker     SpeakerProfile @relation(fields: [speakerId], references: [id])
-  
+
   @@map("speaker_invitations")
 }
 
 // Message model
 model Message {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   fromUserId  String
   toUserId    String
   subject     String
-  content     String
+  content     String        @db.Text
   threadId    String?
-  sentAt      DateTime @default(now())
-  readAt      DateTime?
-  createdAt   DateTime @default(now())
-  
+  eventId     String?       // Optional: associate message with an event
+  status      MessageStatus @default(SENT)
+  sentAt      DateTime      @default(now())
+  deliveredAt DateTime?     // When message was delivered
+  readAt      DateTime?     // When message was read
+  attachmentUrl String?     // Optional: URL to attached file
+  attachmentName String?    // Optional: name of attached file
+  attachmentType String?    // Optional: MIME type of attachment
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([threadId])
+  @@index([eventId])
+  @@index([status])
   @@map("messages")
 }
 
@@ -86,8 +104,8 @@ model PresentationMaterial {
   fileSize    Int
   mimeType    String
   uploadDate  DateTime @default(now())
-  
+
   speaker     SpeakerProfile @relation(fields: [speakerId], references: [id])
-  
+
   @@map("presentation_materials")
 }
