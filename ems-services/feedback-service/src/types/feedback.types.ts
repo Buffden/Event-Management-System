@@ -1,11 +1,13 @@
 // Feedback Service Types
 
+export type FeedbackFormStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED';
+
 export interface FeedbackForm {
   id: string;
   eventId: string;
   title: string;
   description?: string;
-  isPublished: boolean;
+  status: FeedbackFormStatus;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,7 +34,7 @@ export interface CreateFeedbackFormRequest {
 export interface UpdateFeedbackFormRequest {
   title?: string;
   description?: string;
-  isPublished?: boolean;
+  status?: FeedbackFormStatus;
 }
 
 export interface SubmitFeedbackRequest {
@@ -47,7 +49,7 @@ export interface FeedbackFormResponse {
   eventId: string;
   title: string;
   description?: string;
-  isPublished: boolean;
+  status: FeedbackFormStatus;
   responseCount: number;
   averageRating?: number;
   createdAt: Date;
@@ -101,6 +103,7 @@ export interface FeedbackValidationResult {
 export interface IFeedbackService {
   createFeedbackForm(data: CreateFeedbackFormRequest): Promise<FeedbackForm>;
   updateFeedbackForm(formId: string, data: UpdateFeedbackFormRequest): Promise<FeedbackForm>;
+  closeFeedbackForm(formId: string): Promise<FeedbackForm>;
   deleteFeedbackForm(formId: string): Promise<void>;
   getFeedbackForm(formId: string): Promise<FeedbackFormResponse | null>;
   getFeedbackFormByEventId(eventId: string): Promise<FeedbackFormResponse | null>;
@@ -154,5 +157,11 @@ export class InvalidRatingError extends FeedbackError {
 export class FeedbackFormNotPublishedError extends FeedbackError {
   constructor(formId: string) {
     super(`Feedback form ${formId} is not published`, 'FEEDBACK_FORM_NOT_PUBLISHED', 400);
+  }
+}
+
+export class FeedbackFormClosedError extends FeedbackError {
+  constructor(formId: string) {
+    super(`Feedback form ${formId} is closed and no longer accepting submissions`, 'FEEDBACK_FORM_CLOSED', 400);
   }
 }

@@ -66,6 +66,28 @@ router.put('/forms/:id',
   })
 );
 
+router.patch('/forms/:id/close',
+  authenticateToken,
+  requireAdmin,
+  validateIdParam('id'),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+
+    logger.info('Closing feedback form', {
+      formId: id,
+      adminId: req.user?.id
+    });
+
+    const feedbackForm = await feedbackService.closeFeedbackForm(id);
+
+    res.json({
+      success: true,
+      data: feedbackForm,
+      message: 'Feedback form closed successfully'
+    });
+  })
+);
+
 router.delete('/forms/:id',
   authenticateToken,
   requireAdmin,
@@ -135,6 +157,7 @@ router.get('/forms/:id',
 );
 
 // Public endpoint to get feedback form by event ID
+// Users can see forms in DRAFT or PUBLISHED status (not CLOSED)
 router.get('/events/:eventId/form',
   asyncHandler(async (req: Request, res: Response) => {
     const { eventId } = req.params;
@@ -146,15 +169,6 @@ router.get('/events/:eventId/form',
         success: false,
         error: 'Feedback form not found for this event',
         code: 'FEEDBACK_FORM_NOT_FOUND'
-      });
-    }
-
-    // Only return published forms to public
-    if (!feedbackForm.isPublished) {
-      return res.status(404).json({
-        success: false,
-        error: 'Feedback form not available',
-        code: 'FEEDBACK_FORM_NOT_PUBLISHED'
       });
     }
 
