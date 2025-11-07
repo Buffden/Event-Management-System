@@ -7,7 +7,7 @@ import path from 'path';
 
 config({ path: path.resolve(__dirname, '../../.env.test') });
 
-process.env.NODE_ENV = 'test';
+process.env['NODE_ENV'] = 'test';
 
 const requiredEnvs = [
   'DATABASE_URL',
@@ -25,9 +25,9 @@ for (const key of requiredEnvs) {
   }
 }
 
-process.env.LOG_LEVEL = 'error';
-process.env.DISABLE_LOGGING = 'true';
-process.env.CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
+process.env['LOG_LEVEL'] = 'error';
+process.env['DISABLE_LOGGING'] = 'true';
+process.env['CLIENT_URL'] = process.env['CLIENT_URL'] || 'http://localhost:3000';
 
 console.log('✅ Speaker Service test environment configured');
 

@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { Message, MessageThread } from '@/lib/api/speaker.api';
 import { useLogger } from '@/lib/logger/LoggerProvider';
+import { tokenManager } from '@/lib/api/auth.api';
+import { useAuth } from '@/lib/auth-context';
 
 const LOGGER_COMPONENT_NAME = 'MessageCenter';
 
@@ -40,6 +42,7 @@ export function MessageCenter({
   loading = false
 }: MessageCenterProps) {
   const logger = useLogger();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'messages' | 'threads'>('messages');
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showCompose, setShowCompose] = useState(false);
@@ -58,15 +61,19 @@ export function MessageCenter({
       setLoadingAdmins(true);
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading admin users for messaging');
 
-      // Try to fetch admin users from the API
-      // Note: This requires an endpoint that speakers can access
-      // For now, we'll use an empty list and show a message
-      // TODO: Implement an endpoint to fetch admin users for messaging
+      // Fetch admin users from the API endpoint accessible to speakers
       try {
-        const response = await fetch('/api/auth/admin/users?role=ADMIN&limit=100', {
+        const token = tokenManager.getToken();
+        if (!token) {
+          logger.warn(LOGGER_COMPONENT_NAME, 'No authentication token found');
+          setAdminUsers([]);
+          return;
+        }
+
+        const response = await fetch('/api/auth/admins?limit=100', {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
@@ -309,7 +316,7 @@ export function MessageCenter({
           <CardHeader>
             <CardTitle>Recent Messages</CardTitle>
             <CardDescription>
-              Your latest messages from administrators
+              Your latest messages (sent and received)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -342,7 +349,17 @@ export function MessageCenter({
                         {message.content}
                       </p>
                       <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span>From: {message.fromUserId}</span>
+                        {user && message.fromUserId === user.id ? (
+                          <span className="flex items-center gap-1">
+                            <Send className="h-3 w-3" />
+                            To: {message.toUserId.slice(0, 8)}...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            From: {message.fromUserId.slice(0, 8)}...
+                          </span>
+                        )}
                         <span>{formatDate(message.sentAt)}</span>
                         {message.readAt && (
                           <span className="flex items-center gap-1">

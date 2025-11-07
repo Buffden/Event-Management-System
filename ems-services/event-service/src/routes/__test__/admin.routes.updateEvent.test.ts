@@ -9,8 +9,9 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { Request, Response } from 'express';
 import { EventService } from '../../services/event.service';
-import { validateRequest } from '../../middleware/validation.middleware';
+import { ValidationError } from '../../middleware/validation.middleware';
 import { requireAdmin } from '../../middleware/auth.middleware';
+import { AuthContext } from '../../types/auth.types';
 import {
   createMockEvent,
   createMockVenue,
@@ -35,7 +36,7 @@ describe('PUT /admin/events/:id', () => {
     mockRequest = {
       params: { id: 'event-123' },
       body: {},
-      user: { id: 'admin-123', role: 'ADMIN' },
+      user: { userId: 'admin-123', role: 'ADMIN' as const, email: 'admin@test.com' } as AuthContext,
     };
 
     mockResponse = {
@@ -56,7 +57,7 @@ describe('PUT /admin/events/:id', () => {
     it('should reject requests from non-admin users', () => {
       const nonAdminRequest = {
         ...mockRequest,
-        user: { id: 'user-123', role: 'SPEAKER' },
+        user: { userId: 'user-123', role: 'SPEAKER' as const, email: 'user@test.com' } as AuthContext,
       };
 
       // In the actual route, requireAdmin middleware would check this
@@ -69,20 +70,50 @@ describe('PUT /admin/events/:id', () => {
   });
 
   describe('Request Body Validation', () => {
+    // Helper function to test validation logic (extracted from the route)
+    const validateUpdateEventRequest = (body: any): ValidationError[] | null => {
+      const errors: ValidationError[] = [];
+
+      if (body.name !== undefined && (!body.name || body.name.trim().length === 0)) {
+        errors.push({ field: 'name', message: 'Event name cannot be empty' });
+      }
+
+      if (body.description !== undefined && (!body.description || body.description.trim().length === 0)) {
+        errors.push({ field: 'description', message: 'Event description cannot be empty' });
+      }
+
+      if (body.category !== undefined && (!body.category || body.category.trim().length === 0)) {
+        errors.push({ field: 'category', message: 'Event category cannot be empty' });
+      }
+
+      if (body.venueId !== undefined && isNaN(Number(body.venueId))) {
+        errors.push({ field: 'venueId', message: 'Valid venue ID is required' });
+      }
+
+      if (body.bookingStartDate !== undefined && isNaN(Date.parse(body.bookingStartDate))) {
+        errors.push({ field: 'bookingStartDate', message: 'Valid booking start date is required' });
+      }
+
+      if (body.bookingEndDate !== undefined && isNaN(Date.parse(body.bookingEndDate))) {
+        errors.push({ field: 'bookingEndDate', message: 'Valid booking end date is required' });
+      }
+
+      if (body.bookingStartDate && body.bookingEndDate && new Date(body.bookingStartDate) >= new Date(body.bookingEndDate)) {
+        errors.push({ field: 'bookingDates', message: 'Booking start date must be before end date' });
+      }
+
+      return errors.length > 0 ? errors : null;
+    };
+
     it('should validate name field (cannot be empty)', () => {
       const invalidData = {
         name: '',
       };
 
-      const errors = validateRequest((body: any) => {
-        const validationErrors = [];
-        if (body.name !== undefined && (!body.name || body.name.trim().length === 0)) {
-          validationErrors.push({ field: 'name', message: 'Event name cannot be empty' });
-        }
-        return validationErrors.length > 0 ? validationErrors : null;
-      })(invalidData);
+      const errors = validateUpdateEventRequest(invalidData);
 
       expect(errors).toBeDefined();
+      expect(errors).not.toBeNull();
       expect(errors).toContainEqual({ field: 'name', message: 'Event name cannot be empty' });
     });
 
@@ -91,15 +122,10 @@ describe('PUT /admin/events/:id', () => {
         description: '   ', // Only whitespace
       };
 
-      const errors = validateRequest((body: any) => {
-        const validationErrors = [];
-        if (body.description !== undefined && (!body.description || body.description.trim().length === 0)) {
-          validationErrors.push({ field: 'description', message: 'Event description cannot be empty' });
-        }
-        return validationErrors.length > 0 ? validationErrors : null;
-      })(invalidData);
+      const errors = validateUpdateEventRequest(invalidData);
 
       expect(errors).toBeDefined();
+      expect(errors).not.toBeNull();
       expect(errors).toContainEqual({ field: 'description', message: 'Event description cannot be empty' });
     });
 
@@ -108,15 +134,10 @@ describe('PUT /admin/events/:id', () => {
         category: '',
       };
 
-      const errors = validateRequest((body: any) => {
-        const validationErrors = [];
-        if (body.category !== undefined && (!body.category || body.category.trim().length === 0)) {
-          validationErrors.push({ field: 'category', message: 'Event category cannot be empty' });
-        }
-        return validationErrors.length > 0 ? validationErrors : null;
-      })(invalidData);
+      const errors = validateUpdateEventRequest(invalidData);
 
       expect(errors).toBeDefined();
+      expect(errors).not.toBeNull();
       expect(errors).toContainEqual({ field: 'category', message: 'Event category cannot be empty' });
     });
 
@@ -125,15 +146,10 @@ describe('PUT /admin/events/:id', () => {
         venueId: 'not-a-number',
       };
 
-      const errors = validateRequest((body: any) => {
-        const validationErrors = [];
-        if (body.venueId !== undefined && isNaN(Number(body.venueId))) {
-          validationErrors.push({ field: 'venueId', message: 'Valid venue ID is required' });
-        }
-        return validationErrors.length > 0 ? validationErrors : null;
-      })(invalidData);
+      const errors = validateUpdateEventRequest(invalidData);
 
       expect(errors).toBeDefined();
+      expect(errors).not.toBeNull();
       expect(errors).toContainEqual({ field: 'venueId', message: 'Valid venue ID is required' });
     });
 
@@ -142,15 +158,10 @@ describe('PUT /admin/events/:id', () => {
         bookingStartDate: 'invalid-date',
       };
 
-      const errors = validateRequest((body: any) => {
-        const validationErrors = [];
-        if (body.bookingStartDate !== undefined && isNaN(Date.parse(body.bookingStartDate))) {
-          validationErrors.push({ field: 'bookingStartDate', message: 'Valid booking start date is required' });
-        }
-        return validationErrors.length > 0 ? validationErrors : null;
-      })(invalidData);
+      const errors = validateUpdateEventRequest(invalidData);
 
       expect(errors).toBeDefined();
+      expect(errors).not.toBeNull();
       expect(errors).toContainEqual({ field: 'bookingStartDate', message: 'Valid booking start date is required' });
     });
 
@@ -159,15 +170,10 @@ describe('PUT /admin/events/:id', () => {
         bookingEndDate: 'invalid-date',
       };
 
-      const errors = validateRequest((body: any) => {
-        const validationErrors = [];
-        if (body.bookingEndDate !== undefined && isNaN(Date.parse(body.bookingEndDate))) {
-          validationErrors.push({ field: 'bookingEndDate', message: 'Valid booking end date is required' });
-        }
-        return validationErrors.length > 0 ? validationErrors : null;
-      })(invalidData);
+      const errors = validateUpdateEventRequest(invalidData);
 
       expect(errors).toBeDefined();
+      expect(errors).not.toBeNull();
       expect(errors).toContainEqual({ field: 'bookingEndDate', message: 'Valid booking end date is required' });
     });
 
@@ -177,15 +183,10 @@ describe('PUT /admin/events/:id', () => {
         bookingEndDate: '2025-12-01T00:00:00Z',
       };
 
-      const errors = validateRequest((body: any) => {
-        const validationErrors = [];
-        if (body.bookingStartDate && body.bookingEndDate && new Date(body.bookingStartDate) >= new Date(body.bookingEndDate)) {
-          validationErrors.push({ field: 'bookingDates', message: 'Booking start date must be before end date' });
-        }
-        return validationErrors.length > 0 ? validationErrors : null;
-      })(invalidData);
+      const errors = validateUpdateEventRequest(invalidData);
 
       expect(errors).toBeDefined();
+      expect(errors).not.toBeNull();
       expect(errors).toContainEqual({ field: 'bookingDates', message: 'Booking start date must be before end date' });
     });
 
@@ -199,31 +200,7 @@ describe('PUT /admin/events/:id', () => {
         bookingEndDate: '2025-12-31T23:59:59Z',
       };
 
-      const errors = validateRequest((body: any) => {
-        const validationErrors = [];
-        if (body.name !== undefined && (!body.name || body.name.trim().length === 0)) {
-          validationErrors.push({ field: 'name', message: 'Event name cannot be empty' });
-        }
-        if (body.description !== undefined && (!body.description || body.description.trim().length === 0)) {
-          validationErrors.push({ field: 'description', message: 'Event description cannot be empty' });
-        }
-        if (body.category !== undefined && (!body.category || body.category.trim().length === 0)) {
-          validationErrors.push({ field: 'category', message: 'Event category cannot be empty' });
-        }
-        if (body.venueId !== undefined && isNaN(Number(body.venueId))) {
-          validationErrors.push({ field: 'venueId', message: 'Valid venue ID is required' });
-        }
-        if (body.bookingStartDate !== undefined && isNaN(Date.parse(body.bookingStartDate))) {
-          validationErrors.push({ field: 'bookingStartDate', message: 'Valid booking start date is required' });
-        }
-        if (body.bookingEndDate !== undefined && isNaN(Date.parse(body.bookingEndDate))) {
-          validationErrors.push({ field: 'bookingEndDate', message: 'Valid booking end date is required' });
-        }
-        if (body.bookingStartDate && body.bookingEndDate && new Date(body.bookingStartDate) >= new Date(body.bookingEndDate)) {
-          validationErrors.push({ field: 'bookingDates', message: 'Booking start date must be before end date' });
-        }
-        return validationErrors.length > 0 ? validationErrors : null;
-      })(validData);
+      const errors = validateUpdateEventRequest(validData);
 
       expect(errors).toBeNull();
     });
