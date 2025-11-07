@@ -347,7 +347,19 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Button
-                onClick={() => {
+                onClick={async () => {
+                  // If speaker, call leave endpoint before navigating
+                  if (userRole === 'SPEAKER') {
+                    try {
+                      await attendanceAPI.speakerLeaveEvent(eventId);
+                      logger.info(LOGGER_COMPONENT_NAME, 'Speaker left event', { eventId });
+                    } catch (error) {
+                      logger.error(LOGGER_COMPONENT_NAME, 'Failed to leave event', error as Error, { eventId });
+                      // Continue with navigation even if leave fails
+                    }
+                  }
+
+                  // Navigate based on role
                   if (userRole === 'ADMIN') {
                     router.push(`/dashboard/admin/events/${eventId}`);
                   } else if (userRole === 'SPEAKER') {

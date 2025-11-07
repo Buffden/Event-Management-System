@@ -29,6 +29,7 @@ CREATE TABLE "speaker_invitations" (
     "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "respondedAt" TIMESTAMP(3),
     "joinedAt" TIMESTAMP(3),
+    "leftAt" TIMESTAMP(3),
     "materialsSelected" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "isAttended" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

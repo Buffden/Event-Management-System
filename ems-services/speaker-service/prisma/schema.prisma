@@ -56,6 +56,7 @@ model SpeakerInvitation {
 
   // Speaker joining and material selection
   joinedAt           DateTime?  // When speaker joined the event (null if not joined)
+  leftAt             DateTime?  // When speaker left the event (null if not left)
   materialsSelected  String[]   @default([]) // Array of material IDs selected for this event
   isAttended         Boolean    @default(false) // Whether speaker has attended the event
 
