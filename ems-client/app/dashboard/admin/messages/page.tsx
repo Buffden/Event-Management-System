@@ -27,6 +27,7 @@ import { useLogger } from '@/lib/logger/LoggerProvider';
 import { withAdminAuth } from '@/components/hoc/withAuth';
 import { adminApiClient, Message, MessageThread, SpeakerInvitation } from '@/lib/api/admin.api';
 import { eventAPI } from '@/lib/api/event.api';
+import { speakerApiClient } from '@/lib/api/speaker.api';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 const LOGGER_COMPONENT_NAME = 'AdminMessagingCenter';
@@ -51,6 +52,7 @@ function AdminMessagingCenter() {
 
   // Compose message state
   const [showCompose, setShowCompose] = useState(false);
+  const [isReply, setIsReply] = useState(false);
   const [composeData, setComposeData] = useState({
     toUserId: '',
     subject: '',
@@ -58,9 +60,11 @@ function AdminMessagingCenter() {
     eventId: ''
   });
   const [events, setEvents] = useState<Array<{ id: string; name: string }>>([]);
-  const [invitedSpeakers, setInvitedSpeakers] = useState<Array<{ userId: string; name: string; email: string }>>([]);
+  const [allRecipients, setAllRecipients] = useState<Array<{ id: string; name: string; email: string; type: 'user' | 'speaker' }>>([]);
+  const [filteredRecipients, setFilteredRecipients] = useState<Array<{ id: string; name: string; email: string; type: 'user' | 'speaker' }>>([]);
+  const [recipientSearchQuery, setRecipientSearchQuery] = useState('');
   const [loadingEvents, setLoadingEvents] = useState(false);
-  const [loadingSpeakers, setLoadingSpeakers] = useState(false);
+  const [loadingRecipients, setLoadingRecipients] = useState(false);
 
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Admin messaging center loaded', { userRole: user?.role });
@@ -140,7 +144,7 @@ function AdminMessagingCenter() {
   };
 
   const handleSendMessage = async () => {
-    if (!composeData.toUserId || !composeData.subject || !composeData.content || !composeData.eventId) {
+    if (!composeData.toUserId || !composeData.subject || !composeData.content) {
       return;
     }
 
@@ -161,7 +165,9 @@ function AdminMessagingCenter() {
 
       // Reset compose form
       setComposeData({ toUserId: '', subject: '', content: '', eventId: '' });
+      setRecipientSearchQuery('');
       setShowCompose(false);
+      setIsReply(false);
       setSelectedMessage(null);
 
       logger.info(LOGGER_COMPONENT_NAME, 'Message sent successfully', { messageId: newMessage.id });
@@ -177,14 +183,14 @@ function AdminMessagingCenter() {
       toUserId: message.fromUserId,
       subject: `Re: ${message.subject}`,
       content: '',
-      eventId: message.eventId || ''
+      eventId: '' // Don't require event for replies
     });
+    setIsReply(true);
     setShowCompose(true);
     setSelectedMessage(message);
-    // Load speakers if event is set
-    if (message.eventId) {
-      loadSpeakersForEvent(message.eventId);
-    }
+    setRecipientSearchQuery('');
+    // Load all recipients for reply
+    loadAllRecipients();
   };
 
   const loadEvents = async () => {
@@ -205,67 +211,85 @@ function AdminMessagingCenter() {
     }
   };
 
-  const loadSpeakersForEvent = async (eventId: string) => {
+  const loadAllRecipients = async () => {
     try {
-      setLoadingSpeakers(true);
-      logger.info(LOGGER_COMPONENT_NAME, 'Loading speakers for event', { eventId });
+      setLoadingRecipients(true);
+      logger.info(LOGGER_COMPONENT_NAME, 'Loading all recipients (users and speakers)');
 
-      // Get invitations for this event
-      const invitations = await adminApiClient.getEventInvitations(eventId);
+      // Load all users
+      const usersResponse = await adminApiClient.getAllUsers({ limit: 1000 });
+      const users = usersResponse.data.map(user => ({
+        id: user.id,
+        name: user.name || user.email,
+        email: user.email,
+        type: 'user' as const
+      }));
 
-      // Get speaker profiles for each invitation
-      const speakersWithInfo = await Promise.all(
-        invitations.map(async (invitation: SpeakerInvitation) => {
-          try {
-            const speakerProfile = await adminApiClient.getSpeakerProfile(invitation.speakerId);
-            return {
-              userId: speakerProfile.userId,
-              name: speakerProfile.name,
-              email: speakerProfile.email
-            };
-          } catch (err) {
-            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker profile', {
-              speakerId: invitation.speakerId,
-              error: err
-            });
-            return null;
-          }
-        })
-      );
+      // Load all speakers
+      const speakers = await speakerApiClient.searchSpeakers({ query: '', limit: 1000 });
+      const speakersList = speakers.map(speaker => ({
+        id: speaker.userId,
+        name: speaker.name,
+        email: speaker.email,
+        type: 'speaker' as const
+      }));
 
-      // Filter out null values
-      const validSpeakers = speakersWithInfo.filter((s): s is { userId: string; name: string; email: string } => s !== null);
-      setInvitedSpeakers(validSpeakers);
+      // Combine and remove duplicates (speakers are also users)
+      const allRecipientsList = [
+        ...users,
+        ...speakersList.filter(s => !users.find(u => u.id === s.id))
+      ];
 
-      logger.info(LOGGER_COMPONENT_NAME, 'Speakers loaded for event', {
-        eventId,
-        count: validSpeakers.length
+      setAllRecipients(allRecipientsList);
+      setFilteredRecipients(allRecipientsList);
+
+      logger.info(LOGGER_COMPONENT_NAME, 'All recipients loaded', {
+        usersCount: users.length,
+        speakersCount: speakers.length,
+        totalCount: allRecipientsList.length
       });
     } catch (error) {
-      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load speakers for event', error as Error);
-      setInvitedSpeakers([]);
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load recipients', error as Error);
+      setAllRecipients([]);
+      setFilteredRecipients([]);
     } finally {
-      setLoadingSpeakers(false);
+      setLoadingRecipients(false);
     }
   };
+
+  // Filter recipients by search query
+  useEffect(() => {
+    if (!recipientSearchQuery.trim()) {
+      setFilteredRecipients(allRecipients);
+      return;
+    }
+
+    const query = recipientSearchQuery.toLowerCase().trim();
+    const filtered = allRecipients.filter(recipient => {
+      const nameMatch = recipient.name?.toLowerCase().includes(query);
+      const emailMatch = recipient.email?.toLowerCase().includes(query);
+      const idMatch = recipient.id.toLowerCase().includes(query);
+      return nameMatch || emailMatch || idMatch;
+    });
+
+    setFilteredRecipients(filtered);
+  }, [recipientSearchQuery, allRecipients]);
 
   const handleEventSelect = (eventId: string) => {
-    setComposeData({ ...composeData, eventId, toUserId: '' }); // Clear speaker selection when event changes
-    setInvitedSpeakers([]); // Clear speakers list
-    if (eventId) {
-      loadSpeakersForEvent(eventId);
-    }
+    setComposeData({ ...composeData, eventId });
   };
 
-  const handleSpeakerSelect = (userId: string) => {
+  const handleRecipientSelect = (userId: string) => {
     setComposeData({ ...composeData, toUserId: userId });
   };
 
   const handleOpenCompose = () => {
     setShowCompose(true);
+    setIsReply(false);
     setComposeData({ toUserId: '', subject: '', content: '', eventId: '' });
-    setInvitedSpeakers([]);
+    setRecipientSearchQuery('');
     loadEvents();
+    loadAllRecipients();
   };
 
   // Get unique speakers from messages
@@ -514,67 +538,84 @@ function AdminMessagingCenter() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <Card className="w-full max-w-2xl m-4">
             <CardHeader>
-              <CardTitle>Compose Message</CardTitle>
-              <CardDescription>Send a message to a speaker</CardDescription>
+              <CardTitle>{isReply ? 'Reply to Message' : 'Compose Message'}</CardTitle>
+              <CardDescription>{isReply ? 'Reply to this message' : 'Send a message to any user or speaker'}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Event <span className="text-red-500">*</span>
-                </label>
-                {loadingEvents ? (
-                  <div className="px-3 py-2 border rounded-md bg-gray-50 dark:bg-gray-800">
-                    <span className="text-sm text-gray-500">Loading events...</span>
-                  </div>
-                ) : (
-                  <select
-                    value={composeData.eventId}
-                    onChange={(e) => handleEventSelect(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
-                    required
-                  >
-                    <option value="">Select an event</option>
-                    {events.map((event) => (
-                      <option key={event.id} value={event.id}>
-                        {event.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {composeData.eventId && (
+              {/* Event selection - only show for new messages, not replies */}
+              {!isReply && (
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    Speaker <span className="text-red-500">*</span>
+                    Event (Optional)
                   </label>
-                  {loadingSpeakers ? (
+                  {loadingEvents ? (
                     <div className="px-3 py-2 border rounded-md bg-gray-50 dark:bg-gray-800">
-                      <span className="text-sm text-gray-500">Loading speakers...</span>
-                    </div>
-                  ) : invitedSpeakers.length === 0 ? (
-                    <div className="px-3 py-2 border rounded-md bg-yellow-50 dark:bg-yellow-950">
-                      <span className="text-sm text-yellow-800 dark:text-yellow-200">
-                        No speakers have been invited to this event yet.
-                      </span>
+                      <span className="text-sm text-gray-500">Loading events...</span>
                     </div>
                   ) : (
                     <select
-                      value={composeData.toUserId}
-                      onChange={(e) => handleSpeakerSelect(e.target.value)}
+                      value={composeData.eventId}
+                      onChange={(e) => handleEventSelect(e.target.value)}
                       className="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
-                      required
                     >
-                      <option value="">Select a speaker</option>
-                      {invitedSpeakers.map((speaker) => (
-                        <option key={speaker.userId} value={speaker.userId}>
-                          {speaker.name} ({speaker.email})
+                      <option value="">No event (optional)</option>
+                      {events.map((event) => (
+                        <option key={event.id} value={event.id}>
+                          {event.name}
                         </option>
                       ))}
                     </select>
                   )}
                 </div>
               )}
+
+              {/* Recipient selection with search */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  To (User or Speaker) <span className="text-red-500">*</span>
+                </label>
+                {loadingRecipients ? (
+                  <div className="px-3 py-2 border rounded-md bg-gray-50 dark:bg-gray-800">
+                    <span className="text-sm text-gray-500">Loading recipients...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative mb-2">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Search by name, email, or ID..."
+                        value={recipientSearchQuery}
+                        onChange={(e) => setRecipientSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    {isReply && composeData.toUserId && !allRecipients.find(r => r.id === composeData.toUserId) ? (
+                      <div className="px-3 py-2 border rounded-md bg-gray-50 dark:bg-gray-800">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          Recipient: {composeData.toUserId}
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        value={composeData.toUserId}
+                        onChange={(e) => handleRecipientSelect(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
+                        required
+                      >
+                        <option value="">Select a recipient</option>
+                        {filteredRecipients.map((recipient) => (
+                          <option key={recipient.id} value={recipient.id}>
+                            {recipient.name} ({recipient.email}) - {recipient.type === 'speaker' ? 'Speaker' : 'User'}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {recipientSearchQuery && filteredRecipients.length === 0 && (
+                      <p className="text-sm text-gray-500 mt-1">No recipients found matching "{recipientSearchQuery}"</p>
+                    )}
+                  </>
+                )}
+              </div>
 
               <div>
                 <label className="block text-sm font-medium mb-1">
