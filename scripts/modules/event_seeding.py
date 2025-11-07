@@ -268,11 +268,10 @@ def seed_events(admin_token: str, admin_user_id: str, num_events: int = 8) -> Li
         # Pick random venue
         venue = random.choice(venues)
 
-        # Generate creative event name
-        event_name = fake.catch_phrase() + " " + fake.bs().title()
-        # Ensure it's not too long
-        if len(event_name) > 80:
-            event_name = event_name[:77] + "..."
+        # Generate creative event name (2 words only)
+        word1 = fake.word().title()
+        word2 = fake.word().title()
+        event_name = f"{word1} {word2}"
 
         # Generate description
         description = fake.text(max_nb_chars=200)

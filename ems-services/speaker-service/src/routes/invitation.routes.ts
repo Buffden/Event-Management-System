@@ -11,7 +11,7 @@ const invitationService = new InvitationService();
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { speakerId, eventId, message } = req.body;
-    
+
     if (!speakerId || !eventId) {
       return res.status(400).json({
         success: false,
@@ -26,12 +26,12 @@ router.post('/', async (req: Request, res: Response) => {
       message
     });
 
-    logger.info('Invitation created', { 
-      invitationId: invitation.id, 
-      speakerId, 
-      eventId 
+    logger.info('Invitation created', {
+      invitationId: invitation.id,
+      speakerId,
+      eventId
     });
-    
+
     return res.status(201).json({
       success: true,
       data: invitation,
@@ -52,7 +52,7 @@ router.post('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -60,9 +60,9 @@ router.get('/:id', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     const invitation = await invitationService.getInvitationById(id);
-    
+
     if (!invitation) {
       return res.status(404).json({
         success: false,
@@ -72,7 +72,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     logger.info('Invitation retrieved', { invitationId: id });
-    
+
     return res.json({
       success: true,
       data: invitation,
@@ -92,13 +92,13 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.get('/speaker/:speakerId', async (req: Request, res: Response) => {
   try {
     const { speakerId } = req.params;
-    const { 
-      status, 
-      search, 
-      page = 1, 
-      limit = 20 
+    const {
+      status,
+      search,
+      page = 1,
+      limit = 20
     } = req.query;
-    
+
     if (!speakerId) {
       return res.status(400).json({
         success: false,
@@ -114,14 +114,14 @@ router.get('/speaker/:speakerId', async (req: Request, res: Response) => {
       limit: Number(limit)
     });
 
-    logger.info('Speaker invitations retrieved', { 
-      speakerId, 
+    logger.info('Speaker invitations retrieved', {
+      speakerId,
       count: result.invitations.length,
       total: result.total,
       page: result.page,
       totalPages: result.totalPages
     });
-    
+
     return res.json({
       success: true,
       data: result.invitations,
@@ -149,7 +149,7 @@ router.get('/speaker/:speakerId', async (req: Request, res: Response) => {
 router.get('/event/:eventId', async (req: Request, res: Response) => {
   try {
     const { eventId } = req.params;
-    
+
     if (!eventId) {
       return res.status(400).json({
         success: false,
@@ -160,11 +160,11 @@ router.get('/event/:eventId', async (req: Request, res: Response) => {
 
     const invitations = await invitationService.getEventInvitations(eventId);
 
-    logger.info('Event invitations retrieved', { 
-      eventId, 
+    logger.info('Event invitations retrieved', {
+      eventId,
       count: invitations.length
     });
-    
+
     return res.json({
       success: true,
       data: invitations,
@@ -185,7 +185,7 @@ router.put('/:id/respond', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, message } = req.body;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -207,11 +207,11 @@ router.put('/:id/respond', async (req: Request, res: Response) => {
       message
     });
 
-    logger.info('Invitation response recorded', { 
-      invitationId: id, 
-      status 
+    logger.info('Invitation response recorded', {
+      invitationId: id,
+      status
     });
-    
+
     return res.json({
       success: true,
       data: invitation,
@@ -232,7 +232,7 @@ router.put('/:id/respond', async (req: Request, res: Response) => {
 router.get('/speaker/:speakerId/stats', async (req: Request, res: Response) => {
   try {
     const { speakerId } = req.params;
-    
+
     if (!speakerId) {
       return res.status(400).json({
         success: false,
@@ -244,7 +244,7 @@ router.get('/speaker/:speakerId/stats', async (req: Request, res: Response) => {
     const stats = await invitationService.getSpeakerInvitationStats(speakerId);
 
     logger.info('Speaker invitation stats retrieved', { speakerId });
-    
+
     return res.json({
       success: true,
       data: stats,
@@ -264,7 +264,7 @@ router.get('/speaker/:speakerId/stats', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -276,7 +276,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     await invitationService.deleteInvitation(id);
 
     logger.info('Invitation deleted', { invitationId: id });
-    
+
     return res.json({
       success: true,
       message: 'Invitation deleted successfully',

@@ -8,7 +8,7 @@ import requests
 import io
 from typing import List, Dict, Optional
 from .utils import (
-    SPEAKER_API_URL, AUTH_API_URL, print_success, print_error, print_info, print_step
+    SPEAKER_API_URL, AUTH_API_URL, ADMIN_EMAIL, print_success, print_error, print_info, print_step
 )
 
 
@@ -128,6 +128,7 @@ def create_invitation(admin_token: str, speaker_id: str, event_id: str, message:
     """
     # Invitations API is at /api/invitations (via gateway)
     # Extract base URL and use /api/invitations
+    # Note: nginx location requires trailing slash, but route works without it
     base_url = SPEAKER_API_URL.replace('/api/speakers', '')
     url = f"{base_url}/api/invitations"
     headers = {
@@ -143,20 +144,37 @@ def create_invitation(admin_token: str, speaker_id: str, event_id: str, message:
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         if response.status_code == 201:
+            response_data = response.json()
+            invitation_id = response_data.get('data', {}).get('id', 'unknown')
+            print_step(f"  Created invitation {invitation_id[:8]}...")
             return True
         elif response.status_code == 400:
             # Might be duplicate invitation
             try:
                 error_data = response.json()
-                if 'already exists' in str(error_data.get('error', '')).lower():
+                error_msg = str(error_data.get('error', ''))
+                if 'already exists' in error_msg.lower():
+                    print_info(f"  Invitation already exists (duplicate)")
                     return False  # Duplicate, not an error
+                else:
+                    print_error(f"  Bad request: {error_msg}")
+                    return False
             except:
-                pass
+                print_error(f"  Bad request: {response.text}")
+                return False
+        elif response.status_code == 500:
+            try:
+                error_data = response.json()
+                error_msg = str(error_data.get('error', ''))
+                print_error(f"  Server error: {error_msg}")
+            except:
+                print_error(f"  Server error: {response.text}")
             return False
         else:
+            print_error(f"  Unexpected status {response.status_code}: {response.text}")
             return False
     except Exception as e:
-        print_error(f"Error creating invitation: {str(e)}")
+        print_error(f"  Exception creating invitation: {str(e)}")
         return False
 
 
@@ -290,6 +308,205 @@ def send_message(admin_token: str, from_user_id: str, to_user_id: str, subject: 
         return False
 
 
+def invite_speakers_to_events(
+    admin_token: str,
+    speaker_emails: List[str],
+    events: List[Dict]
+) -> Dict:
+    """
+    Login as admin and invite speakers to events
+
+    Args:
+        admin_token: Admin authentication token
+        speaker_emails: List of speaker email addresses
+        events: List of event dictionaries
+
+    Returns:
+        Dictionary with invitation statistics
+    """
+    from .utils import print_header
+
+    print()
+    print_header("Step 7a: Admin Inviting Speakers to Events")
+    print("-" * 50)
+
+    if not speaker_emails:
+        print_info("No speakers to invite")
+        return {'invitations_created': 0}
+
+    if not events:
+        print_info("No events available for invitations")
+        return {'invitations_created': 0}
+
+    # Wait for speaker profiles to be created
+    print_info("Waiting 3 seconds for speaker profiles to be fully created...")
+    time.sleep(3)
+
+    # Get all speaker profiles
+    print_info("Fetching speaker profiles...")
+    speaker_profiles = get_all_speaker_profiles(admin_token, speaker_emails)
+
+    if not speaker_profiles:
+        print_error("No speaker profiles found. They may still be processing via RabbitMQ.")
+        print_info("You may need to wait a few more seconds and re-run this step.")
+        return {'invitations_created': 0}
+
+    print_success(f"Found {len(speaker_profiles)} speaker profiles")
+
+    # Filter to published events only
+    published_events = [e for e in events if e.get('status') == 'PUBLISHED']
+
+    if not published_events:
+        print_info("No published events available for invitations")
+        return {'invitations_created': 0}
+
+    print()
+    print_info(f"Admin ({ADMIN_EMAIL}) is inviting speakers to events...")
+
+    stats = {'invitations_created': 0}
+
+    for speaker in speaker_profiles:
+        # Assign each speaker to 2-4 random events
+        num_events = random.randint(2, min(4, len(published_events)))
+        assigned_events = random.sample(published_events, num_events)
+
+        for event in assigned_events:
+            event_id = event.get('id')
+            event_name = event.get('name', 'Unknown Event')
+
+            print_info(f"  Inviting {speaker['email']} (speaker ID: {speaker['id'][:8]}...) to event {event_name[:40]} (event ID: {event_id[:8]}...)")
+
+            if create_invitation(admin_token, speaker['id'], event_id):
+                stats['invitations_created'] += 1
+                print_success(f"  ✓ Successfully invited {speaker['email']} to {event_name[:40]}")
+            else:
+                print_error(f"  ✗ Failed to invite {speaker['email']} to {event_name[:40]}")
+            time.sleep(0.1)
+
+    print_success(f"Admin created {stats['invitations_created']} invitations")
+
+    return stats
+
+
+def speakers_accept_invitations(
+    speaker_emails: List[str]
+) -> Dict:
+    """
+    Login as each speaker and accept their pending invitations
+
+    Args:
+        speaker_emails: List of speaker email addresses
+
+    Returns:
+        Dictionary with acceptance statistics
+    """
+    from .utils import print_header
+
+    print()
+    print_header("Step 7b: Speakers Accepting Invitations")
+    print("-" * 50)
+
+    if not speaker_emails:
+        print_info("No speakers to process")
+        return {'invitations_accepted': 0}
+
+    # Wait a moment for invitations to be processed
+    print_info("Waiting 1 second for invitations to be fully processed...")
+    time.sleep(1)
+
+    stats = {'invitations_accepted': 0}
+
+    for email in speaker_emails:
+        # Extract speaker number from email
+        speaker_num = email.split('@')[0].replace('speaker', '')
+        password = f"Speaker{speaker_num}123!"
+
+        print_info(f"Logging in as {email}...")
+
+        # Login as speaker to get token
+        login_url = f"{AUTH_API_URL}/login"
+        try:
+            login_response = requests.post(
+                login_url,
+                json={"email": email, "password": password},
+                timeout=10
+            )
+
+            if login_response.status_code == 200:
+                login_data = login_response.json()
+                speaker_token = login_data.get('token', '')
+                user_id = login_data.get('user', {}).get('id', '')
+
+                if speaker_token and user_id:
+                    # Get speaker profile
+                    profile_url = f"{SPEAKER_API_URL}/profile/me"
+                    profile_headers = {
+                        "Authorization": f"Bearer {speaker_token}",
+                        "Content-Type": "application/json"
+                    }
+                    profile_params = {"userId": user_id}
+
+                    profile_response = requests.get(
+                        profile_url,
+                        headers=profile_headers,
+                        params=profile_params,
+                        timeout=10
+                    )
+
+                    if profile_response.status_code == 200:
+                        profile_data = profile_response.json()
+                        profile = profile_data.get('data')
+
+                        if profile:
+                            speaker_id = profile.get('id')
+
+                            # Get pending invitations for this speaker
+                            base_url = SPEAKER_API_URL.replace('/api/speakers', '')
+                            invites_url = f"{base_url}/api/invitations/speaker/{speaker_id}?status=PENDING"
+                            invites_headers = {
+                                "Authorization": f"Bearer {speaker_token}",
+                                "Content-Type": "application/json"
+                            }
+
+                            invites_response = requests.get(invites_url, headers=invites_headers, timeout=10)
+
+                            if invites_response.status_code == 200:
+                                invites_data = invites_response.json()
+                                invitations = invites_data.get('data', [])
+
+                                print_info(f"  Found {len(invitations)} pending invitation(s) for {email}")
+
+                                # Accept ~70% of invitations
+                                for invitation in invitations:
+                                    invitation_id = invitation.get('id')
+                                    event_id = invitation.get('eventId')
+
+                                    if random.random() < 0.7:
+                                        if respond_to_invitation(speaker_token, invitation_id, 'ACCEPTED'):
+                                            stats['invitations_accepted'] += 1
+                                            print_step(f"  {email} accepted invitation for event {event_id[:8]}...")
+                                        time.sleep(0.1)
+                                    else:
+                                        print_info(f"  {email} declined invitation for event {event_id[:8]}...")
+                            else:
+                                print_info(f"  Could not fetch invitations for {email} (HTTP {invites_response.status_code})")
+                    else:
+                        print_info(f"  Could not fetch speaker profile for {email} (HTTP {profile_response.status_code})")
+                else:
+                    print_error(f"  Could not get token or user ID for {email}")
+            else:
+                print_error(f"  Login failed for {email} (HTTP {login_response.status_code})")
+        except Exception as e:
+            print_error(f"  Error processing {email}: {str(e)}")
+            continue
+
+        time.sleep(0.2)
+
+    print_success(f"Speakers accepted {stats['invitations_accepted']} invitations")
+
+    return stats
+
+
 def seed_speaker_data(
     admin_token: str,
     admin_user_id: str,
@@ -311,16 +528,16 @@ def seed_speaker_data(
     from .utils import print_header
 
     print()
-    print_header("Step 7: Seeding Speaker Data (Invitations, Materials, Messages)")
+    print_header("Step 7c: Seeding Additional Speaker Data (Materials, Messages)")
     print("-" * 50)
 
     if not speaker_emails:
         print_info("No speakers to seed data for")
-        return {'invitations': 0, 'accepted': 0, 'materials': 0, 'messages': 0}
+        return {'materials': 0, 'messages': 0}
 
     if not events:
-        print_info("No events available for invitations")
-        return {'invitations': 0, 'accepted': 0, 'materials': 0, 'messages': 0}
+        print_info("No events available")
+        return {'materials': 0, 'messages': 0}
 
     # Note: We already waited 5 seconds in main seed.py after user registration
     # Additional wait here ensures speaker profiles are fully processed
@@ -334,98 +551,20 @@ def seed_speaker_data(
     if not speaker_profiles:
         print_error("No speaker profiles found. They may still be processing via RabbitMQ.")
         print_info("You may need to wait a few more seconds and re-run this step.")
-        return {'invitations': 0, 'accepted': 0, 'materials': 0, 'messages': 0}
+        return {'materials': 0, 'messages': 0}
 
     print_success(f"Found {len(speaker_profiles)} speaker profiles")
 
     stats = {
-        'invitations': 0,
-        'accepted': 0,
         'materials': 0,
         'messages': 0
     }
 
-    # Filter to published events only
-    published_events = [e for e in events if e.get('status') == 'PUBLISHED']
+    # Note: Invitations are now created in invite_speakers_to_events()
+    # and accepted in speakers_accept_invitations()
+    # This function now only handles materials and messages
 
-    if not published_events:
-        print_info("No published events available for invitations")
-        return stats
-
-    # Step 1: Create invitations
-    print()
-    print_info("Creating speaker invitations...")
-    invitations_created = []
-
-    for speaker in speaker_profiles:
-        # Assign each speaker to 2-4 random events
-        num_events = random.randint(2, min(4, len(published_events)))
-        assigned_events = random.sample(published_events, num_events)
-
-        for event in assigned_events:
-            event_id = event.get('id')
-            event_name = event.get('name', 'Unknown Event')
-
-            if create_invitation(admin_token, speaker['id'], event_id):
-                invitations_created.append({
-                    'invitation_id': None,  # Will be fetched
-                    'speaker': speaker,
-                    'event_id': event_id,
-                    'event_name': event_name
-                })
-                stats['invitations'] += 1
-                print_step(f"Created invitation: {speaker['email']} → {event_name[:40]}")
-                time.sleep(0.1)
-
-    print_success(f"Created {stats['invitations']} invitations")
-
-    # Step 2: Fetch invitations and have some speakers accept them
-    print()
-    print_info("Having speakers accept invitations...")
-
-    # Wait a moment for invitations to be processed
-    time.sleep(1)
-
-    for invitation_data in invitations_created[:len(invitations_created)]:  # Try all
-        speaker = invitation_data['speaker']
-        event_id = invitation_data['event_id']
-
-        # Fetch invitations for this speaker to get the invitation ID
-        try:
-            base_url = SPEAKER_API_URL.replace('/api/speakers', '')
-            invites_url = f"{base_url}/api/invitations/speaker/{speaker['id']}"
-            invites_headers = {
-                "Authorization": f"Bearer {admin_token}",
-                "Content-Type": "application/json"
-            }
-            invites_response = requests.get(invites_url, headers=invites_headers, timeout=10)
-
-            if invites_response.status_code == 200:
-                invites_data = invites_response.json()
-                invitations = invites_data.get('data', [])
-
-                # Find invitation for this event
-                invitation = next(
-                    (inv for inv in invitations if inv.get('eventId') == event_id and inv.get('status') == 'PENDING'),
-                    None
-                )
-
-                if invitation:
-                    invitation_id = invitation.get('id')
-                    # Accept ~70% of invitations
-                    if random.random() < 0.7:
-                        if respond_to_invitation(speaker['token'], invitation_id, 'ACCEPTED'):
-                            stats['accepted'] += 1
-                            invitation_data['event_id'] = event_id  # Keep for material upload
-                            print_step(f"Accepted: {speaker['email']} → {invitation_data['event_name'][:40]}")
-                        time.sleep(0.1)
-        except Exception as e:
-            print_error(f"Error processing invitation acceptance: {str(e)}")
-            continue
-
-    print_success(f"Accepted {stats['accepted']} invitations")
-
-    # Step 3: Upload materials for speakers (especially for accepted events)
+    # Step 1: Upload materials for speakers (especially for accepted events)
     print()
     print_info("Uploading presentation materials...")
 
@@ -465,7 +604,7 @@ def seed_speaker_data(
 
     print_success(f"Uploaded {stats['materials']} materials")
 
-    # Step 4: Send messages to speakers
+    # Step 2: Send messages to speakers
     print()
     print_info("Sending messages to speakers...")
 

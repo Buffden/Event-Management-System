@@ -41,7 +41,11 @@ from modules.user_seeding import (
 )
 from modules.event_seeding import seed_events
 from modules.booking_seeding import seed_bookings
-from modules.speaker_seeding import seed_speaker_data
+from modules.speaker_seeding import (
+    seed_speaker_data,
+    invite_speakers_to_events,
+    speakers_accept_invitations
+)
 
 
 def test_api_connectivity() -> bool:
@@ -171,7 +175,42 @@ def main():
         if not users:
             utils.print_info("Skipping bookings - no users available")
 
-    # Step 7: Seed Speaker Data (Invitations, Materials, Messages)
+    # Step 7a: Admin Invites Speakers to Events
+    if admin_token and speakers and events:
+        speaker_emails = [s['email'] for s in speakers if s.get('email')]
+        if speaker_emails:
+            invite_stats = invite_speakers_to_events(
+                admin_token=admin_token,
+                speaker_emails=speaker_emails,
+                events=events
+            )
+        else:
+            utils.print_info("Skipping speaker invitations - no speaker emails available")
+            invite_stats = {'invitations_created': 0}
+    else:
+        if not admin_token:
+            utils.print_info("Skipping speaker invitations - admin token not available")
+        elif not speakers:
+            utils.print_info("Skipping speaker invitations - no speakers created")
+        elif not events:
+            utils.print_info("Skipping speaker invitations - no events created")
+        invite_stats = {'invitations_created': 0}
+
+    # Step 7b: Speakers Accept Invitations
+    if speakers:
+        speaker_emails = [s['email'] for s in speakers if s.get('email')]
+        if speaker_emails:
+            accept_stats = speakers_accept_invitations(
+                speaker_emails=speaker_emails
+            )
+        else:
+            utils.print_info("Skipping invitation acceptance - no speaker emails available")
+            accept_stats = {'invitations_accepted': 0}
+    else:
+        utils.print_info("Skipping invitation acceptance - no speakers created")
+        accept_stats = {'invitations_accepted': 0}
+
+    # Step 7c: Seed Additional Speaker Data (Materials, Messages)
     if admin_token and admin_user_id and speakers and events:
         speaker_emails = [s['email'] for s in speakers if s.get('email')]
         if speaker_emails:
@@ -182,14 +221,16 @@ def main():
                 events=events
             )
         else:
-            utils.print_info("Skipping speaker data seeding - no speaker emails available")
+            utils.print_info("Skipping additional speaker data seeding - no speaker emails available")
+            speaker_stats = {'materials': 0, 'messages': 0}
     else:
         if not admin_token or not admin_user_id:
-            utils.print_info("Skipping speaker data seeding - admin credentials not available")
+            utils.print_info("Skipping additional speaker data seeding - admin credentials not available")
         elif not speakers:
-            utils.print_info("Skipping speaker data seeding - no speakers created")
+            utils.print_info("Skipping additional speaker data seeding - no speakers created")
         elif not events:
-            utils.print_info("Skipping speaker data seeding - no events created")
+            utils.print_info("Skipping additional speaker data seeding - no events created")
+        speaker_stats = {'materials': 0, 'messages': 0}
 
     # Summary
     print()
@@ -209,10 +250,15 @@ def main():
         if users and events:
             utils.print_info("  ✓ Users registered for events")
         # Show speaker data stats if seeding was attempted
-        if admin_token and admin_user_id and speakers and events:
+        if speakers:
             speaker_emails = [s['email'] for s in speakers if s.get('email')]
             if speaker_emails:
-                utils.print_info("  ✓ Speaker data seeded (invitations, materials, messages)")
+                if invite_stats.get('invitations_created', 0) > 0:
+                    utils.print_success(f"  ✓ {invite_stats['invitations_created']} Speaker invitations created by admin")
+                if accept_stats.get('invitations_accepted', 0) > 0:
+                    utils.print_success(f"  ✓ {accept_stats['invitations_accepted']} Invitations accepted by speakers")
+                if speaker_stats.get('materials', 0) > 0 or speaker_stats.get('messages', 0) > 0:
+                    utils.print_info("  ✓ Additional speaker data seeded (materials, messages)")
 
     print()
     utils.print_info("Important Notes:")
