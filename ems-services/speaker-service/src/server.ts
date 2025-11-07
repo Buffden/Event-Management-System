@@ -7,6 +7,7 @@ import invitationRoutes from './routes/invitation.routes';
 import messageRoutes from './routes/message.routes';
 import materialRoutes from './routes/material.routes';
 import speakerAttendanceRoutes from './routes/speaker-attendance.routes';
+import internalRoutes from './routes/internal.routes';
 import { errorMiddleware, notFoundHandler } from './middleware/error.middleware';
 import { RabbitMQService } from './services/rabbitmq.service';
 import { SpeakerService } from './services/speaker.service';
@@ -35,6 +36,8 @@ app.get('/health', (_req, res) => {
 });
 
 // API Routes
+// Internal routes must come first to ensure they're matched before public routes
+app.use('/api/internal', internalRoutes);
 app.use('/api/speakers', speakerRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/messages', messageRoutes);
