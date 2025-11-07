@@ -11,19 +11,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { useLogger } from '@/lib/logger/LoggerProvider';
-import { 
-  Search, 
-  Filter, 
-  Calendar, 
-  MapPin, 
-  Clock, 
-  CheckCircle, 
+import {
+  Search,
+  Filter,
+  Calendar,
+  MapPin,
+  Clock,
+  CheckCircle,
   AlertCircle,
   Loader2,
   Eye,
   Ticket,
-  Play
+  Play,
+  ArrowLeft
 } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const LOGGER_COMPONENT_NAME = 'AttendeeEventsPage';
 
@@ -46,7 +48,7 @@ export default function AttendeeEventsPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const logger = useLogger();
-  
+
   const [events, setEvents] = useState<Event[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,7 @@ export default function AttendeeEventsPage() {
       router.push('/login');
       return;
     }
-    
+
     loadEvents();
     loadUserBookings();
   }, [isAuthenticated, router]);
@@ -78,7 +80,7 @@ export default function AttendeeEventsPage() {
     // Filter by search term
     if (filters.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(event => 
+      filtered = filtered.filter(event =>
         event.name.toLowerCase().includes(searchLower) ||
         event.description.toLowerCase().includes(searchLower) ||
         event.category.toLowerCase().includes(searchLower) ||
@@ -100,7 +102,7 @@ export default function AttendeeEventsPage() {
     if (filters.dateRange) {
       const now = new Date();
       const filterDate = new Date();
-      
+
       switch (filters.dateRange) {
         case 'today':
           filterDate.setHours(0, 0, 0, 0);
@@ -124,10 +126,10 @@ export default function AttendeeEventsPage() {
     try {
       setLoading(true);
       logger.info(LOGGER_COMPONENT_NAME, 'Loading published events');
-      
+
       const response = await eventAPI.getPublishedEvents();
       setEvents(response.data?.events || []);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Events loaded successfully');
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load events', error as Error);
@@ -139,36 +141,36 @@ export default function AttendeeEventsPage() {
   const loadUserBookings = async () => {
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading user bookings');
-      
+
       // Load both bookings and tickets to get complete picture
       const [bookingsResponse, ticketsResponse] = await Promise.all([
         bookingAPI.getUserBookings(),
         ticketAPI.getUserTickets()
       ]);
-      
+
       const bookings = bookingsResponse.data?.bookings || [];
       const tickets = ticketsResponse.data || [];
-      
+
       // Create a map of eventId -> true for events the user has booked
       const bookingMap: { [eventId: string]: boolean } = {};
-      
+
       // Add bookings
       bookings.forEach((booking: any) => {
         bookingMap[booking.eventId] = true;
       });
-      
+
       // Add tickets (in case bookings API doesn't return all data)
       tickets.forEach((ticket: any) => {
         if (ticket.eventId) {
           bookingMap[ticket.eventId] = true;
         }
       });
-      
+
       setUserBookings(bookingMap);
-      logger.info(LOGGER_COMPONENT_NAME, 'User bookings loaded successfully', { 
-        bookingsCount: bookings.length, 
+      logger.info(LOGGER_COMPONENT_NAME, 'User bookings loaded successfully', {
+        bookingsCount: bookings.length,
         ticketsCount: tickets.length,
-        uniqueEvents: Object.keys(bookingMap).length 
+        uniqueEvents: Object.keys(bookingMap).length
       });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load user bookings', error as Error);
@@ -208,7 +210,7 @@ export default function AttendeeEventsPage() {
 
     } catch (error: any) {
       setBookingStatus(prev => ({ ...prev, [eventId]: 'error' }));
-      
+
       // Handle specific error cases
       if (error?.response?.status === 409) {
         logger.info(LOGGER_COMPONENT_NAME, 'User already has booking for this event (409)');
@@ -234,12 +236,12 @@ export default function AttendeeEventsPage() {
     if (isEventExpired(event)) {
       return 'Event Ended';
     }
-    
+
     // Check if user already has a booking for this event
     if (userBookings[eventId]) {
       return 'Already Booked ✓';
     }
-    
+
     const status = bookingStatus[eventId];
     switch (status) {
       case 'loading': return 'Booking...';
@@ -254,12 +256,12 @@ export default function AttendeeEventsPage() {
     if (isEventExpired(event)) {
       return 'secondary';
     }
-    
+
     // Check if user already has a booking for this event
     if (userBookings[eventId]) {
       return 'secondary';
     }
-    
+
     const status = bookingStatus[eventId];
     switch (status) {
       case 'success': return 'default';
@@ -273,7 +275,7 @@ export default function AttendeeEventsPage() {
     if (userBookings[eventId]) {
       return true;
     }
-    
+
     // Secondary check: bookingStatus (temporary UI state)
     // Only consider 'success' if we don't have userBookings data yet
     return bookingStatus[eventId] === 'success';
@@ -359,26 +361,63 @@ export default function AttendeeEventsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Discover Events
-          </h1>
-          <p className="text-gray-600 mt-1">Find and book amazing events happening around you</p>
+      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/dashboard/attendee')}
+                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Discover Events
+              </h1>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`}
+                    alt={user?.name || user?.email}
+                  />
+                  <AvatarFallback className="text-xs">
+                    {user?.name ? user.name.split(' ').map(n => n[0]).join('') : user?.email?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  {user?.name || user?.email}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            onClick={() => router.push('/dashboard/attendee/tickets')}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <Ticket className="h-4 w-4" />
-            My Tickets
-          </Button>
+      </header>
+
+      <div className="container mx-auto p-6">
+        {/* Sub Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <p className="text-slate-600 dark:text-slate-400 mt-1">Find and book amazing events happening around you</p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => router.push('/dashboard/attendee/tickets')}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Ticket className="h-4 w-4" />
+              My Tickets
+            </Button>
+          </div>
         </div>
-      </div>
 
       {/* Messages */}
       {errorMessage && (
@@ -503,8 +542,8 @@ export default function AttendeeEventsPage() {
                 {events.length === 0 ? 'No Events Available' : 'No Events Match Your Filters'}
               </h3>
               <p className="text-gray-500 mb-4">
-                {events.length === 0 
-                  ? 'Check back later for new events!' 
+                {events.length === 0
+                  ? 'Check back later for new events!'
                   : 'Try adjusting your filters to see more events.'
                 }
               </p>
@@ -531,7 +570,7 @@ export default function AttendeeEventsPage() {
             const isBooked = userBookings[event.id];
             const isBooking = bookingStatus[event.id] === 'loading';
             const isBookedSuccess = bookingStatus[event.id] === 'success';
-            
+
             return (
               <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -563,7 +602,7 @@ export default function AttendeeEventsPage() {
                     </div>
                   </div>
                 </CardHeader>
-                
+
                 <CardContent>
                   <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2">
                     {event.description}
@@ -583,8 +622,8 @@ export default function AttendeeEventsPage() {
 
                   {/* Actions */}
                   <div className="flex flex-wrap gap-2">
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       variant="outline"
                       onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
                     >
@@ -656,7 +695,7 @@ export default function AttendeeEventsPage() {
                 {filteredEvents.filter(event => isEventExpired(event)).map((event) => {
                   const eventTime = formatEventTime(event.bookingStartDate, event.bookingEndDate);
                   const isBooked = userBookings[event.id];
-                  
+
                   return (
 
 <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow opacity-75">
@@ -679,12 +718,12 @@ export default function AttendeeEventsPage() {
                           </div>
                         </div>
                       </CardHeader>
-                      
+
                       <CardContent>
                         <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2">
                           {event.description}
                         </p>
-                        
+
                         {/* Event Details */}
                         <div className="space-y-3 mb-4">
                           <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
@@ -699,8 +738,8 @@ export default function AttendeeEventsPage() {
 
                         {/* Actions */}
                         <div className="flex flex-wrap gap-2">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
                           >
@@ -725,6 +764,7 @@ export default function AttendeeEventsPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

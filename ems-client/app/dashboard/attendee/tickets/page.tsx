@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 import { useLogger } from '@/lib/logger/LoggerProvider';
 import { TicketResponse } from '@/lib/api/types/booking.types';
 import { QRCodeSVG } from 'qrcode.react';
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { ArrowLeft } from 'lucide-react';
 
 const LOGGER_COMPONENT_NAME = 'AttendeeTicketsPage';
 
@@ -17,7 +19,7 @@ export default function AttendeeTicketsPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const logger = useLogger();
-  
+
   const [tickets, setTickets] = useState<TicketResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,7 +28,7 @@ export default function AttendeeTicketsPage() {
       router.push('/login');
       return;
     }
-    
+
     loadTickets();
   }, [isAuthenticated, router]);
 
@@ -34,10 +36,10 @@ export default function AttendeeTicketsPage() {
     try {
       setLoading(true);
       logger.info(LOGGER_COMPONENT_NAME, 'Loading user tickets');
-      
+
       const response = await ticketAPI.getUserTickets();
       setTickets(response.data || []);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Tickets loaded successfully');
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load tickets', error as Error);
@@ -54,7 +56,7 @@ export default function AttendeeTicketsPage() {
       'REVOKED': 'destructive',
       'EXPIRED': 'outline'
     } as const;
-    
+
     return (
       <Badge variant={variants[status as keyof typeof variants] || 'outline'}>
         {status}
@@ -116,24 +118,64 @@ export default function AttendeeTicketsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">My Tickets</h1>
-        <div className="space-x-2">
-          <Button 
-            onClick={loadTickets}
-            variant="outline"
-          >
-            Refresh
-          </Button>
-          <Button 
-            onClick={() => router.push('/dashboard/attendee/events')}
-            variant="outline"
-          >
-            Browse Events
-          </Button>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+      {/* Header */}
+      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/dashboard/attendee')}
+                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                My Tickets
+              </h1>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`}
+                    alt={user?.name || user?.email}
+                  />
+                  <AvatarFallback className="text-xs">
+                    {user?.name ? user.name.split(' ').map(n => n[0]).join('') : user?.email?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  {user?.name || user?.email}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </header>
+
+      <div className="container mx-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div></div>
+          <div className="space-x-2">
+            <Button
+              onClick={loadTickets}
+              variant="outline"
+            >
+              Refresh
+            </Button>
+            <Button
+              onClick={() => router.push('/dashboard/attendee/events')}
+              variant="outline"
+            >
+              Browse Events
+            </Button>
+          </div>
+        </div>
 
       {tickets.length === 0 ? (
         <Card>
@@ -206,8 +248,8 @@ export default function AttendeeTicketsPage() {
                       </p>
                       <p className="text-sm">
                         <span className="font-medium">Event Date:</span> {
-                          ticket.event.bookingStartDate ? 
-                            new Date(ticket.event.bookingStartDate).toLocaleDateString() : 
+                          ticket.event.bookingStartDate ?
+                            new Date(ticket.event.bookingStartDate).toLocaleDateString() :
                             'Date not available'
                         }
                       </p>
@@ -288,8 +330,8 @@ export default function AttendeeTicketsPage() {
                             </p>
                             <p className="text-sm">
                               <span className="font-medium">Event Date:</span> {
-                                ticket.event.bookingStartDate ? 
-                                  new Date(ticket.event.bookingStartDate).toLocaleDateString() : 
+                                ticket.event.bookingStartDate ?
+                                  new Date(ticket.event.bookingStartDate).toLocaleDateString() :
                                   'Date not available'
                               }
                             </p>
@@ -320,6 +362,7 @@ export default function AttendeeTicketsPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

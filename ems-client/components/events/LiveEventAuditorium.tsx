@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import {
   ArrowLeft,
   Users,
@@ -270,13 +271,13 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-blue-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Card className="max-w-md mx-auto bg-slate-800 border-slate-700">
+          <Card className="max-w-md mx-auto bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
             <CardContent className="text-center py-8">
-              <RefreshCw className="h-12 w-12 text-blue-400 mx-auto mb-4 animate-spin" />
-              <h3 className="text-lg font-semibold mb-2 text-white">Entering Auditorium...</h3>
-              <p className="text-slate-400">Please wait...</p>
+              <RefreshCw className="h-12 w-12 text-blue-600 dark:text-blue-400 mx-auto mb-4 animate-spin" />
+              <h3 className="text-lg font-semibold mb-2 text-slate-900 dark:text-white">Entering Auditorium...</h3>
+              <p className="text-slate-600 dark:text-slate-400">Please wait...</p>
             </CardContent>
           </Card>
         </div>
@@ -286,13 +287,13 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
   if (error || !event) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-blue-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Card className="max-w-md mx-auto bg-slate-800 border-slate-700">
+          <Card className="max-w-md mx-auto bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
             <CardContent className="text-center py-8">
-              <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2 text-white">Error Loading Event</h3>
-              <p className="text-slate-400 mb-4">{error}</p>
+              <AlertCircle className="h-12 w-12 text-red-500 dark:text-red-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2 text-slate-900 dark:text-white">Error Loading Event</h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
               <Button
                 onClick={() => {
                   if (userRole === 'ADMIN') {
@@ -304,7 +305,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                   }
                 }}
                 variant="outline"
-                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Exit Auditorium
@@ -339,9 +340,9 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   const speakerHasJoined = speakerAttendance?.speakers && speakerAttendance.speakers.length > 0 && speakerAttendance.speakers[0].isAttended;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-blue-900">
       {/* Header */}
-      <header className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700">
+      <header className="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -357,22 +358,23 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                 }}
                 variant="ghost"
                 size="sm"
-                className="text-slate-300 hover:text-white hover:bg-slate-700"
+                className="text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Exit Auditorium
               </Button>
               <div>
-                <h1 className="text-2xl font-bold text-white">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                   🎭 Live Event Auditorium
                 </h1>
-                <p className="text-slate-400">
+                <p className="text-slate-600 dark:text-slate-400">
                   {event.name}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center space-x-2">
+              <ThemeToggle />
               <Button
                 onClick={() => {
                   refreshData();
@@ -382,7 +384,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                 disabled={refreshing}
                 variant="outline"
                 size="sm"
-                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 title="Refresh attendance data"
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
@@ -393,7 +395,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                 LIVE
               </Badge>
               {attendance && (
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
                   Auto-refreshing every 5s
                 </span>
               )}
@@ -407,12 +409,12 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
           {/* Main Content Area */}
           <div className="lg:col-span-3 space-y-6">
             {/* Event Status Banner */}
-            <Card className="bg-slate-800 border-slate-700">
+            <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-bold text-white mb-2">{event.name}</h2>
-                    <div className="flex items-center space-x-4 text-slate-400">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{event.name}</h2>
+                    <div className="flex items-center space-x-4 text-slate-600 dark:text-slate-400">
                       <div className="flex items-center">
                         <Calendar className="h-4 w-4 mr-2" />
                         {formatDateTime(event.bookingStartDate)}
@@ -431,19 +433,19 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
             </Card>
 
             {/* Event Description */}
-            <Card className="bg-slate-800 border-slate-700">
+            <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
               <CardHeader>
-                <CardTitle className="text-white">Event Description</CardTitle>
+                <CardTitle className="text-slate-900 dark:text-white">Event Description</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-slate-300 leading-relaxed">{event.description}</p>
+                <p className="text-slate-700 dark:text-slate-300 leading-relaxed">{event.description}</p>
               </CardContent>
             </Card>
 
             {/* Materials Section */}
-            <Card className="bg-slate-800 border-slate-700">
+            <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
               <CardHeader>
-                <CardTitle className="text-white flex items-center">
+                <CardTitle className="text-slate-900 dark:text-white flex items-center">
                   <FileText className="h-5 w-5 mr-2" />
                   Event Materials
                   {selectedMaterials.length > 0 && (
@@ -460,13 +462,13 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                       {selectedMaterials.map((material) => (
                         <div
                           key={material.id}
-                          className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:bg-slate-700 transition-colors"
+                          className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                         >
                           <div className="flex items-center space-x-3 flex-1">
-                            <FileText className="h-5 w-5 text-blue-400" />
+                            <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-white font-medium truncate">{material.fileName}</p>
-                              <p className="text-slate-400 text-sm">
+                              <p className="text-slate-900 dark:text-white font-medium truncate">{material.fileName}</p>
+                              <p className="text-slate-600 dark:text-slate-400 text-sm">
                                 {material.fileSize ? `${(material.fileSize / 1024).toFixed(2)} KB` : 'Unknown size'} • {material.mimeType || 'Unknown type'}
                               </p>
                             </div>
@@ -474,7 +476,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="border-slate-600 text-slate-300 hover:bg-slate-600"
+                            className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600"
                             onClick={async () => {
                               try {
                                 // Use the same download approach as the working dashboard implementation
@@ -534,11 +536,11 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
           <div className="lg:col-span-1">
             <div className="sticky top-6 space-y-6">
               {/* Speaker Info */}
-              <Card className="bg-slate-800 border-slate-700">
+              <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center justify-between">
+                  <CardTitle className="text-slate-900 dark:text-white flex items-center justify-between">
                     <div className="flex items-center">
-                      <Crown className="h-5 w-5 mr-2 text-yellow-400" />
+                      <Crown className="h-5 w-5 mr-2 text-yellow-500 dark:text-yellow-400" />
                       Speaker
                     </div>
                     {speakerAttendance && speakerAttendance.speakers.length > 0 && speakerAttendance.speakers.some(s => s.isAttended) && (
@@ -561,8 +563,8 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                       {speakerInfo?.name ? speakerInfo.name.charAt(0).toUpperCase() : (event.speakerId ? event.speakerId.charAt(0).toUpperCase() : 'S')}
                     </div>
                     <div>
-                      <p className="text-white font-medium">{speakerInfo?.name || 'Speaker'}</p>
-                      <p className="text-slate-400 text-sm">{speakerInfo?.email || 'Main Speaker'}</p>
+                      <p className="text-slate-900 dark:text-white font-medium">{speakerInfo?.name || 'Speaker'}</p>
+                      <p className="text-slate-600 dark:text-slate-400 text-sm">{speakerInfo?.email || 'Main Speaker'}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -570,9 +572,9 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
               {/* Attendance Stats - Show for ADMIN only */}
               {userRole === 'ADMIN' && (
-                <Card className="bg-slate-800 border-slate-700">
+                <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center">
+                  <CardTitle className="text-slate-900 dark:text-white flex items-center">
                     <Users className="h-5 w-5 mr-2" />
                     Attendance
                   </CardTitle>
@@ -581,27 +583,27 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                   {attendance ? (
                     <>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="text-center p-3 bg-green-900/30 rounded-lg border border-green-700">
-                          <UserCheck className="h-6 w-6 text-green-400 mx-auto mb-1" />
-                          <p className="text-lg font-bold text-green-400">{attendance.totalAttended}</p>
-                          <p className="text-xs text-slate-400">Joined</p>
+                        <div className="text-center p-3 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-700">
+                          <UserCheck className="h-6 w-6 text-green-600 dark:text-green-400 mx-auto mb-1" />
+                          <p className="text-lg font-bold text-green-600 dark:text-green-400">{attendance.totalAttended}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">Joined</p>
                         </div>
-                        <div className="text-center p-3 bg-blue-900/30 rounded-lg border border-blue-700">
-                          <UserPlus className="h-6 w-6 text-blue-400 mx-auto mb-1" />
-                          <p className="text-lg font-bold text-blue-400">{attendance.totalRegistered}</p>
-                          <p className="text-xs text-slate-400">Registered</p>
+                        <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+                          <UserPlus className="h-6 w-6 text-blue-600 dark:text-blue-400 mx-auto mb-1" />
+                          <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{attendance.totalRegistered}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">Registered</p>
                         </div>
                       </div>
 
-                      <div className="text-center p-3 bg-purple-900/30 rounded-lg border border-purple-700">
-                        <p className="text-2xl font-bold text-purple-400">{attendance.attendancePercentage}%</p>
-                        <p className="text-xs text-slate-400">Attendance Rate</p>
+                      <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg border border-purple-200 dark:border-purple-700">
+                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{attendance.attendancePercentage}%</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Attendance Rate</p>
                       </div>
                     </>
                   ) : (
                     <div className="text-center py-4">
-                      <Users className="h-8 w-8 text-slate-500 mx-auto mb-2" />
-                      <p className="text-slate-400 text-sm">Loading attendance...</p>
+                      <Users className="h-8 w-8 text-slate-400 dark:text-slate-500 mx-auto mb-2" />
+                      <p className="text-slate-600 dark:text-slate-400 text-sm">Loading attendance...</p>
                     </div>
                   )}
                 </CardContent>
@@ -610,10 +612,10 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
               {/* People Who Joined - Show for ADMIN and SPEAKER only */}
               {(userRole === 'ADMIN' || userRole === 'SPEAKER') && (
-                <Card className="bg-slate-800 border-slate-700">
+                <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <UserCheck className="h-5 w-5 mr-2 text-green-400" />
+                  <CardTitle className="text-slate-900 dark:text-white flex items-center">
+                    <UserCheck className="h-5 w-5 mr-2 text-green-600 dark:text-green-400" />
                     In Auditorium ({joinedAttendees.length})
                   </CardTitle>
                 </CardHeader>
@@ -622,21 +624,21 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                     <div className="space-y-2">
                       {joinedAttendees.length > 0 ? (
                         joinedAttendees.map((attendee) => (
-                          <div key={attendee.userId} className="flex items-center space-x-3 p-2 bg-green-900/20 rounded-lg border border-green-700/30">
+                          <div key={attendee.userId} className="flex items-center space-x-3 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700/30">
                             <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
                               {attendee.userName.charAt(0).toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-white text-sm font-medium truncate">{attendee.userName}</p>
-                              <p className="text-slate-400 text-xs truncate">{attendee.userEmail}</p>
+                              <p className="text-slate-900 dark:text-white text-sm font-medium truncate">{attendee.userName}</p>
+                              <p className="text-slate-600 dark:text-slate-400 text-xs truncate">{attendee.userEmail}</p>
                             </div>
-                            <CheckCircle className="h-4 w-4 text-green-400" />
+                            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                           </div>
                         ))
                       ) : (
                         <div className="text-center py-4">
-                          <UserCheck className="h-8 w-8 text-slate-500 mx-auto mb-2" />
-                          <p className="text-slate-400 text-sm">No one has joined yet</p>
+                          <UserCheck className="h-8 w-8 text-slate-400 dark:text-slate-500 mx-auto mb-2" />
+                          <p className="text-slate-600 dark:text-slate-400 text-sm">No one has joined yet</p>
                         </div>
                       )}
                     </div>
@@ -647,10 +649,10 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
               {/* Other Registered Attendees - Show for ADMIN and SPEAKER only */}
               {(userRole === 'ADMIN' || userRole === 'SPEAKER') && (
-                <Card className="bg-slate-800 border-slate-700">
+                <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <UserPlus className="h-5 w-5 mr-2 text-blue-400" />
+                  <CardTitle className="text-slate-900 dark:text-white flex items-center">
+                    <UserPlus className="h-5 w-5 mr-2 text-blue-600 dark:text-blue-400" />
                     Other Registered Attendees ({notJoinedAttendees.length})
                   </CardTitle>
                 </CardHeader>
@@ -659,21 +661,21 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                     <div className="space-y-2">
                       {notJoinedAttendees.length > 0 ? (
                         notJoinedAttendees.map((attendee) => (
-                          <div key={attendee.userId} className="flex items-center space-x-3 p-2 bg-blue-900/20 rounded-lg border border-blue-700/30">
+                          <div key={attendee.userId} className="flex items-center space-x-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700/30">
                             <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
                               {attendee.userName.charAt(0).toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-white text-sm font-medium truncate">{attendee.userName}</p>
-                              <p className="text-slate-400 text-xs truncate">{attendee.userEmail}</p>
+                              <p className="text-slate-900 dark:text-white text-sm font-medium truncate">{attendee.userName}</p>
+                              <p className="text-slate-600 dark:text-slate-400 text-xs truncate">{attendee.userEmail}</p>
                             </div>
-                            <XCircle className="h-4 w-4 text-blue-400" />
+                            <XCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           </div>
                         ))
                       ) : (
                         <div className="text-center py-4">
-                          <UserPlus className="h-8 w-8 text-slate-500 mx-auto mb-2" />
-                          <p className="text-slate-400 text-sm">Everyone has joined!</p>
+                          <UserPlus className="h-8 w-8 text-slate-400 dark:text-slate-500 mx-auto mb-2" />
+                          <p className="text-slate-600 dark:text-slate-400 text-sm">Everyone has joined!</p>
                         </div>
                       )}
                     </div>
