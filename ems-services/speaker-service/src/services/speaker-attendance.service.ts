@@ -158,12 +158,6 @@ export class SpeakerAttendanceService {
         };
       }
 
-      // Check if speaker previously left within 30 minutes of event start
-      const thirtyMinutesAfterStart = new Date(eventStartDate.getTime() + 30 * 60 * 1000);
-      const previouslyLeftWithin30Min = invitation.leftAt &&
-        new Date(invitation.leftAt) <= thirtyMinutesAfterStart &&
-        new Date(invitation.leftAt) >= eventStartDate;
-
       // Determine if this is a first join (never joined before)
       const isFirstJoin = !invitation.joinedAt;
 
