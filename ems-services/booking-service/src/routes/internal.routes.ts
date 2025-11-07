@@ -9,13 +9,11 @@ import { BookingStatus } from '../../generated/prisma';
 
 const router = Router();
 
-// Apply internal service middleware to all routes
-router.use(requireInternalService);
-
 /**
  * GET /internal/events/:eventId/bookings - Get all bookings for a specific event (internal service only)
  */
 router.get('/internal/events/:eventId/bookings',
+  requireInternalService,
   asyncHandler(async (req: Request, res: Response) => {
     const { eventId } = req.params;
     const {

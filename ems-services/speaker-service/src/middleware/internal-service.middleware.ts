@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
  * Middleware to allow internal service-to-service communication
  * Checks for x-internal-service header to bypass authentication
  */
-export const requireInternalService = (req: Request, res: Response, next: NextFunction) => {
+export const requireInternalService = (req: Request, res: Response, next: NextFunction): void => {
   const internalServiceHeader = req.headers['x-internal-service'];
 
   if (!internalServiceHeader) {
@@ -13,10 +13,11 @@ export const requireInternalService = (req: Request, res: Response, next: NextFu
       method: req.method,
       url: req.url
     });
-    return res.status(403).json({
+    res.status(403).json({
       success: false,
       error: 'Internal service access only'
     });
+    return;
   }
 
   // Log internal service access

@@ -187,9 +187,14 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     if (userRole !== 'ADMIN' && userRole !== 'SPEAKER') return;
 
     try {
-      logger.info(LOGGER_COMPONENT_NAME, 'Loading attendance data', { eventId });
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading attendance data', { eventId });
       const attendanceData = await attendanceAPI.getLiveAttendance(eventId);
       setAttendance(attendanceData);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Attendance data updated', {
+        totalAttended: attendanceData.totalAttended,
+        totalRegistered: attendanceData.totalRegistered,
+        attendeesCount: attendanceData.attendees.length
+      });
     } catch (err) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load attendance data', err as Error);
     }
@@ -252,13 +257,13 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     }
   }, [event, userRole]);
 
-  // Auto-refresh attendance data every 15 seconds for live experience
+  // Auto-refresh attendance data every 5 seconds for live experience
   useEffect(() => {
     if (!event) return;
 
     const interval = setInterval(() => {
       loadAttendance();
-    }, 15000);
+    }, 5000); // Reduced to 5 seconds for more real-time updates
 
     return () => clearInterval(interval);
   }, [event, userRole]);
@@ -369,11 +374,16 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
             <div className="flex items-center space-x-2">
               <Button
-                onClick={refreshData}
+                onClick={() => {
+                  refreshData();
+                  // Also immediately refresh attendance
+                  loadAttendance();
+                }}
                 disabled={refreshing}
                 variant="outline"
                 size="sm"
                 className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                title="Refresh attendance data"
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
@@ -382,6 +392,11 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                 <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
                 LIVE
               </Badge>
+              {attendance && (
+                <span className="text-xs text-slate-400">
+                  Auto-refreshing every 5s
+                </span>
+              )}
             </div>
           </div>
         </div>
