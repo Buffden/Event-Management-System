@@ -75,4 +75,4 @@ export const requireRole = (roles: string[]) => {
 
 export const requireAdmin = requireRole(['ADMIN']);
 export const requireSpeaker = requireRole(['SPEAKER', 'ADMIN']);
-export const requireAttendee = requireRole(['ATTENDEE', 'SPEAKER', 'ADMIN']);
+export const requireAttendee = requireRole(['USER', 'SPEAKER', 'ADMIN']);
