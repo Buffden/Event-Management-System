@@ -62,6 +62,7 @@ export const mockPrisma = {
     findFirst: jest.fn() as jest.MockedFunction<any>,
     create: jest.fn() as jest.MockedFunction<any>,
     update: jest.fn() as jest.MockedFunction<any>,
+    updateMany: jest.fn() as jest.MockedFunction<any>,
     delete: jest.fn() as jest.MockedFunction<any>,
     count: jest.fn() as jest.MockedFunction<any>,
     upsert: jest.fn() as jest.MockedFunction<any>,
