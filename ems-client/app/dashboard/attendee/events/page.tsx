@@ -57,6 +57,7 @@ export default function AttendeeEventsPage() {
   const [bookingStatus, setBookingStatus] = useState<BookingStatus>({});
   const [userBookings, setUserBookings] = useState<{ [eventId: string]: boolean }>({});
   const [feedbackForms, setFeedbackForms] = useState<{ [eventId: string]: FeedbackFormResponse | null }>({});
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [filters, setFilters] = useState<EventFilters>({
@@ -82,6 +83,15 @@ export default function AttendeeEventsPage() {
       loadFeedbackForms();
     }
   }, [events]);
+
+  // Update current time every minute to show/hide Join Event button based on 10-minute window
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Filter events when filters or events change
   useEffect(() => {
@@ -378,6 +388,19 @@ export default function AttendeeEventsPage() {
     const eventStartDate = new Date(event.bookingStartDate);
     const eventEndDate = new Date(event.bookingEndDate);
     return eventStartDate <= now && eventEndDate >= now && event.status === 'PUBLISHED';
+  };
+
+  // Utility function to check if event is within 10 minutes of start time
+  const isWithin10MinutesOfStart = (event: Event) => {
+    const now = currentTime; // Use currentTime state for real-time updates
+    const eventStartDate = new Date(event.bookingStartDate);
+    const tenMinutesInMs = 10 * 60 * 1000; // 10 minutes in milliseconds
+    const timeUntilStart = eventStartDate.getTime() - now.getTime();
+
+    // Return true if:
+    // 1. Event has already started (timeUntilStart <= 0)
+    // 2. OR event starts within 10 minutes (0 <= timeUntilStart <= 10 minutes)
+    return timeUntilStart <= tenMinutesInMs && !isEventExpired(event);
   };
 
 
@@ -710,7 +733,7 @@ export default function AttendeeEventsPage() {
                         <AlertCircle className="h-4 w-4 mr-1" />
                         Event Ended
                       </Button>
-                    ) : isBooked ? (
+                    ) : isBooked && isWithin10MinutesOfStart(event) ? (
                       <Button
                         size="sm"
                         variant="default"
