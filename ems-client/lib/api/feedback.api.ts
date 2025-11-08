@@ -248,6 +248,37 @@ class FeedbackApiClient extends BaseApiClient {
       throw error;
     }
   }
+
+  async getEventFeedbackSubmissions(eventId: string, page: number = 1, limit: number = 100): Promise<{
+    submissions: FeedbackSubmissionResponse[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Getting event feedback submissions', { eventId, page, limit });
+
+      const response = await fetch(`${this.baseURL}/feedback/events/${eventId}/submissions?page=${page}&limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      logger.info(LOGGER_COMPONENT_NAME, 'Event feedback submissions retrieved', { count: result.data.submissions.length });
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to get event feedback submissions', error as Error);
+      throw error;
+    }
+  }
 }
 
 // Create and export the Feedback API client instance
@@ -262,5 +293,6 @@ export const feedbackAPI = {
   closeFeedbackForm: (formId: string) => feedbackApiClient.closeFeedbackForm(formId),
   deleteFeedbackForm: (formId: string) => feedbackApiClient.deleteFeedbackForm(formId),
   submitFeedback: (data: SubmitFeedbackRequest) => feedbackApiClient.submitFeedback(data),
+  getEventFeedbackSubmissions: (eventId: string, page?: number, limit?: number) => feedbackApiClient.getEventFeedbackSubmissions(eventId, page, limit),
 };
 

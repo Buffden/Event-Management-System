@@ -14,12 +14,16 @@ import {
   Save,
   X,
   MessageSquare,
-  BarChart3
+  BarChart3,
+  Eye,
+  Star,
+  User,
+  Calendar
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
-import { feedbackAPI, FeedbackFormResponse, FeedbackFormStatus } from "@/lib/api/feedback.api";
+import { feedbackAPI, FeedbackFormResponse, FeedbackFormStatus, FeedbackSubmissionResponse } from "@/lib/api/feedback.api";
 import { eventAPI } from "@/lib/api/event.api";
 import { withAdminAuth } from "@/components/hoc/withAuth";
 
@@ -49,6 +53,11 @@ function FeedbackManagementPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<FeedbackFormStatus>('DRAFT');
+
+  // Responses modal state
+  const [showResponsesModal, setShowResponsesModal] = useState(false);
+  const [responses, setResponses] = useState<FeedbackSubmissionResponse[]>([]);
+  const [loadingResponses, setLoadingResponses] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -143,6 +152,37 @@ function FeedbackManagementPage() {
     }
   };
 
+  const handleViewResponses = async () => {
+    try {
+      setLoadingResponses(true);
+      setShowResponsesModal(true);
+      
+      const result = await feedbackAPI.getEventFeedbackSubmissions(eventId, 1, 100);
+      setResponses(result.submissions);
+      
+      logger.info(COMPONENT_NAME, 'Feedback responses loaded', { count: result.submissions.length });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load responses';
+      setError(errorMessage);
+      logger.error(COMPONENT_NAME, 'Failed to load responses', err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      setLoadingResponses(false);
+    }
+  };
+
+  const renderStars = (rating: number) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <Star
+        key={i}
+        className={`h-4 w-4 ${
+          i < rating
+            ? 'fill-yellow-400 text-yellow-400'
+            : 'fill-gray-200 text-gray-200 dark:fill-gray-700 dark:text-gray-700'
+        }`}
+      />
+    ));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -228,14 +268,30 @@ function FeedbackManagementPage() {
                     {feedbackForm.status}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-600 dark:text-slate-400">
-                    {feedbackForm.responseCount} responses
-                  </span>
+                <div className="flex items-center gap-3">
+                  <div className="text-sm text-slate-600 dark:text-slate-400">
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {feedbackForm.responseCount}
+                    </span> responses
+                  </div>
                   {feedbackForm.averageRating && (
-                    <span className="text-sm text-slate-600 dark:text-slate-400">
-                      ⭐ {feedbackForm.averageRating.toFixed(1)}
-                    </span>
+                    <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {feedbackForm.averageRating.toFixed(1)}
+                      </span>
+                    </div>
+                  )}
+                  {feedbackForm.responseCount > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleViewResponses}
+                      className="border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Responses
+                    </Button>
                   )}
                 </div>
               </div>
@@ -313,6 +369,110 @@ function FeedbackManagementPage() {
           </Card>
         )}
       </main>
+
+      {/* Responses Modal */}
+      {showResponsesModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-4xl max-h-[80vh] flex flex-col">
+            <CardHeader className="border-b">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl">Feedback Responses</CardTitle>
+                  <CardDescription className="mt-1">
+                    {responses.length} total responses
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowResponsesModal(false)}
+                  className="hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="overflow-y-auto flex-1 p-6">
+              {loadingResponses ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-slate-600 dark:text-slate-400">Loading responses...</p>
+                  </div>
+                </div>
+              ) : responses.length === 0 ? (
+                <div className="text-center py-12">
+                  <MessageSquare className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600 dark:text-slate-400">No responses yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {responses.map((response, index) => (
+                    <Card key={response.id} className="border border-slate-200 dark:border-slate-700">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              Response #{index + 1}
+                            </Badge>
+                            <div className="flex items-center gap-1">
+                              {renderStars(response.rating)}
+                            </div>
+                            <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                              {response.rating}/5
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(response.createdAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-start gap-2 mb-3">
+                          <User className="h-4 w-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm">
+                            <span className="text-slate-600 dark:text-slate-400">User ID:</span>{' '}
+                            <span className="font-mono text-xs text-slate-900 dark:text-white">
+                              {response.userId.substring(0, 8)}...
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2 mb-3">
+                          <MessageSquare className="h-4 w-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm">
+                            <span className="text-slate-600 dark:text-slate-400">Booking ID:</span>{' '}
+                            <span className="font-mono text-xs text-slate-900 dark:text-white">
+                              {response.bookingId.substring(0, 8)}...
+                            </span>
+                          </div>
+                        </div>
+
+                        {response.comment && (
+                          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                              Comment:
+                            </p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+                              {response.comment}
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
