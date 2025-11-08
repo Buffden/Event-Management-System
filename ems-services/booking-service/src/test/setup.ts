@@ -42,13 +42,13 @@ afterEach(() => {
 // Custom Jest matchers (example)
 expect.extend({
   toBeValidBooking(received: any) {
-    const hasRequiredFields = received && 
+    const hasRequiredFields = received &&
       typeof received.id === 'string' &&
       typeof received.userId === 'string' &&
       typeof received.eventId === 'string' &&
       typeof received.status === 'string' &&
       typeof received.createdAt === 'string';
-    
+
     if (hasRequiredFields) {
       return {
         message: () => `expected ${received} not to be a valid booking`,
@@ -63,13 +63,13 @@ expect.extend({
   },
 
   toBeValidTicket(received: any) {
-    const hasRequiredFields = received && 
+    const hasRequiredFields = received &&
       typeof received.id === 'string' &&
       typeof received.bookingId === 'string' &&
       typeof received.eventId === 'string' &&
       typeof received.status === 'string' &&
       typeof received.issuedAt === 'string';
-    
+
     if (hasRequiredFields) {
       return {
         message: () => `expected ${received} not to be a valid ticket`,

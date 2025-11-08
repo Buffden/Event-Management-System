@@ -1,6 +1,6 @@
 /**
  * Simplified Mock Definitions for Booking Service Tests
- * 
+ *
  * This file contains simplified mocks that work better with TypeScript.
  */
 
@@ -124,6 +124,18 @@ export const mockPrisma = {
     update: jest.fn() as jest.MockedFunction<any>,
     delete: jest.fn() as jest.MockedFunction<any>,
   },
+  qRCode: {
+    findUnique: jest.fn() as jest.MockedFunction<any>,
+    findMany: jest.fn() as jest.MockedFunction<any>,
+    create: jest.fn() as jest.MockedFunction<any>,
+    update: jest.fn() as jest.MockedFunction<any>,
+    delete: jest.fn() as jest.MockedFunction<any>,
+  },
+  attendanceRecord: {
+    findMany: jest.fn() as jest.MockedFunction<any>,
+    create: jest.fn() as jest.MockedFunction<any>,
+    count: jest.fn() as jest.MockedFunction<any>,
+  },
   $transaction: jest.fn() as jest.MockedFunction<any>,
   $connect: jest.fn() as jest.MockedFunction<any>,
   $disconnect: jest.fn() as jest.MockedFunction<any>,
@@ -210,12 +222,12 @@ export const mockLogger = {
 export const setupSuccessfulBookingCreation = () => {
   const mockBooking = createMockBooking();
   const mockEvent = createMockEvent();
-  
+
   mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
   mockPrisma.booking.create.mockResolvedValue(mockBooking);
   mockEventPublisherService.publishBookingCreated.mockResolvedValue(undefined);
   mockNotificationService.sendBookingConfirmation.mockResolvedValue(undefined);
-  
+
   return { mockBooking, mockEvent };
 };
 
@@ -225,7 +237,7 @@ export const setupSuccessfulBookingCreation = () => {
 export const setupSuccessfulTicketGeneration = () => {
   const mockTicket = createMockTicket();
   const mockBooking = createMockBooking();
-  
+
   mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
   mockAxios.get.mockResolvedValue({
     status: 200,
@@ -234,7 +246,7 @@ export const setupSuccessfulTicketGeneration = () => {
   mockPrisma.ticket.create.mockResolvedValue(mockTicket);
   mockEventPublisherService.publishTicketGenerated.mockResolvedValue(undefined);
   mockNotificationService.sendTicketNotification.mockResolvedValue(undefined);
-  
+
   return { mockTicket, mockBooking };
 };
 
@@ -258,11 +270,11 @@ export const setupEventNotFound = () => {
 export const setupSuccessfulAuth = (userRole: string = 'USER') => {
   const mockUser = createMockUser({ role: userRole });
   const mockToken = createMockJWT({ role: userRole });
-  
+
   mockJWT.verify.mockReturnValue(mockToken);
   mockAuthValidationService.validateToken.mockResolvedValue({ valid: true, user: mockUser });
   mockAuthValidationService.getUserFromToken.mockResolvedValue(mockUser);
-  
+
   return { mockUser, mockToken };
 };
 
@@ -298,6 +310,143 @@ export const setupRabbitMQError = () => {
   mockEventPublisherService.publishBookingCreated.mockRejectedValue(mqError);
 };
 
+/**
+ * Setup existing booking scenario
+ */
+export const setupExistingBooking = () => {
+  const mockBooking = createMockBooking({ status: 'CONFIRMED' });
+  mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
+  return { mockBooking };
+};
+
+/**
+ * Setup event at full capacity scenario
+ */
+export const setupEventFullCapacity = () => {
+  const mockEvent = createMockEvent({ capacity: 100, currentBookings: 100 });
+  mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+  mockPrisma.booking.count.mockResolvedValue(100);
+  return { mockEvent };
+};
+
+/**
+ * Setup event with available capacity scenario
+ */
+export const setupEventAvailableCapacity = () => {
+  const mockEvent = createMockEvent({ capacity: 100, currentBookings: 50 });
+  mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
+  mockPrisma.booking.count.mockResolvedValue(50);
+  return { mockEvent };
+};
+
+/**
+ * Setup successful booking cancellation scenario
+ */
+export const setupSuccessfulBookingCancellation = () => {
+  const mockBooking = createMockBooking({ status: 'CONFIRMED' });
+  const cancelledBooking = createMockBooking({ status: 'CANCELLED' });
+
+  mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
+  mockPrisma.booking.update.mockResolvedValue(cancelledBooking);
+  mockEventPublisherService.publishBookingCancelled.mockResolvedValue(undefined);
+
+  return { mockBooking, cancelledBooking };
+};
+
+/**
+ * Setup QR code generation scenario
+ */
+export const setupQRCodeGeneration = () => {
+  const mockQRCode = {
+    id: 'qr-123',
+    ticketId: 'ticket-123',
+    data: 'ticket:ticket-123:1234567890:abc123',
+    format: 'PNG',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  mockPrisma.qRCode.findUnique.mockResolvedValue(null); // No existing QR
+  mockPrisma.qRCode.create.mockResolvedValue(mockQRCode);
+
+  return { mockQRCode };
+};
+
+/**
+ * Setup event service response scenario
+ */
+export const setupEventServiceResponse = (eventDetails: any = null) => {
+  const defaultEventDetails = {
+    id: 'event-123',
+    name: 'Test Event',
+    description: 'Test Description',
+    category: 'CONFERENCE',
+    bookingStartDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
+    bookingEndDate: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(), // Day after tomorrow
+    venue: {
+      name: 'Test Venue',
+      address: '123 Test St',
+    },
+  };
+
+  mockAxios.get.mockResolvedValue({
+    status: 200,
+    data: {
+      success: true,
+      data: eventDetails || defaultEventDetails,
+    },
+  });
+
+  return eventDetails || defaultEventDetails;
+};
+
+/**
+ * Setup event service error scenario
+ */
+export const setupEventServiceError = () => {
+  mockAxios.get.mockRejectedValue(new Error('Event service unavailable'));
+};
+
+/**
+ * Setup attendance join scenario
+ */
+export const setupSuccessfulAttendanceJoin = () => {
+  const mockBooking = createMockBooking({
+    status: 'CONFIRMED',
+    isAttended: false,
+    joinedAt: null,
+  });
+  const updatedBooking = createMockBooking({
+    status: 'CONFIRMED',
+    isAttended: true,
+    joinedAt: new Date(),
+  });
+
+  mockPrisma.booking.findFirst.mockResolvedValue(mockBooking);
+  mockPrisma.booking.update.mockResolvedValue(updatedBooking);
+  setupEventServiceResponse();
+
+  return { mockBooking, updatedBooking };
+};
+
+/**
+ * Setup admin join event scenario
+ */
+export const setupAdminJoinEvent = () => {
+  const mockBooking = createMockBooking({
+    userId: 'admin-123',
+    status: 'CONFIRMED',
+    isAttended: true,
+    joinedAt: new Date(),
+  });
+
+  mockPrisma.booking.findFirst.mockResolvedValue(null); // No existing attendance
+  mockPrisma.booking.create.mockResolvedValue(mockBooking);
+  setupEventServiceResponse();
+
+  return { mockBooking };
+};
+
 // ============================================================================
 // MOCK SETUP AND RESET FUNCTIONS
 // ============================================================================
@@ -324,15 +473,19 @@ export const setupAllMocks = () => {
 
 /**
  * Reset all mocks to their initial state
+ * Note: This clears call history but preserves mock structure
  */
 export const resetAllMocks = () => {
   jest.clearAllMocks();
-  jest.resetAllMocks();
+  // Don't use jest.resetAllMocks() as it destroys the mock object structure
+  // Instead, manually reset each mock's implementation if needed
 };
 
 // ============================================================================
 // MOCK MODULE IMPORTS
 // ============================================================================
+// Note: jest.mock() calls are at the end of the file so all exports
+// are available. The factory functions execute at runtime, not during hoisting.
 
 // Mock Prisma Client
 jest.mock('@prisma/client', () => ({
@@ -340,7 +493,6 @@ jest.mock('@prisma/client', () => ({
 }));
 
 // Mock database module
-// This is used when a service imports 'prisma' directly from '../database'
 jest.mock('../database', () => ({
   prisma: mockPrisma,
 }));

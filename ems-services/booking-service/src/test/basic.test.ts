@@ -1,11 +1,17 @@
 /**
  * Basic Test Setup Validation for Booking Service
- * 
+ *
  * This file contains basic tests to validate that the test environment
  * is properly configured and all necessary components are available.
  */
 
 import '@jest/globals';
+import {
+  setupEventNotFound,
+  setupSuccessfulBookingCreation,
+  createMockBooking,
+  createMockEvent,
+} from './mocks-simple';
 
 describe('Basic Test Setup', () => {
   it('should have Jest globals available', () => {
@@ -40,5 +46,16 @@ describe('Basic Test Setup', () => {
     expect(mockData.id).toBe('test-id');
     expect(mockData.name).toBe('Test Object');
     expect(mockData.createdAt).toBeDefined();
+  });
+
+  it('should have mock functions available', () => {
+    expect(setupEventNotFound).toBeDefined();
+    expect(typeof setupEventNotFound).toBe('function');
+    expect(setupSuccessfulBookingCreation).toBeDefined();
+    expect(typeof setupSuccessfulBookingCreation).toBe('function');
+    expect(createMockBooking).toBeDefined();
+    expect(typeof createMockBooking).toBe('function');
+    expect(createMockEvent).toBeDefined();
+    expect(typeof createMockEvent).toBe('function');
   });
 });
