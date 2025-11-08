@@ -10,6 +10,10 @@ import { useRouter } from 'next/navigation';
 import { useLogger } from '@/lib/logger/LoggerProvider';
 import { TicketResponse } from '@/lib/api/types/booking.types';
 import { QRCodeSVG } from 'qrcode.react';
+<<<<<<< HEAD
+=======
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
 import { ArrowLeft } from 'lucide-react';
 
 const LOGGER_COMPONENT_NAME = 'AttendeeTicketsPage';
@@ -103,6 +107,7 @@ export default function AttendeeTicketsPage() {
   }
 
   return (
+<<<<<<< HEAD
     <div className="container mx-auto p-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -131,8 +136,66 @@ export default function AttendeeTicketsPage() {
           >
             Browse Events
           </Button>
+=======
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+      {/* Header */}
+      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/dashboard/attendee')}
+                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                My Tickets
+              </h1>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`}
+                    alt={user?.name || user?.email}
+                  />
+                  <AvatarFallback className="text-xs">
+                    {user?.name ? user.name.split(' ').map(n => n[0]).join('') : user?.email?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  {user?.name || user?.email}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </header>
+
+      <div className="container mx-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div></div>
+          <div className="space-x-2">
+            <Button
+              onClick={loadTickets}
+              variant="outline"
+            >
+              Refresh
+            </Button>
+            <Button
+              onClick={() => router.push('/dashboard/attendee/events')}
+              variant="outline"
+            >
+              Browse Events
+            </Button>
+          </div>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
+        </div>
 
       {tickets.length === 0 ? (
         <Card>
@@ -227,8 +290,94 @@ export default function AttendeeTicketsPage() {
               </CardContent>
             </Card>
           ))}
+<<<<<<< HEAD
+=======
+              </div>
+            </div>
+          )}
+
+          {/* Expired Tickets */}
+          {tickets.filter(ticket => isTicketEventExpired(ticket)).length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <div className="h-5 w-5 bg-gray-500 rounded-full"></div>
+                Past Event Tickets ({tickets.filter(ticket => isTicketEventExpired(ticket)).length})
+              </h2>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {tickets.filter(ticket => isTicketEventExpired(ticket)).map((ticket) => (
+                  <Card key={ticket.id} className="opacity-75 hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        {ticket.event?.name || 'Event Ticket'}
+                        <Badge variant="secondary" className="bg-gray-500 text-white">
+                          EXPIRED EVENT
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        {ticket.event?.category && (
+                          <span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full mr-2">
+                            {ticket.event.category}
+                          </span>
+                        )}
+                        Ticket ID: {ticket.id.substring(0, 8)}...
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {/* QR Code Display - Disabled for expired events */}
+                      <div className="mb-4">
+                        <div className="h-48 bg-gray-100 rounded flex items-center justify-center opacity-50">
+                          <p className="text-gray-500">QR Code no longer valid</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mb-4">
+                        {ticket.event && (
+                          <>
+                            <p className="text-sm">
+                              <span className="font-medium">Event:</span> {ticket.event.name}
+                            </p>
+                            <p className="text-sm">
+                              <span className="font-medium">Venue:</span> {ticket.event.venue.name}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {ticket.event.venue.address}
+                            </p>
+                            <p className="text-sm">
+                              <span className="font-medium">Event Date:</span> {
+                                ticket.event.bookingStartDate ?
+                                  new Date(ticket.event.bookingStartDate).toLocaleDateString() :
+                                  'Date not available'
+                              }
+                            </p>
+                          </>
+                        )}
+                        <p className="text-sm">
+                          <span className="font-medium">Issued:</span> {new Date(ticket.issuedAt).toLocaleString()}
+                        </p>
+                        <p className="text-sm">
+                          <span className="font-medium">Expires:</span> {new Date(ticket.expiresAt).toLocaleString()}
+                        </p>
+                        {ticket.scannedAt && (
+                          <p className="text-sm">
+                            <span className="font-medium">Scanned:</span> {new Date(ticket.scannedAt).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Event Ended Notice */}
+                      <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded text-gray-700 text-sm">
+                        📅 This event has ended
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
         </div>
       )}
+      </div>
     </div>
   );
 }

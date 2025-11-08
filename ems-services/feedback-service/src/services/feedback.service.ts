@@ -17,6 +17,7 @@ import {
   FeedbackSubmissionNotFoundError,
   DuplicateFeedbackSubmissionError,
   InvalidRatingError,
+  FeedbackFormClosedError,
   FeedbackFormNotPublishedError
 } from '../types/feedback.types';
 
@@ -41,7 +42,7 @@ export class FeedbackService implements IFeedbackService {
           eventId: data.eventId,
           title: data.title,
           description: data.description,
-          isPublished: false // Start as unpublished
+          status: 'DRAFT' // Start as DRAFT
         }
       });
 
@@ -60,13 +61,14 @@ export class FeedbackService implements IFeedbackService {
     try {
       logger.info('Updating feedback form', { formId, updates: data });
 
+      const updateData: any = {};
+      if (data.title !== undefined) updateData.title = data.title;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.status !== undefined) updateData.status = data.status;
+
       const feedbackForm = await prisma.feedbackForm.update({
         where: { id: formId },
-        data: {
-          title: data.title,
-          description: data.description,
-          isPublished: data.isPublished
-        }
+        data: updateData
       });
 
       logger.info('Feedback form updated successfully', { formId });
@@ -79,6 +81,29 @@ export class FeedbackService implements IFeedbackService {
         throw new FeedbackFormNotFoundError(formId);
       }
       logger.error('Failed to update feedback form', error as Error);
+      throw error;
+    }
+  }
+
+  async closeFeedbackForm(formId: string): Promise<FeedbackForm> {
+    try {
+      logger.info('Closing feedback form', { formId });
+
+      const feedbackForm = await prisma.feedbackForm.update({
+        where: { id: formId },
+        data: { status: 'CLOSED' }
+      });
+
+      logger.info('Feedback form closed successfully', { formId });
+      return {
+        ...feedbackForm,
+        description: feedbackForm.description || undefined
+      };
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        throw new FeedbackFormNotFoundError(formId);
+      }
+      logger.error('Failed to close feedback form', error as Error);
       throw error;
     }
   }
@@ -128,7 +153,7 @@ export class FeedbackService implements IFeedbackService {
         eventId: form.eventId,
         title: form.title,
         description: form.description || undefined,
-        isPublished: form.isPublished,
+        status: form.status as 'DRAFT' | 'PUBLISHED' | 'CLOSED',
         responseCount,
         averageRating,
         createdAt: form.createdAt,
@@ -157,6 +182,11 @@ export class FeedbackService implements IFeedbackService {
         return null;
       }
 
+      // Users can see forms in DRAFT or PUBLISHED status, but not CLOSED
+      if (form.status === 'CLOSED') {
+        return null;
+      }
+
       const responseCount = form.responses.length;
       const averageRating = responseCount > 0
         ? form.responses.reduce((sum, response) => sum + response.rating, 0) / responseCount
@@ -167,7 +197,7 @@ export class FeedbackService implements IFeedbackService {
         eventId: form.eventId,
         title: form.title,
         description: form.description || undefined,
-        isPublished: form.isPublished,
+        status: form.status as 'DRAFT' | 'PUBLISHED' | 'CLOSED',
         responseCount,
         averageRating,
         createdAt: form.createdAt,
@@ -210,7 +240,7 @@ export class FeedbackService implements IFeedbackService {
           eventId: form.eventId,
           title: form.title,
           description: form.description || undefined,
-          isPublished: form.isPublished,
+          status: form.status as 'DRAFT' | 'PUBLISHED' | 'CLOSED',
           responseCount,
           averageRating,
           createdAt: form.createdAt,
@@ -238,7 +268,7 @@ export class FeedbackService implements IFeedbackService {
       // Validate rating
       this.validateRating(data.rating);
 
-      // Check if form exists and is published
+      // Check if form exists and is not closed
       const form = await prisma.feedbackForm.findUnique({
         where: { id: data.formId }
       });
@@ -247,7 +277,16 @@ export class FeedbackService implements IFeedbackService {
         throw new FeedbackFormNotFoundError(data.formId);
       }
 
-      if (!form.isPublished) {
+      // Only PUBLISHED forms can accept submissions
+      if (form.status === 'CLOSED') {
+        throw new FeedbackFormClosedError(data.formId);
+      }
+
+      if (form.status === 'DRAFT') {
+        throw new FeedbackFormNotPublishedError(data.formId);
+      }
+
+      if (form.status !== 'PUBLISHED') {
         throw new FeedbackFormNotPublishedError(data.formId);
       }
 

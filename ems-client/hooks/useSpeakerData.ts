@@ -28,7 +28,7 @@ export interface SpeakerDashboardData {
 export function useSpeakerData() {
   const { user } = useAuth();
   const logger = useLogger();
-  
+
   const [data, setData] = useState<SpeakerDashboardData>({
     profile: null,
     stats: null,
@@ -53,7 +53,7 @@ export function useSpeakerData() {
         logger.info(LOGGER_COMPONENT_NAME, 'Speaker profile not found, profile setup required', { userId });
         throw new Error('PROFILE_SETUP_REQUIRED');
       }
-      
+
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load speaker profile', error as Error, { userId });
       throw error;
     }
@@ -85,8 +85,8 @@ export function useSpeakerData() {
   const loadAllInvitations = useCallback(async (speakerId: string) => {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading all invitations', { speakerId });
-      const invitations = await speakerApiClient.getSpeakerInvitations(speakerId);
-      return invitations;
+      const result = await speakerApiClient.getSpeakerInvitations(speakerId);
+      return result.invitations;
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load all invitations', error as Error, { speakerId });
       throw error;
@@ -96,8 +96,22 @@ export function useSpeakerData() {
   const loadRecentMessages = useCallback(async (userId: string) => {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading recent messages', { userId });
-      const messages = await speakerApiClient.getUserMessages(userId, 5, 0);
-      return messages;
+
+      // Fetch both inbox and sent messages
+      const [inboxMessages, sentMessages] = await Promise.all([
+        speakerApiClient.getUserMessages(userId, 10, 0),
+        speakerApiClient.getSentMessages(userId, 10, 0),
+      ]);
+
+      // Combine and sort by sentAt date (newest first)
+      const allMessages = [...inboxMessages, ...sentMessages].sort((a, b) => {
+        const dateA = new Date(a.sentAt).getTime();
+        const dateB = new Date(b.sentAt).getTime();
+        return dateB - dateA; // Newest first
+      });
+
+      // Return the 5 most recent messages
+      return allMessages.slice(0, 5);
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load recent messages', error as Error, { userId });
       throw error;
@@ -198,10 +212,10 @@ export function useSpeakerData() {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Responding to invitation', { invitationId, status });
       await speakerApiClient.respondToInvitation(invitationId, { status, message });
-      
+
       // Refresh the data to get updated invitations
       await refresh();
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Invitation response recorded', { invitationId, status });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to respond to invitation', error as Error, { invitationId, status });
@@ -213,22 +227,22 @@ export function useSpeakerData() {
     if (!data.profile) throw new Error('Speaker profile not loaded');
 
     try {
-      logger.debug(LOGGER_COMPONENT_NAME, 'Uploading material', { 
-        fileName: file.name, 
+      logger.debug(LOGGER_COMPONENT_NAME, 'Uploading material', {
+        fileName: file.name,
         fileSize: file.size,
-        speakerId: data.profile.id 
+        speakerId: data.profile.id
       });
-      
+
       const material = await speakerApiClient.uploadMaterial(file, data.profile.id, eventId);
-      
+
       // Refresh the data to get updated materials
       await refresh();
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Material uploaded successfully', { 
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Material uploaded successfully', {
         materialId: material.id,
-        fileName: file.name 
+        fileName: file.name
       });
-      
+
       return material;
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to upload material', error as Error, { fileName: file.name });
@@ -240,10 +254,10 @@ export function useSpeakerData() {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Marking message as read', { messageId });
       await speakerApiClient.markMessageAsRead(messageId);
-      
+
       // Refresh the data to get updated message status
       await refresh();
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Message marked as read', { messageId });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to mark message as read', error as Error, { messageId });
@@ -256,21 +270,21 @@ export function useSpeakerData() {
 
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Creating speaker profile', { userId: user.id });
-      
+
       const profile = await speakerApiClient.createSpeakerProfile({
         ...profileData,
         userId: user.id,
         email: user.email || '', // Include the user's email from auth context
       });
-      
+
       // Refresh the data to load the new profile and all related data
       await refresh();
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Speaker profile created successfully', { 
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Speaker profile created successfully', {
         profileId: profile.id,
-        userId: user.id 
+        userId: user.id
       });
-      
+
       return profile;
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to create speaker profile', error as Error, { userId: user.id });
@@ -285,40 +299,40 @@ export function useSpeakerData() {
     }
 
     if (!data.profile.id) {
-      logger.error(LOGGER_COMPONENT_NAME, 'Cannot update profile: profile ID is missing', new Error('Profile ID missing'), { 
+      logger.error(LOGGER_COMPONENT_NAME, 'Cannot update profile: profile ID is missing', new Error('Profile ID missing'), {
         profile: data.profile,
-        profileId: data.profile.id 
+        profileId: data.profile.id
       });
       throw new Error('Speaker profile ID is missing');
     }
 
     try {
-      logger.debug(LOGGER_COMPONENT_NAME, 'Updating speaker profile', { 
+      logger.debug(LOGGER_COMPONENT_NAME, 'Updating speaker profile', {
         speakerId: data.profile.id,
-        changes: profileData 
+        changes: profileData
       });
-      
+
       const updatedProfile = await speakerApiClient.updateSpeakerProfile(data.profile.id, profileData);
-      
+
       // Update the profile data immediately with the response from the API
       setData(prev => ({
         ...prev,
         profile: updatedProfile
       }));
-      
+
       // Also refresh other data that might be affected by profile changes
       await refresh();
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Speaker profile updated successfully', { 
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Speaker profile updated successfully', {
         speakerId: data.profile.id,
-        changes: profileData 
+        changes: profileData
       });
-      
+
       return updatedProfile;
     } catch (error) {
-      logger.error(LOGGER_COMPONENT_NAME, 'Failed to update speaker profile', error as Error, { 
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to update speaker profile', error as Error, {
         speakerId: data.profile?.id,
-        changes: profileData 
+        changes: profileData
       });
       throw error;
     }

@@ -27,6 +27,31 @@ class BookingApiClient extends BaseApiClient {
     return this.request<BookingListResponse>(endpoint);
   }
 
+  // Dashboard methods
+  async getDashboardStats(): Promise<{
+    registeredEvents: number;
+    upcomingEvents: number;
+    attendedEvents: number;
+    ticketsPurchased: number;
+    activeTickets: number;
+    usedTickets: number;
+    upcomingThisWeek: number;
+    nextWeekEvents: number;
+  }> {
+    const response = await this.request<{ success: boolean; data: any }>('/bookings/dashboard/stats');
+    return response.data;
+  }
+
+  async getUpcomingEvents(limit: number = 5): Promise<any[]> {
+    const response = await this.request<{ success: boolean; data: any[] }>(`/bookings/dashboard/upcoming-events?limit=${limit}`);
+    return response.data;
+  }
+
+  async getRecentRegistrations(limit: number = 5): Promise<any[]> {
+    const response = await this.request<{ success: boolean; data: any[] }>(`/bookings/dashboard/recent-registrations?limit=${limit}`);
+    return response.data;
+  }
+
   async getBooking(bookingId: string): Promise<BookingResponse> {
     return this.request<BookingResponse>(`/bookings/${bookingId}`);
   }
@@ -59,7 +84,11 @@ class BookingApiClient extends BaseApiClient {
     if (filters?.limit) params.append('limit', filters.limit.toString());
     if (filters?.status) params.append('status', filters.status);
 
+<<<<<<< HEAD
     const endpoint = `/admin/events/${eventId}/tickets?${params.toString()}`;
+=======
+    const endpoint = `/admin/tickets/events/${eventId}/tickets?${params.toString()}`;
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
     return this.request(endpoint);
   }
 
@@ -71,6 +100,16 @@ class BookingApiClient extends BaseApiClient {
     return this.request<{ success: boolean; message: string }>(`/admin/${ticketId}/revoke`, {
       method: 'PUT'
     });
+  }
+
+  // Speaker methods
+  async getEventRegistrationCount(eventId: string): Promise<{
+    eventId: string;
+    totalUsers: number;
+    confirmedBookings: number;
+    cancelledBookings: number;
+  }> {
+    return this.request(`/speaker/${eventId}/num-registered`);
   }
 }
 
@@ -96,6 +135,23 @@ export const bookingAPI = {
    * Cancel a booking
    */
   cancelBooking: (bookingId: string) => bookingApiClient.cancelBooking(bookingId)
+};
+
+export const attendeeDashboardAPI = {
+  /**
+   * Get dashboard statistics for the authenticated user
+   */
+  getDashboardStats: () => bookingApiClient.getDashboardStats(),
+
+  /**
+   * Get upcoming events for the authenticated user
+   */
+  getUpcomingEvents: (limit?: number) => bookingApiClient.getUpcomingEvents(limit),
+
+  /**
+   * Get recent registrations for the authenticated user
+   */
+  getRecentRegistrations: (limit?: number) => bookingApiClient.getRecentRegistrations(limit)
 };
 
 export const ticketAPI = {
@@ -132,4 +188,12 @@ export const adminTicketAPI = {
    * Revoke a ticket
    */
   revokeTicket: (ticketId: string) => bookingApiClient.revokeTicket(ticketId)
+};
+
+export const speakerBookingAPI = {
+  /**
+   * Get number of registered users (confirmed bookings) for an event
+   * Speaker-only endpoint
+   */
+  getEventRegistrationCount: (eventId: string) => bookingApiClient.getEventRegistrationCount(eventId)
 };

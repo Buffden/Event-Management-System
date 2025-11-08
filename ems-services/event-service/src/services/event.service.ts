@@ -200,9 +200,13 @@ class EventService {
     }
 
     /**
+<<<<<<< HEAD
      * Update an event
      * - Speakers can only update their own events in DRAFT or REJECTED status
      * - Admins can update any event in any status
+=======
+     * Update an event (only if DRAFT or REJECTED) - Speaker only
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
      */
     async updateEvent(eventId: string, data: UpdateEventRequest, speakerId: string, userRole?: string): Promise<EventResponse> {
         try {
@@ -306,6 +310,110 @@ class EventService {
             return this.mapEventToResponse(event);
         } catch (error) {
             logger.error('updateEvent() - Failed to update event', error as Error, {eventId, speakerId, updateData: data});
+            throw error;
+        }
+    }
+
+    /**
+     * Update an event as admin (can update any status)
+     */
+    async updateEventAsAdmin(eventId: string, data: UpdateEventRequest): Promise<EventResponse> {
+        try {
+            logger.info('updateEventAsAdmin() - Admin updating event', {eventId});
+
+            const existingEvent = await prisma.event.findUnique({
+                where: {id: eventId},
+                include: {venue: true}
+            });
+
+            if (!existingEvent) {
+                logger.info("updateEventAsAdmin() - Event not found", {eventId});
+                throw new Error('Event not found');
+            }
+
+            // Validate venue if provided
+            if (data.venueId) {
+                logger.info("updateEventAsAdmin() - Validating provided venueId", {venueId: data.venueId});
+                const venue = await prisma.venue.findUnique({
+                    where: {id: data.venueId}
+                });
+
+                if (!venue) {
+                    logger.info("updateEventAsAdmin() - Venue not found", {venueId: data.venueId});
+                    throw new Error('Venue not found');
+                }
+            }
+
+            // Validate booking dates if provided
+            if (data.bookingStartDate || data.bookingEndDate) {
+                const bookingStart = data.bookingStartDate ? new Date(data.bookingStartDate) : existingEvent.bookingStartDate;
+                const bookingEnd = data.bookingEndDate ? new Date(data.bookingEndDate) : existingEvent.bookingEndDate;
+                logger.info("updateEventAsAdmin() - Validating booking dates", {bookingStart, bookingEnd});
+
+                if (bookingStart >= bookingEnd) {
+                    logger.error("updateEventAsAdmin() - booking start date must be before end date");
+                    throw new Error('Booking start date must be before end date');
+                }
+
+                // Check if venue is available for the new booking period (only for PUBLISHED events)
+                if (existingEvent.status === EventStatus.PUBLISHED) {
+                    const venueIdToCheck = data.venueId || existingEvent.venueId;
+                    const overlappingEvents = await prisma.event.findMany({
+                        where: {
+                            id: {not: eventId},
+                            venueId: venueIdToCheck,
+                            status: {in: [EventStatus.PUBLISHED, EventStatus.PENDING_APPROVAL]},
+                            OR: [
+                                {
+                                    bookingStartDate: {
+                                        lt: bookingEnd
+                                    },
+                                    bookingEndDate: {
+                                        gt: bookingStart
+                                    }
+                                }
+                            ]
+                        }
+                    });
+
+                    logger.info("updateEventAsAdmin() - Found overlapping events", {count: overlappingEvents.length});
+
+                    if (overlappingEvents.length > 0) {
+                        logger.error("updateEventAsAdmin() - venue is not available for the selected booking period");
+                        throw new Error('Venue is not available for the selected booking period');
+                    }
+                }
+            }
+
+            const updateData: any = {...data};
+            if (data.bookingStartDate) updateData.bookingStartDate = new Date(data.bookingStartDate);
+            if (data.bookingEndDate) updateData.bookingEndDate = new Date(data.bookingEndDate);
+
+            const event = await prisma.event.update({
+                where: {id: eventId},
+                data: updateData,
+                include: {venue: true}
+            });
+
+            logger.info('updateEventAsAdmin() - Event updated successfully by admin', {eventId});
+
+            // If event is PUBLISHED, publish event.updated message
+            if (event.status === EventStatus.PUBLISHED) {
+                try {
+                    await eventPublisherService.publishEventUpdated({
+                        eventId: event.id,
+                        updatedFields: data
+                    });
+                    logger.info('updateEventAsAdmin() - Published event.updated message', {eventId});
+                } catch (publishError) {
+                    logger.error('updateEventAsAdmin() - Failed to publish event.updated message', publishError as Error, {eventId});
+                    // Don't fail the update if publishing fails
+                }
+            }
+
+            return this.mapEventToResponse(event);
+        } catch (error) {
+            logger.error('updateEventAsAdmin() - Failed to update event', error as Error, {eventId, updateData: data});
             throw error;
         }
     }
@@ -619,6 +727,8 @@ class EventService {
                 speakerId,
                 bookingStartDate,
                 bookingEndDate,
+                search,
+                timeframe,
                 page = 1,
                 limit = 10
             } = filters;
@@ -654,6 +764,38 @@ class EventService {
                 }
                 if (bookingEndDate) {
                     where.bookingStartDate.lte = new Date(bookingEndDate);
+                }
+            }
+
+            // Search filter - search by name, description, or venue name
+            if (search) {
+                where.OR = [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { description: { contains: search, mode: 'insensitive' } },
+                    { venue: { name: { contains: search, mode: 'insensitive' } } }
+                ];
+            }
+
+            // Timeframe filter
+            const now = new Date();
+            if (timeframe && timeframe !== 'ALL') {
+                if (timeframe === 'UPCOMING') {
+                    where.bookingStartDate = {
+                        ...where.bookingStartDate,
+                        gt: now
+                    };
+                } else if (timeframe === 'ONGOING') {
+                    where.bookingStartDate = {
+                        ...where.bookingStartDate,
+                        lte: now
+                    };
+                    where.bookingEndDate = {
+                        gte: now
+                    };
+                } else if (timeframe === 'PAST') {
+                    where.bookingEndDate = {
+                        lt: now
+                    };
                 }
             }
 

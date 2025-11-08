@@ -187,6 +187,10 @@ def create_event(admin_token: str, admin_user_id: str, venue: Dict,
 
     # Create event as admin (admin uses their own userId)
     # Admin uses the speaker endpoint but with admin token - this auto-publishes the event
+<<<<<<< HEAD
+=======
+    # Note: Gateway rewrites /api/event/speaker/events to /speaker/events on event-service
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
     url = f"{EVENT_API_URL}/speaker/events"
     headers = {
         "Authorization": f"Bearer {admin_token}",
@@ -240,7 +244,11 @@ def seed_events(admin_token: str, admin_user_id: str, num_events: int = 8) -> Li
     from .utils import print_header
 
     print()
+<<<<<<< HEAD
     print_header("Step 4: Creating Events")
+=======
+    print_header("Step 5: Creating Events")
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
     print("-" * 50)
 
     # Fetch available venues
@@ -267,11 +275,18 @@ def seed_events(admin_token: str, admin_user_id: str, num_events: int = 8) -> Li
         # Pick random venue
         venue = random.choice(venues)
 
+<<<<<<< HEAD
         # Generate creative event name
         event_name = fake.catch_phrase() + " " + fake.bs().title()
         # Ensure it's not too long
         if len(event_name) > 80:
             event_name = event_name[:77] + "..."
+=======
+        # Generate creative event name (2 words only)
+        word1 = fake.word().title()
+        word2 = fake.word().title()
+        event_name = f"{word1} {word2}"
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
 
         # Generate description
         description = fake.text(max_nb_chars=200)

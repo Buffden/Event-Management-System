@@ -19,6 +19,7 @@ import {
   Award,
   MapPin,
   Users,
+<<<<<<< HEAD
   Loader2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -51,6 +52,15 @@ interface RecentRegistrationDisplay {
   ticketType?: string;
   bookingId: string;
 }
+=======
+  AlertCircle
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import {useLogger} from "@/lib/logger/LoggerProvider";
+import {withUserAuth} from "@/components/hoc/withAuth";
+import { attendeeDashboardAPI } from "@/lib/api/booking.api";
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
 
 const LOGGER_COMPONENT_NAME = 'AttendeeDashboard';
 
@@ -59,8 +69,11 @@ function AttendeeDashboard() {
   const router = useRouter();
   const logger = useLogger();
 
+<<<<<<< HEAD
   // State for real data
   const [loading, setLoading] = useState(true);
+=======
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
   const [stats, setStats] = useState({
     registeredEvents: 0,
     upcomingEvents: 0,
@@ -68,6 +81,7 @@ function AttendeeDashboard() {
     ticketsPurchased: 0,
     activeTickets: 0,
     usedTickets: 0,
+<<<<<<< HEAD
     pointsEarned: 0,
     pointsThisMonth: 0,
     upcomingThisWeek: 0,
@@ -240,8 +254,74 @@ function AttendeeDashboard() {
       fetchDashboardData();
     }
   }, [user, logger, fetchDashboardData]);
+=======
+    upcomingThisWeek: 0,
+    nextWeekEvents: 0
+  });
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+  const [recentRegistrations, setRecentRegistrations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    logger.debug(LOGGER_COMPONENT_NAME, 'Attendee dashboard loaded', { userRole: user?.role });
+    loadDashboardData();
+  }, [user, logger]);
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [statsData, upcomingData, recentData] = await Promise.all([
+        attendeeDashboardAPI.getDashboardStats(),
+        attendeeDashboardAPI.getUpcomingEvents(5),
+        attendeeDashboardAPI.getRecentRegistrations(5)
+      ]);
+
+      setStats(statsData);
+      setUpcomingEvents(upcomingData);
+      setRecentRegistrations(recentData);
+    } catch (err: any) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load dashboard data', err);
+      setError(err.message || 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Loading and auth checks are handled by the HOC
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600 dark:text-slate-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              Error Loading Dashboard
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
+            <Button onClick={loadDashboardData}>Retry</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -310,6 +390,7 @@ function AttendeeDashboard() {
               <Calendar className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               {loading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -323,6 +404,12 @@ function AttendeeDashboard() {
                   </p>
                 </>
               )}
+=======
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.registeredEvents}</div>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                {stats.upcomingEvents} upcoming
+              </p>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
             </CardContent>
           </Card>
 
@@ -334,6 +421,7 @@ function AttendeeDashboard() {
               <Ticket className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               {loading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -347,17 +435,24 @@ function AttendeeDashboard() {
                   </p>
                 </>
               )}
+=======
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.ticketsPurchased}</div>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                {stats.activeTickets} active
+              </p>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
             </CardContent>
           </Card>
 
           <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Points Earned
+                Attended Events
               </CardTitle>
               <Award className="h-4 w-4 text-yellow-600" />
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               {loading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -371,6 +466,12 @@ function AttendeeDashboard() {
                   </p>
                 </>
               )}
+=======
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.attendedEvents}</div>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                {stats.usedTickets} tickets used
+              </p>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
             </CardContent>
           </Card>
 
@@ -382,6 +483,7 @@ function AttendeeDashboard() {
               <Clock className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               {loading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -395,6 +497,12 @@ function AttendeeDashboard() {
                   </p>
                 </>
               )}
+=======
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.upcomingThisWeek}</div>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                {stats.nextWeekEvents} next week
+              </p>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
             </CardContent>
           </Card>
         </div>
@@ -462,6 +570,7 @@ function AttendeeDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
@@ -474,6 +583,13 @@ function AttendeeDashboard() {
               ) : (
                 <div className="space-y-4">
                   {upcomingEvents.map((event) => (
+=======
+              <div className="space-y-4">
+                {upcomingEvents.length === 0 ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No upcoming events</p>
+                ) : (
+                  upcomingEvents.map((event) => (
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
                     <div key={event.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                       <div className="flex-1">
                         <h4 className="font-medium text-slate-900 dark:text-white">{event.title}</h4>
@@ -503,15 +619,25 @@ function AttendeeDashboard() {
                         <Button
                           size="sm"
                           variant="outline"
+<<<<<<< HEAD
                           onClick={() => router.push(`/dashboard/attendee/events`)}
+=======
+                          onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
+<<<<<<< HEAD
                   ))}
                 </div>
               )}
+=======
+                  ))
+                )}
+              </div>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
             </CardContent>
           </Card>
         </div>
@@ -527,6 +653,7 @@ function AttendeeDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+<<<<<<< HEAD
             {error && (
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -544,6 +671,13 @@ function AttendeeDashboard() {
             ) : (
               <div className="space-y-4">
                 {recentRegistrations.map((registration) => (
+=======
+            <div className="space-y-4">
+              {recentRegistrations.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No recent registrations</p>
+              ) : (
+                recentRegistrations.map((registration) => (
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
                   <div key={registration.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
                     <div className="flex-1">
                       <h4 className="font-medium text-slate-900 dark:text-white">{registration.event}</h4>
@@ -565,18 +699,28 @@ function AttendeeDashboard() {
                       >
                         {registration.status}
                       </Badge>
+<<<<<<< HEAD
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => router.push(`/dashboard/attendee/tickets`)}
                       >
+=======
+                      <Button size="sm" variant="outline">
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
                         <Download className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
+<<<<<<< HEAD
                 ))}
               </div>
             )}
+=======
+                ))
+              )}
+            </div>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
           </CardContent>
         </Card>
       </main>

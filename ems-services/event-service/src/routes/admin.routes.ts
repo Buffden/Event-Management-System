@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 import { requireAdmin } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
 import { validateRequest, validateQuery, validatePagination, validateDateRange } from '../middleware/validation.middleware';
-import { CreateVenueRequest, UpdateVenueRequest, RejectEventRequest, EventFilters } from '../types';
+import { CreateVenueRequest, UpdateVenueRequest, RejectEventRequest, EventFilters, UpdateEventRequest } from '../types';
 import { EventStatus } from '../../generated/prisma';
 
 const router = Router();
@@ -138,6 +138,58 @@ router.patch('/admin/events/:id/cancel',
     logger.info('Cancelling event', { eventId: id });
 
     const event = await eventService.cancelEvent(id);
+
+    res.json({
+      success: true,
+      data: event
+    });
+  })
+);
+
+/**
+ * PUT /admin/events/:id - Update an event (admin can update any status)
+ */
+router.put('/admin/events/:id',
+  validateRequest((body: UpdateEventRequest) => {
+    const errors = [];
+
+    if (body.name !== undefined && (!body.name || body.name.trim().length === 0)) {
+      errors.push({ field: 'name', message: 'Event name cannot be empty' });
+    }
+
+    if (body.description !== undefined && (!body.description || body.description.trim().length === 0)) {
+      errors.push({ field: 'description', message: 'Event description cannot be empty' });
+    }
+
+    if (body.category !== undefined && (!body.category || body.category.trim().length === 0)) {
+      errors.push({ field: 'category', message: 'Event category cannot be empty' });
+    }
+
+    if (body.venueId !== undefined && isNaN(Number(body.venueId))) {
+      errors.push({ field: 'venueId', message: 'Valid venue ID is required' });
+    }
+
+    if (body.bookingStartDate !== undefined && isNaN(Date.parse(body.bookingStartDate))) {
+      errors.push({ field: 'bookingStartDate', message: 'Valid booking start date is required' });
+    }
+
+    if (body.bookingEndDate !== undefined && isNaN(Date.parse(body.bookingEndDate))) {
+      errors.push({ field: 'bookingEndDate', message: 'Valid booking end date is required' });
+    }
+
+    if (body.bookingStartDate && body.bookingEndDate && new Date(body.bookingStartDate) >= new Date(body.bookingEndDate)) {
+      errors.push({ field: 'bookingDates', message: 'Booking start date must be before end date' });
+    }
+
+    return errors.length > 0 ? errors : null;
+  }),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    logger.info('Updating event (admin)', { eventId: id });
+
+    const event = await eventService.updateEventAsAdmin(id, updateData);
 
     res.json({
       success: true,
@@ -303,6 +355,70 @@ router.get('/admin/venues/:id',
     res.json({
       success: true,
       data: venue
+    });
+  })
+);
+
+/**
+ * GET /admin/stats - Get event statistics for admin dashboard
+ */
+router.get('/stats',
+  asyncHandler(async (req: Request, res: Response) => {
+    logger.info('Fetching event statistics (admin)');
+
+    const { prisma } = await import('../database');
+    const { EventStatus } = await import('../../generated/prisma');
+
+    const [totalEvents, activeEvents] = await Promise.all([
+      prisma.event.count(),
+      prisma.event.count({
+        where: { status: EventStatus.PUBLISHED }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalEvents,
+        activeEvents
+      }
+    });
+  })
+);
+
+/**
+ * GET /admin/reports/event-status - Get event status distribution
+ */
+router.get('/reports/event-status',
+  asyncHandler(async (req: Request, res: Response) => {
+    logger.info('Fetching event status distribution (admin)');
+
+    const { prisma } = await import('../database');
+    const { EventStatus } = await import('../../generated/prisma');
+
+    const totalEvents = await prisma.event.count();
+
+    const statusCounts = await Promise.all([
+      prisma.event.count({ where: { status: EventStatus.PUBLISHED } }),
+      prisma.event.count({ where: { status: EventStatus.DRAFT } }),
+      prisma.event.count({ where: { status: EventStatus.PENDING_APPROVAL } }),
+      prisma.event.count({ where: { status: EventStatus.REJECTED } }),
+      prisma.event.count({ where: { status: EventStatus.CANCELLED } }),
+      prisma.event.count({ where: { status: EventStatus.COMPLETED } })
+    ]);
+
+    const eventStats = [
+      { status: 'Published', count: statusCounts[0], percentage: totalEvents > 0 ? (statusCounts[0] / totalEvents) * 100 : 0 },
+      { status: 'Draft', count: statusCounts[1], percentage: totalEvents > 0 ? (statusCounts[1] / totalEvents) * 100 : 0 },
+      { status: 'Pending Approval', count: statusCounts[2], percentage: totalEvents > 0 ? (statusCounts[2] / totalEvents) * 100 : 0 },
+      { status: 'Rejected', count: statusCounts[3], percentage: totalEvents > 0 ? (statusCounts[3] / totalEvents) * 100 : 0 },
+      { status: 'Cancelled', count: statusCounts[4], percentage: totalEvents > 0 ? (statusCounts[4] / totalEvents) * 100 : 0 },
+      { status: 'Completed', count: statusCounts[5], percentage: totalEvents > 0 ? (statusCounts[5] / totalEvents) * 100 : 0 }
+    ].filter(stat => stat.count > 0); // Only return statuses that have events
+
+    res.json({
+      success: true,
+      data: eventStats
     });
   })
 );

@@ -6,6 +6,7 @@ export enum MESSAGE_TYPE {
     EVENT_PUBLISHED_NOTIFICATION = 'EVENT_PUBLISHED_NOTIFICATION',
     BOOKING_CONFIRMED_NOTIFICATION = 'BOOKING_CONFIRMED_NOTIFICATION',
     BOOKING_CANCELLED_NOTIFICATION = 'BOOKING_CANCELLED_NOTIFICATION',
+    TICKET_GENERATED_NOTIFICATION = 'TICKET_GENERATED_NOTIFICATION',
     EVENT_REMINDER_NOTIFICATION = 'EVENT_REMINDER_NOTIFICATION',
     PASSWORD_RESET_EMAIL = 'PASSWORD_RESET_EMAIL',
     WELCOME_EMAIL = 'WELCOME_EMAIL',
@@ -137,6 +138,26 @@ export interface BookingCancelledNotification extends Notification {
     };
 }
 
+// Ticket Generated Notification
+export interface TicketGeneratedNotification extends Notification {
+    type: MESSAGE_TYPE.TICKET_GENERATED_NOTIFICATION;
+    message: {
+        to: string;
+        subject: string;
+        body: string;
+        attendeeName: string;
+        eventName: string;
+        eventDate: string;
+        venueName: string;
+        ticketId: string;
+        bookingId: string;
+        eventId: string;
+        qrCodeData: string;
+        expiresAt: string;
+        ticketDownloadUrl?: string;
+    };
+}
+
 // Event Reminder Notification
 export interface EventReminderNotification extends Notification {
     type: MESSAGE_TYPE.EVENT_REMINDER_NOTIFICATION;
@@ -176,5 +197,6 @@ export type AnyNotification =
     | EventPublishedNotification
     | BookingConfirmedNotification
     | BookingCancelledNotification
+    | TicketGeneratedNotification
     | EventReminderNotification
     | WelcomeEmail;

@@ -9,8 +9,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum FeedbackFormStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
 // Model to represent a feedback form for a specific event.
-// Its structure remains unchanged.
 model FeedbackForm {
   id String @id @default(cuid())
 
@@ -19,7 +24,7 @@ model FeedbackForm {
 
   title       String
   description String? @db.Text
-  isPublished Boolean @default(false)
+  status      FeedbackFormStatus @default(DRAFT)
 
   // Relation to all the responses submitted for this form.
   responses FeedbackResponse[]
@@ -27,6 +32,7 @@ model FeedbackForm {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([status])
   @@map("feedback_forms")
 }
 

@@ -88,7 +88,11 @@ def seed_bookings(events: List[Dict], users: List[Dict]) -> int:
     from .utils import print_header
 
     print()
+<<<<<<< HEAD
     print_header("Step 5: Creating User Registrations")
+=======
+    print_header("Step 6: Creating User Registrations")
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
     print("-" * 50)
 
     if not events:

@@ -11,6 +11,20 @@ export interface BookingResponse {
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
   createdAt: string;
   updatedAt: string;
+  isAttended?: boolean;
+  ticketType?: string | null;
+  event?: {
+    id: string;
+    name: string;
+    description?: string;
+    bookingStartDate: string;
+    bookingEndDate: string;
+    venue?: {
+      id: number;
+      name: string;
+      address: string;
+    };
+  };
 }
 
 export interface BookingListResponse {

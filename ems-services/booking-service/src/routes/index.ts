@@ -3,9 +3,23 @@ import bookingRoutes from './booking.routes';
 import { ticketRoutes } from './ticket.routes';
 import speakerRoutes from './speaker.routes';
 import adminRoutes from './admin.routes';
+<<<<<<< HEAD
 
 const router = Router();
 
+=======
+import attendanceRoutes from './attendance.routes';
+import internalRoutes from './internal.routes';
+
+const router = Router();
+
+// Internal routes (service-to-service) - MUST be first to avoid conflicts
+router.use('/', internalRoutes);
+
+// Attendance routes (All authenticated users) - MUST be first to avoid conflicts with booking routes
+router.use('/', attendanceRoutes);
+
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
 // Booking routes (USER/ADMIN role required)
 router.use('/', bookingRoutes);
 

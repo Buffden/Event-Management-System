@@ -172,8 +172,32 @@ class SpeakerApiClient extends BaseApiClient {
   }
 
   // Invitation Management - use direct API calls to /api/invitations
-  async getSpeakerInvitations(speakerId: string, status?: string): Promise<SpeakerInvitation[]> {
-    const url = status ? `/api/invitations/speaker/${speakerId}?status=${status}` : `/api/invitations/speaker/${speakerId}`;
+  async getSpeakerInvitations(
+    speakerId: string, 
+    filters?: {
+      search?: string;
+      status?: string;
+      page?: number;
+      limit?: number;
+    }
+  ): Promise<{
+    invitations: SpeakerInvitation[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
+  }> {
+    const queryParams = new URLSearchParams();
+    if (filters?.search) queryParams.append('search', filters.search);
+    if (filters?.status) queryParams.append('status', filters.status);
+    if (filters?.page) queryParams.append('page', filters.page.toString());
+    if (filters?.limit) queryParams.append('limit', filters.limit.toString());
+
+    const url = `/api/invitations/speaker/${speakerId}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -187,7 +211,17 @@ class SpeakerApiClient extends BaseApiClient {
     }
 
     const result = await response.json();
-    return result.data || [];
+    return {
+      invitations: result.data || [],
+      pagination: result.pagination || {
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false
+      }
+    };
   }
 
   async getPendingInvitations(speakerId: string): Promise<SpeakerInvitation[]> {

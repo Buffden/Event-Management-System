@@ -132,6 +132,12 @@ python3 scripts/seed.py
 - Only published events are used
 - Bookings created via booking-service API
 
+### Step 7: Speaker Data (Invitations, Materials, Messages)
+- Creates speaker invitations for events (2-4 events per speaker)
+- Speakers accept ~70% of invitations
+- Uploads presentation materials (1-3 per speaker)
+- Sends messages to speakers (0-2 per speaker)
+
 ## Script Flow
 
 ```
@@ -148,6 +154,8 @@ python3 scripts/seed.py
 6. Create Events (8 events, assigned to speakers)
    ↓
 7. Create Bookings (users register for events)
+   ↓
+8. Seed Speaker Data (invitations, materials, messages)
 ```
 
 ## Important Notes
@@ -217,8 +225,14 @@ python3 scripts/seed.py
 - `POST /api/auth/login` - Admin authentication
 - `POST /api/auth/admin/activate-users` - Activate users (admin only)
 - `GET /api/event/venues/all` - Fetch available venues
-- `POST /api/event/events` - Create events (as admin)
+- `POST /api/event/speaker/events` - Create events (as admin, auto-publishes)
 - `POST /api/booking/bookings` - Create bookings (user registrations)
+- `GET /api/speakers/profile/me` - Get speaker profile by user ID
+- `POST /api/invitations` - Create speaker invitations (admin only)
+- `GET /api/invitations/speaker/:speakerId` - Get speaker invitations
+- `PUT /api/invitations/:id/respond` - Respond to invitation (speaker)
+- `POST /api/materials/upload` - Upload presentation materials (speaker)
+- `POST /api/messages` - Send messages to users
 
 ## Verification
 

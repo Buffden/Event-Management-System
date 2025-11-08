@@ -40,6 +40,8 @@ class EventApiClient extends BaseApiClient {
       if (filters.venueId) queryParams.append('venueId', filters.venueId.toString());
       if (filters.startDate) queryParams.append('startDate', filters.startDate);
       if (filters.endDate) queryParams.append('endDate', filters.endDate);
+      if (filters.search) queryParams.append('search', filters.search);
+      if (filters.timeframe) queryParams.append('timeframe', filters.timeframe);
       if (filters.page) queryParams.append('page', filters.page.toString());
       if (filters.limit) queryParams.append('limit', filters.limit.toString());
     }
@@ -163,6 +165,13 @@ class EventApiClient extends BaseApiClient {
     });
   }
 
+  async updateEventAsAdmin(eventId: string, updateData: UpdateEventRequest): Promise<{ success: boolean; data: EventResponse }> {
+    return this.request<{ success: boolean; data: EventResponse }>(`/admin/admin/events/${eventId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  }
+
   // Admin Venue Endpoints
   // Note: Double /admin prefix due to backend route structure - will be refactored in future ticket
   async createVenue(venueData: CreateVenueRequest): Promise<{ success: boolean; data: VenueResponse }> {
@@ -231,6 +240,7 @@ export const eventAPI = {
   approveEvent: (eventId: string) => eventApiClient.approveEvent(eventId),
   rejectEvent: (eventId: string, rejectionData: RejectEventRequest) => eventApiClient.rejectEvent(eventId, rejectionData),
   cancelEvent: (eventId: string) => eventApiClient.cancelEvent(eventId),
+  updateEventAsAdmin: (eventId: string, updateData: UpdateEventRequest) => eventApiClient.updateEventAsAdmin(eventId, updateData),
   createVenue: (venueData: CreateVenueRequest) => eventApiClient.createVenue(venueData),
   updateVenue: (venueId: number, updateData: UpdateVenueRequest) => eventApiClient.updateVenue(venueId, updateData),
   deleteVenue: (venueId: number) => eventApiClient.deleteVenue(venueId),

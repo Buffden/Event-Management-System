@@ -9,13 +9,11 @@ import {
   LogOut,
   Users,
   Calendar,
-  Settings,
   UserCheck,
-  AlertTriangle,
-  TrendingUp,
   BarChart3,
   Plus,
   Eye,
+<<<<<<< HEAD
   Edit,
   Trash2,
   Ticket,
@@ -79,11 +77,22 @@ const mockFlaggedUsers: FlaggedUser[] = [
     flaggedAt: '2024-01-20'
   }
 ];
+=======
+  Ticket,
+  MessageSquare
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import {useLogger} from "@/lib/logger/LoggerProvider";
+import {withAdminAuth} from "@/components/hoc/withAuth";
+import { adminApiClient, DashboardStats } from "@/lib/api/admin.api";
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
 
 function AdminDashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const logger = useLogger();
+<<<<<<< HEAD
   const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventsError, setEventsError] = useState<string | null>(null);
@@ -194,6 +203,32 @@ function AdminDashboard() {
     fetchDashboardStats();
     fetchRecentEvents();
   }, [user, logger, fetchDashboardStats, fetchRecentEvents]);
+=======
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    logger.debug(LOGGER_COMPONENT_NAME, 'Admin dashboard loaded', { userRole: user?.role });
+    loadDashboardStats();
+  }, [user, logger]);
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
+
+  const loadDashboardStats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      logger.info(LOGGER_COMPONENT_NAME, 'Loading dashboard statistics');
+      const dashboardStats = await adminApiClient.getDashboardStats();
+      setStats(dashboardStats);
+      logger.info(LOGGER_COMPONENT_NAME, 'Dashboard statistics loaded successfully', dashboardStats);
+    } catch (err) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load dashboard statistics', err as Error);
+      setError('Failed to load dashboard statistics. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Loading and auth checks are handled by the HOC
 
@@ -265,6 +300,7 @@ function AdminDashboard() {
               <Users className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               {statsLoading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin text-slate-600" />
@@ -277,6 +313,19 @@ function AdminDashboard() {
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-400">
                     {stats.totalUsers !== null ? `${stats.flaggedUsers} flagged` : 'API endpoint needed'}
+=======
+              {loading ? (
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">...</div>
+              ) : error ? (
+                <div className="text-sm text-red-600 dark:text-red-400">Error</div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stats?.totalUsers ?? 0}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Total registered
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
                   </p>
                 </>
               )}
@@ -291,6 +340,7 @@ function AdminDashboard() {
               <Calendar className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               {statsLoading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin text-slate-600" />
@@ -301,6 +351,19 @@ function AdminDashboard() {
                   <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.totalEvents}</div>
                   <p className="text-xs text-slate-600 dark:text-slate-400">
                     {stats.activeEvents} active
+=======
+              {loading ? (
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">...</div>
+              ) : error ? (
+                <div className="text-sm text-red-600 dark:text-red-400">Error</div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stats?.totalEvents ?? 0}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {stats?.activeEvents ?? 0} active
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
                   </p>
                 </>
               )}
@@ -315,6 +378,7 @@ function AdminDashboard() {
               <UserCheck className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               {statsLoading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin text-slate-600" />
@@ -324,6 +388,16 @@ function AdminDashboard() {
                 <>
                   <div className="text-2xl font-bold text-slate-900 dark:text-white">
                     {stats.totalRegistrations !== null ? stats.totalRegistrations : 'N/A'}
+=======
+              {loading ? (
+                <div className="text-2xl font-bold text-slate-900 dark:text-white">...</div>
+              ) : error ? (
+                <div className="text-sm text-red-600 dark:text-red-400">Error</div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                    {stats?.totalRegistrations ?? 0}
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-400">
                     Across all events
@@ -333,6 +407,7 @@ function AdminDashboard() {
             </CardContent>
           </Card>
 
+<<<<<<< HEAD
           <Card className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
@@ -356,6 +431,8 @@ function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+=======
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
         </div>
 
         {/* Quick Actions */}
@@ -390,29 +467,11 @@ function AdminDashboard() {
 
                 <Button
                   variant="outline"
-                  className="h-20 flex flex-col items-center justify-center space-y-2 border-orange-200 bg-orange-50 hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/20"
-                  onClick={() => router.push('/dashboard/admin/events/pending')}
-                >
-                  <AlertTriangle className="h-5 w-5 text-orange-600" />
-                  <span className="text-sm">Pending Approvals</span>
-                </Button>
-
-                <Button
-                  variant="outline"
                   className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
                   onClick={() => router.push('/dashboard/admin/users')}
                 >
                   <Users className="h-5 w-5" />
                   <span className="text-sm">Manage Users</span>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
-                  onClick={() => router.push('/dashboard/admin/users/flagged')}
-                >
-                  <AlertTriangle className="h-5 w-5" />
-                  <span className="text-sm">Review Flags</span>
                 </Button>
 
                 <Button
@@ -432,6 +491,15 @@ function AdminDashboard() {
                   <Ticket className="h-5 w-5" />
                   <span className="text-sm">Manage Tickets</span>
                 </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
+                  onClick={() => router.push('/dashboard/admin/messages')}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  <span className="text-sm">Messages</span>
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -447,6 +515,7 @@ function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+<<<<<<< HEAD
               {eventsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
@@ -519,10 +588,26 @@ function AdminDashboard() {
                   ))}
                 </div>
               )}
+=======
+              <div className="p-4 text-center">
+                <p className="text-slate-600 dark:text-slate-400 mb-4">
+                  View all events to see the latest updates
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push('/dashboard/admin/events')}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View All Events
+                </Button>
+              </div>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
             </CardContent>
           </Card>
         </div>
 
+<<<<<<< HEAD
         {/* Flagged Users Alert */}
         {/* TODO: Replace with real API call once backend endpoint is available */}
         {flaggedUsers.length > 0 && (
@@ -574,6 +659,8 @@ function AdminDashboard() {
             </CardContent>
           </Card>
         )}
+=======
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
       </main>
     </div>
   );

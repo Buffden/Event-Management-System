@@ -21,6 +21,8 @@ router.get('/events',
       venueId,
       startDate,
       endDate,
+      search,
+      timeframe,
       page = 1,
       limit = 10
     } = req.query;
@@ -29,8 +31,10 @@ router.get('/events',
       status: EventStatus.PUBLISHED,
       category: category as string,
       venueId: venueId ? Number(venueId) : undefined,
-      startDate: startDate as string,
-      endDate: endDate as string,
+      bookingStartDate: startDate as string,
+      bookingEndDate: endDate as string,
+      search: search as string,
+      timeframe: timeframe as string,
       page: Number(page),
       limit: Number(limit)
     };

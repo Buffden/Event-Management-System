@@ -1,8 +1,36 @@
 -- CreateEnum
+CREATE TYPE "BookingStatus" AS ENUM ('CONFIRMED', 'CANCELLED');
+
+-- CreateEnum
 CREATE TYPE "TicketStatus" AS ENUM ('ISSUED', 'SCANNED', 'REVOKED', 'EXPIRED');
 
 -- CreateEnum
 CREATE TYPE "ScanMethod" AS ENUM ('QR_CODE', 'MANUAL');
+
+-- CreateTable
+CREATE TABLE "events" (
+    "id" TEXT NOT NULL,
+    "capacity" INTEGER NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "bookings" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "status" "BookingStatus" NOT NULL DEFAULT 'CONFIRMED',
+    "joinedAt" TIMESTAMP(3),
+    "isAttended" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "bookings_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "tickets" (
@@ -45,6 +73,9 @@ CREATE TABLE "attendance_records" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "bookings_userId_eventId_key" ON "bookings"("userId", "eventId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "tickets_bookingId_key" ON "tickets"("bookingId");
 
 -- CreateIndex
@@ -61,6 +92,9 @@ CREATE INDEX "attendance_records_ticketId_idx" ON "attendance_records"("ticketId
 
 -- CreateIndex
 CREATE INDEX "attendance_records_scanTime_idx" ON "attendance_records"("scanTime");
+
+-- AddForeignKey
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "events"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "tickets" ADD CONSTRAINT "tickets_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE CASCADE ON UPDATE CASCADE;

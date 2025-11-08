@@ -104,18 +104,18 @@ function AdminModifyEventPage() {
     try {
       setIsLoading(true);
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading event', { eventId });
-      
+
       const response = await eventAPI.getEventById(eventId);
-      
+
       if (response.success) {
         const event = response.data;
         setOriginalEvent(event);
-        
+
         // Pre-populate form with existing data
         // Convert ISO dates to datetime-local format
         const startDate = new Date(event.bookingStartDate);
         const endDate = new Date(event.bookingEndDate);
-        
+
         setFormData({
           name: event.name,
           description: event.description,
@@ -125,7 +125,7 @@ function AdminModifyEventPage() {
           bookingStartDate: formatDateTimeLocal(startDate),
           bookingEndDate: formatDateTimeLocal(endDate),
         });
-        
+
         logger.debug(LOGGER_COMPONENT_NAME, 'Event loaded successfully', { eventId: event.id });
       } else {
         throw new Error('Failed to load event');
@@ -166,10 +166,10 @@ function AdminModifyEventPage() {
 
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading speaker data', { speakerId: originalEvent.speakerId });
-      
+
       const speaker = await adminApiClient.getSpeakerProfile(originalEvent.speakerId);
       setCurrentSpeaker(speaker);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Speaker data loaded', { speakerId: originalEvent.speakerId });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load speaker data', error as Error);
@@ -181,13 +181,13 @@ function AdminModifyEventPage() {
     try {
       setLoadingInvitations(true);
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading event invitations', { eventId });
-      
+
       const invitations = await adminApiClient.getEventInvitations(eventId);
       setEventInvitations(invitations);
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Event invitations loaded', { 
-        eventId, 
-        count: invitations.length 
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Event invitations loaded', {
+        eventId,
+        count: invitations.length
       });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event invitations', error as Error);
@@ -201,9 +201,9 @@ function AdminModifyEventPage() {
     try {
       const acceptedInvitation = eventInvitations.find(inv => inv.status === 'ACCEPTED');
       if (acceptedInvitation) {
-        logger.debug(LOGGER_COMPONENT_NAME, 'Loading accepted speaker from invitation', { 
+        logger.debug(LOGGER_COMPONENT_NAME, 'Loading accepted speaker from invitation', {
           invitationId: acceptedInvitation.id,
-          speakerId: acceptedInvitation.speakerId 
+          speakerId: acceptedInvitation.speakerId
         });
         const speaker = await adminApiClient.getSpeakerProfile(acceptedInvitation.speakerId);
         setAcceptedSpeakerFromInvitation(speaker);
@@ -222,10 +222,10 @@ function AdminModifyEventPage() {
 
   const handleInviteSpeaker = async (speakerId: string, message: string) => {
     try {
-      logger.debug(LOGGER_COMPONENT_NAME, 'Sending speaker invitation', { 
-        speakerId, 
-        eventId, 
-        eventName: originalEvent?.name 
+      logger.debug(LOGGER_COMPONENT_NAME, 'Sending speaker invitation', {
+        speakerId,
+        eventId,
+        eventName: originalEvent?.name
       });
 
       const invitation = await adminApiClient.createInvitation({
@@ -234,18 +234,18 @@ function AdminModifyEventPage() {
         message
       });
 
-      logger.info(LOGGER_COMPONENT_NAME, 'Speaker invitation sent successfully', { 
+      logger.info(LOGGER_COMPONENT_NAME, 'Speaker invitation sent successfully', {
         invitationId: invitation.id,
-        speakerId, 
-        eventId 
+        speakerId,
+        eventId
       });
 
       // Reload invitations to show the new one
       await loadEventInvitations();
-      
+
       // Close the modal
       setShowSpeakerSearchModal(false);
-      
+
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to send speaker invitation', error as Error);
       throw error; // Re-throw to let the modal handle the error
@@ -304,10 +304,9 @@ function AdminModifyEventPage() {
     logger.info(LOGGER_COMPONENT_NAME, 'Updating event', { eventId, eventName: formData.name });
 
     try {
-      // Note: Currently using speaker endpoint for updates
-      // This might need adjustment based on backend permissions
-      const response = await eventAPI.updateEvent(eventId, formData);
-      
+      // Use admin endpoint which allows updating events in any status
+      const response = await eventAPI.updateEventAsAdmin(eventId, formData);
+
       if (!response.success) {
         throw new Error('Failed to update event');
       }
@@ -323,8 +322,8 @@ function AdminModifyEventPage() {
       }, 2000);
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to update event', error as Error);
-      setErrors({ 
-        general: error instanceof Error ? error.message : 'Failed to update event. Please try again.' 
+      setErrors({
+        general: error instanceof Error ? error.message : 'Failed to update event. Please try again.'
       });
     } finally {
       setIsSubmitting(false);
@@ -698,6 +697,7 @@ function AdminModifyEventPage() {
                           </div>
                         </div>
                         <Button
+                          type="button"
                           size="sm"
                           onClick={() => setShowSpeakerSearchModal(true)}
                           className="bg-blue-600 hover:bg-blue-700"
@@ -735,8 +735,8 @@ function AdminModifyEventPage() {
                         <div className="space-y-4">
                           {eventInvitations.map((invitation, index) => (
                             <div key={invitation.id} className={`p-4 border rounded-lg transition-all hover:shadow-md ${
-                              invitation.status === 'ACCEPTED' 
-                                ? 'border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800' 
+                              invitation.status === 'ACCEPTED'
+                                ? 'border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800'
                                 : invitation.status === 'DECLINED'
                                 ? 'border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800'
                                 : invitation.status === 'PENDING'
@@ -746,7 +746,7 @@ function AdminModifyEventPage() {
                               <div className="flex items-start justify-between">
                                 <div className="flex items-start gap-3 flex-1">
                                   <div className={`p-2 rounded-full ${
-                                    invitation.status === 'ACCEPTED' 
+                                    invitation.status === 'ACCEPTED'
                                       ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300'
                                       : invitation.status === 'DECLINED'
                                       ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300'

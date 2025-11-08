@@ -16,16 +16,23 @@ import {
   Filter,
   Calendar,
   MapPin,
+<<<<<<< HEAD
   Users,
+=======
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
   Clock,
   CheckCircle,
   AlertCircle,
   Loader2,
-  Star,
   Eye,
   Ticket,
+<<<<<<< HEAD
+=======
+  Play,
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
   ArrowLeft
 } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const LOGGER_COMPONENT_NAME = 'AttendeeEventsPage';
 
@@ -231,7 +238,16 @@ export default function AttendeeEventsPage() {
   };
 
 
+<<<<<<< HEAD
   const getBookingButtonText = (eventId: string) => {
+=======
+  const getBookingButtonText = (eventId: string, event: Event) => {
+    // Check if event is expired
+    if (isEventExpired(event)) {
+      return 'Event Ended';
+    }
+
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
     // Check if user already has a booking for this event
     if (userBookings[eventId]) {
       return 'Already Booked ✓';
@@ -246,7 +262,16 @@ export default function AttendeeEventsPage() {
     }
   };
 
+<<<<<<< HEAD
   const getBookingButtonVariant = (eventId: string) => {
+=======
+  const getBookingButtonVariant = (eventId: string, event: Event) => {
+    // Check if event is expired
+    if (isEventExpired(event)) {
+      return 'secondary';
+    }
+
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
     // Check if user already has a booking for this event
     if (userBookings[eventId]) {
       return 'secondary';
@@ -340,8 +365,9 @@ export default function AttendeeEventsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Header */}
+<<<<<<< HEAD
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div className="flex items-center gap-4">
           <Button
@@ -369,8 +395,63 @@ export default function AttendeeEventsPage() {
             <Ticket className="h-4 w-4" />
             My Tickets
           </Button>
+=======
+      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/dashboard/attendee')}
+                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Discover Events
+              </h1>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`}
+                    alt={user?.name || user?.email}
+                  />
+                  <AvatarFallback className="text-xs">
+                    {user?.name ? user.name.split(' ').map(n => n[0]).join('') : user?.email?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  {user?.name || user?.email}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </header>
+
+      <div className="container mx-auto p-6">
+        {/* Sub Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <p className="text-slate-600 dark:text-slate-400 mt-1">Find and book amazing events happening around you</p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => router.push('/dashboard/attendee/tickets')}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Ticket className="h-4 w-4" />
+              My Tickets
+            </Button>
+          </div>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
+        </div>
 
       {/* Messages */}
       {errorMessage && (
@@ -515,6 +596,7 @@ export default function AttendeeEventsPage() {
             const isBooked = userBookings[event.id];
             const isBooking = bookingStatus[event.id] === 'loading';
             const isBookedSuccess = bookingStatus[event.id] === 'success';
+<<<<<<< HEAD
 
             return (
               <Card key={event.id} className={`hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 ${
@@ -573,17 +655,42 @@ export default function AttendeeEventsPage() {
                       <Badge variant="outline" className="text-xs">{event.category}</Badge>
                     </div>
                   </div>
+=======
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
 
-                  {/* Booking Status */}
-                  {isBooked && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-2 text-green-700">
-                        <CheckCircle className="h-4 w-4" />
-                        <span className="text-sm font-medium">You have a ticket for this event!</span>
+            return (
+              <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                        {event.name}
+                      </CardTitle>
+                      <div className="flex flex-wrap gap-2">
+                        {isBooked && (
+                          <Badge className="bg-green-600 text-white">
+                            BOOKED
+                          </Badge>
+                        )}
+                        {isEventExpired(event) ? (
+                          <Badge variant="secondary" className="bg-gray-500 text-white">
+                            ENDED
+                          </Badge>
+                        ) : isEventRunning(event) ? (
+                          <Badge className="bg-orange-600 text-white">
+                            LIVE
+                          </Badge>
+                        ) : isEventUpcoming(event) ? (
+                          <Badge className="bg-blue-600 text-white">
+                            UPCOMING
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
-                  )}
+                  </div>
+                </CardHeader>
 
+<<<<<<< HEAD
                   {/* Booking Button */}
                   <Button
                     onClick={() => handleBookEvent(event.id)}
@@ -615,12 +722,173 @@ export default function AttendeeEventsPage() {
                       </>
                     )}
                   </Button>
+=======
+                <CardContent>
+                  <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2">
+                    {event.description}
+                  </p>
+
+                  {/* Event Details */}
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                      <MapPin className="h-4 w-4 mr-2"/>
+                      <span>{event.venue.name}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                      <Clock className="h-4 w-4 mr-2"/>
+                      <span>{eventTime.time}</span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+                    >
+                      <Eye className="h-4 w-4 mr-1"/>
+                      View Details
+                    </Button>
+
+                    {isEventExpired(event) ? (
+                      <Button
+                        size="sm"
+                        disabled={true}
+                        variant="secondary"
+                      >
+                        <AlertCircle className="h-4 w-4 mr-1" />
+                        Event Ended
+                      </Button>
+                    ) : isBooked ? (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => router.push(`/dashboard/attendee/events/${event.id}/live`)}
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                      >
+                        <Play className="h-4 w-4 mr-1"/>
+                        Join Event
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => handleBookEvent(event.id)}
+                        disabled={isButtonDisabled(event.id, event)}
+                        variant={getBookingButtonVariant(event.id, event)}
+                      >
+                        {isBooking ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            Booking...
+                          </>
+                        ) : isBookedSuccess ? (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Booked! ✓
+                          </>
+                        ) : (
+                          <>
+                            <Ticket className="h-4 w-4 mr-1" />
+                            Book Event
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
                 </CardContent>
               </Card>
             );
           })}
+<<<<<<< HEAD
+=======
+              </div>
+            </div>
+          )}
+
+          {/* Expired Events */}
+          {filteredEvents.filter(event => isEventExpired(event)).length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-gray-500" />
+                Past Events ({filteredEvents.filter(event => isEventExpired(event)).length})
+              </h2>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {filteredEvents.filter(event => isEventExpired(event)).map((event) => {
+                  const eventTime = formatEventTime(event.bookingStartDate, event.bookingEndDate);
+                  const isBooked = userBookings[event.id];
+
+                  return (
+
+<Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow opacity-75">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                              {event.name}
+                            </CardTitle>
+                            <div className="flex flex-wrap gap-2">
+                              {isBooked && (
+                                <Badge className="bg-green-600 text-white">
+                                  ATTENDED
+                                </Badge>
+                              )}
+                              <Badge variant="secondary" className="bg-gray-500 text-white">
+                                ENDED
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </CardHeader>
+
+                      <CardContent>
+                        <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2">
+                          {event.description}
+                        </p>
+
+                        {/* Event Details */}
+                        <div className="space-y-3 mb-4">
+                          <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                            <MapPin className="h-4 w-4 mr-2"/>
+                            <span>{event.venue.name}</span>
+                          </div>
+                          <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                            <Clock className="h-4 w-4 mr-2"/>
+                            <span>{eventTime.time}</span>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+                          >
+                            <Eye className="h-4 w-4 mr-1"/>
+                            View Details
+                          </Button>
+                          <Button
+                            disabled={true}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            <AlertCircle className="h-4 w-4 mr-1" />
+                            Event Ended
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+>>>>>>> EMS-159-Implement-Speaker-Admin-Messaging-System
         </div>
       )}
+      </div>
     </div>
   );
 }
