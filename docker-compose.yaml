@@ -123,6 +123,8 @@ services:
     container_name: feedback-service
     env_file:
       ./ems-services/feedback-service/.env.production
+    environment:
+      - JWT_SECRET=supersecretkey
     networks:
       - event-net
     depends_on:

@@ -33,7 +33,7 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
 
     const decoded = jwt.verify(token, jwtSecret) as any;
     req.user = {
-      id: decoded.id,
+      id: decoded.userId, // Auth-service uses 'userId' in token payload, not 'id'
       email: decoded.email,
       role: decoded.role
     };

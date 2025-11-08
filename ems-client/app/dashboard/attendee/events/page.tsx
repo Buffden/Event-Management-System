@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { bookingAPI, ticketAPI } from '@/lib/api/booking.api';
 import { eventAPI } from '@/lib/api/event.api';
+import { feedbackAPI, FeedbackFormResponse } from '@/lib/api/feedback.api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +24,8 @@ import {
   Eye,
   Ticket,
   Play,
-  ArrowLeft
+  ArrowLeft,
+  MessageSquare
 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
@@ -54,6 +56,7 @@ export default function AttendeeEventsPage() {
   const [loading, setLoading] = useState(true);
   const [bookingStatus, setBookingStatus] = useState<BookingStatus>({});
   const [userBookings, setUserBookings] = useState<{ [eventId: string]: boolean }>({});
+  const [feedbackForms, setFeedbackForms] = useState<{ [eventId: string]: FeedbackFormResponse | null }>({});
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [filters, setFilters] = useState<EventFilters>({
@@ -72,6 +75,13 @@ export default function AttendeeEventsPage() {
     loadEvents();
     loadUserBookings();
   }, [isAuthenticated, router]);
+
+  // Load feedback forms when events change
+  useEffect(() => {
+    if (events.length > 0) {
+      loadFeedbackForms();
+    }
+  }, [events]);
 
   // Filter events when filters or events change
   useEffect(() => {
@@ -174,6 +184,39 @@ export default function AttendeeEventsPage() {
       });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load user bookings', error as Error);
+    }
+  };
+
+  const loadFeedbackForms = async () => {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading feedback forms for events');
+
+      const forms: { [eventId: string]: FeedbackFormResponse | null } = {};
+
+      // Load feedback forms for all events in parallel
+      const formPromises = events.map(async (event) => {
+        try {
+          const form = await feedbackAPI.getFeedbackFormByEventId(event.id);
+          // Only store if form exists and is published
+          if (form && form.status === 'PUBLISHED') {
+            forms[event.id] = form;
+          } else {
+            forms[event.id] = null;
+          }
+        } catch (error) {
+          logger.debug(LOGGER_COMPONENT_NAME, `No feedback form for event ${event.id}`);
+          forms[event.id] = null;
+        }
+      });
+
+      await Promise.all(formPromises);
+      setFeedbackForms(forms);
+
+      logger.debug(LOGGER_COMPONENT_NAME, 'Feedback forms loaded', {
+        totalForms: Object.values(forms).filter(f => f !== null).length
+      });
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load feedback forms', error as Error);
     }
   };
 
@@ -620,6 +663,33 @@ export default function AttendeeEventsPage() {
                     </div>
                   </div>
 
+                  {/* Feedback Form Section - Only show if published */}
+                  {feedbackForms[event.id] && feedbackForms[event.id]?.status === 'PUBLISHED' && (
+                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                            Feedback Form Available
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+                          className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                        >
+                          Provide Feedback
+                        </Button>
+                      </div>
+                      {feedbackForms[event.id]?.description && (
+                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                          {feedbackForms[event.id]?.description}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -735,6 +805,33 @@ export default function AttendeeEventsPage() {
                             <span>{eventTime.time}</span>
                           </div>
                         </div>
+
+                        {/* Feedback Form Section - Only show if published (for past events) */}
+                        {feedbackForms[event.id] && feedbackForms[event.id]?.status === 'PUBLISHED' && (
+                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                                  Feedback Form Available
+                                </span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+                                className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                              >
+                                Provide Feedback
+                              </Button>
+                            </div>
+                            {feedbackForms[event.id]?.description && (
+                              <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                                {feedbackForms[event.id]?.description}
+                              </p>
+                            )}
+                          </div>
+                        )}
 
                         {/* Actions */}
                         <div className="flex flex-wrap gap-2">
