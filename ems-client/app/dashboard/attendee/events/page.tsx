@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { bookingAPI, ticketAPI } from '@/lib/api/booking.api';
 import { eventAPI } from '@/lib/api/event.api';
 import { feedbackAPI, FeedbackFormResponse } from '@/lib/api/feedback.api';
+import { FeedbackDialog } from '@/components/feedback/FeedbackDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +61,8 @@ export default function AttendeeEventsPage() {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
+  const [selectedEventForFeedback, setSelectedEventForFeedback] = useState<{ eventId: string; eventName: string; form: FeedbackFormResponse } | null>(null);
   const [filters, setFilters] = useState<EventFilters>({
     searchTerm: '',
     category: '',
@@ -699,7 +702,14 @@ export default function AttendeeEventsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
+                          onClick={() => {
+                            setSelectedEventForFeedback({
+                              eventId: event.id,
+                              eventName: event.name,
+                              form: feedbackForms[event.id]!
+                            });
+                            setFeedbackDialogOpen(true);
+                          }}
                           className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
                         >
                           Provide Feedback
@@ -885,6 +895,22 @@ export default function AttendeeEventsPage() {
         </div>
       )}
       </div>
+
+      {/* Feedback Dialog */}
+      {selectedEventForFeedback && (
+        <FeedbackDialog
+          open={feedbackDialogOpen}
+          onOpenChange={setFeedbackDialogOpen}
+          feedbackForm={selectedEventForFeedback.form}
+          eventId={selectedEventForFeedback.eventId}
+          eventName={selectedEventForFeedback.eventName}
+          onSuccess={() => {
+            // Optionally reload feedback forms or show success message
+            setSuccessMessage('Feedback submitted successfully!');
+            setTimeout(() => setSuccessMessage(''), 3000);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -176,11 +176,12 @@ def main():
             utils.print_info("Skipping bookings - no users available")
 
     # Step 7a: Admin Invites Speakers to Events
-    if admin_token and speakers and events:
+    if admin_token and admin_user_id and speakers and events:
         speaker_emails = [s['email'] for s in speakers if s.get('email')]
         if speaker_emails:
             invite_stats = invite_speakers_to_events(
                 admin_token=admin_token,
+                admin_user_id=admin_user_id,
                 speaker_emails=speaker_emails,
                 events=events
             )

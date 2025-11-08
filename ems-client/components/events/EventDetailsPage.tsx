@@ -149,14 +149,23 @@ export const EventDetailsPage = ({
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading attendance data', { eventId });
 
-      // Load live attendance data
-      const attendanceData = await attendanceAPI.getLiveAttendance(eventId);
-      setAttendance(attendanceData);
-
-      // Load metrics (for admins and speakers)
+      // Load live attendance data (admin/speaker only)
       if (userRole === 'ADMIN' || userRole === 'SPEAKER') {
+        const attendanceData = await attendanceAPI.getLiveAttendance(eventId);
+        setAttendance(attendanceData);
+
+        // Load metrics (for admins and speakers)
         const metricsData = await attendanceAPI.getAttendanceMetrics(eventId);
         setMetrics(metricsData);
+      } else {
+        // For attendees, only load basic metrics if available
+        try {
+          const metricsData = await attendanceAPI.getAttendanceMetrics(eventId);
+          setMetrics(metricsData);
+        } catch (err) {
+          // Metrics might not be available for attendees, ignore error
+          logger.debug(LOGGER_COMPONENT_NAME, 'Metrics not available for attendee', { eventId });
+        }
       }
     } catch (err) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load attendance data', err as Error);
@@ -187,16 +196,17 @@ export const EventDetailsPage = ({
     }
   }, [event]);
 
-  // Auto-refresh attendance data every 30 seconds
+  // Auto-refresh attendance data every 30 seconds (only for admin/speaker)
   useEffect(() => {
     if (!event) return;
+    if (userRole !== 'ADMIN' && userRole !== 'SPEAKER') return; // Only refresh for admin/speaker
 
     const interval = setInterval(() => {
       loadAttendance();
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [event]);
+  }, [event, userRole]);
 
   if (loading) {
     return (

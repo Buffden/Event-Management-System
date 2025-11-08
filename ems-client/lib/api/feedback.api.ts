@@ -34,6 +34,24 @@ export interface UpdateFeedbackFormRequest {
   status?: FeedbackFormStatus;
 }
 
+export interface SubmitFeedbackRequest {
+  formId: string;
+  bookingId: string;
+  rating: number;
+  comment?: string;
+}
+
+export interface FeedbackSubmissionResponse {
+  id: string;
+  formId: string;
+  userId: string;
+  eventId: string;
+  bookingId: string;
+  rating: number;
+  comment?: string;
+  createdAt: Date;
+}
+
 // Feedback API client class
 class FeedbackApiClient extends BaseApiClient {
   protected readonly LOGGER_COMPONENT_NAME = LOGGER_COMPONENT_NAME;
@@ -203,6 +221,33 @@ class FeedbackApiClient extends BaseApiClient {
       throw error;
     }
   }
+
+  async submitFeedback(data: SubmitFeedbackRequest): Promise<FeedbackSubmissionResponse> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Submitting feedback', { formId: data.formId, bookingId: data.bookingId });
+
+      const response = await fetch(`${this.baseURL}/feedback/submit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      logger.info(LOGGER_COMPONENT_NAME, 'Feedback submitted successfully', { submissionId: result.data.id });
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to submit feedback', error as Error);
+      throw error;
+    }
+  }
 }
 
 // Create and export the Feedback API client instance
@@ -216,5 +261,6 @@ export const feedbackAPI = {
   updateFeedbackForm: (formId: string, data: UpdateFeedbackFormRequest) => feedbackApiClient.updateFeedbackForm(formId, data),
   closeFeedbackForm: (formId: string) => feedbackApiClient.closeFeedbackForm(formId),
   deleteFeedbackForm: (formId: string) => feedbackApiClient.deleteFeedbackForm(formId),
+  submitFeedback: (data: SubmitFeedbackRequest) => feedbackApiClient.submitFeedback(data),
 };
 

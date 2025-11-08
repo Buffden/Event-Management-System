@@ -113,32 +113,34 @@ def get_all_speaker_profiles(admin_token: str, speaker_emails: List[str]) -> Lis
     return profiles
 
 
-def create_invitation(admin_token: str, speaker_id: str, event_id: str, message: str = None) -> bool:
+def create_invitation(admin_token: str, admin_user_id: str, speaker_id: str, speaker_user_id: str, event_id: str, event_name: str = None, message: str = None) -> Optional[Dict]:
     """
-    Create a speaker invitation
+    Create a speaker invitation and send a message to the speaker
 
     Args:
         admin_token: Admin authentication token
+        admin_user_id: Admin user ID
         speaker_id: Speaker profile ID
+        speaker_user_id: Speaker user ID
         event_id: Event ID
+        event_name: Event name (for message)
         message: Optional invitation message
 
     Returns:
-        True if successful, False otherwise
+        Dictionary with invitation_id and message_id if successful, None otherwise
     """
     # Invitations API is at /api/invitations (via gateway)
-    # Extract base URL and use /api/invitations
-    # Note: nginx location requires trailing slash, but route works without it
     base_url = SPEAKER_API_URL.replace('/api/speakers', '')
     url = f"{base_url}/api/invitations"
     headers = {
         "Authorization": f"Bearer {admin_token}",
         "Content-Type": "application/json"
     }
+    invitation_message = message or f"You have been invited to speak at this event."
     payload = {
         "speakerId": speaker_id,
         "eventId": event_id,
-        "message": message or f"You have been invited to speak at this event."
+        "message": invitation_message
     }
 
     try:
@@ -147,7 +149,20 @@ def create_invitation(admin_token: str, speaker_id: str, event_id: str, message:
             response_data = response.json()
             invitation_id = response_data.get('data', {}).get('id', 'unknown')
             print_step(f"  Created invitation {invitation_id[:8]}...")
-            return True
+
+            # Now create a message from admin to speaker about the invitation
+            event_name_str = event_name or "an event"
+            message_subject = f"Speaking Invitation: {event_name_str}"
+            message_content = f"You have been invited to speak at {event_name_str}.\n\n{invitation_message}\n\nPlease respond to this invitation."
+
+            message_id = send_message(admin_token, admin_user_id, speaker_user_id, message_subject, message_content, event_id)
+
+            if message_id:
+                print_step(f"  Sent invitation message to speaker")
+                return {'invitation_id': invitation_id, 'message_id': message_id}
+            else:
+                print_info(f"  Invitation created but message failed to send")
+                return {'invitation_id': invitation_id, 'message_id': None}
         elif response.status_code == 400:
             # Might be duplicate invitation
             try:
@@ -155,13 +170,13 @@ def create_invitation(admin_token: str, speaker_id: str, event_id: str, message:
                 error_msg = str(error_data.get('error', ''))
                 if 'already exists' in error_msg.lower():
                     print_info(f"  Invitation already exists (duplicate)")
-                    return False  # Duplicate, not an error
+                    return None  # Duplicate, not an error
                 else:
                     print_error(f"  Bad request: {error_msg}")
-                    return False
+                    return None
             except:
                 print_error(f"  Bad request: {response.text}")
-                return False
+                return None
         elif response.status_code == 500:
             try:
                 error_data = response.json()
@@ -169,13 +184,13 @@ def create_invitation(admin_token: str, speaker_id: str, event_id: str, message:
                 print_error(f"  Server error: {error_msg}")
             except:
                 print_error(f"  Server error: {response.text}")
-            return False
+            return None
         else:
             print_error(f"  Unexpected status {response.status_code}: {response.text}")
-            return False
+            return None
     except Exception as e:
         print_error(f"  Exception creating invitation: {str(e)}")
-        return False
+        return None
 
 
 def respond_to_invitation(speaker_token: str, invitation_id: str, status: str = 'ACCEPTED') -> bool:
@@ -271,7 +286,7 @@ startxref
         return False
 
 
-def send_message(admin_token: str, from_user_id: str, to_user_id: str, subject: str, content: str) -> bool:
+def send_message(admin_token: str, from_user_id: str, to_user_id: str, subject: str, content: str, event_id: str = None) -> Optional[str]:
     """
     Send a message to a user
 
@@ -281,9 +296,10 @@ def send_message(admin_token: str, from_user_id: str, to_user_id: str, subject: 
         to_user_id: Recipient user ID
         subject: Message subject
         content: Message content
+        event_id: Optional event ID to associate with message
 
     Returns:
-        True if successful, False otherwise
+        Message ID if successful, None otherwise
     """
     # Messages API is at /api/messages (via gateway)
     # Gateway rewrites /api/messages to /api/messages on speaker-service
@@ -299,17 +315,80 @@ def send_message(admin_token: str, from_user_id: str, to_user_id: str, subject: 
         "subject": subject,
         "content": content
     }
+    if event_id:
+        payload["eventId"] = event_id
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=10)
-        return response.status_code == 201
+        if response.status_code == 201:
+            response_data = response.json()
+            message_id = response_data.get('data', {}).get('id')
+            return message_id
+        return None
     except Exception as e:
         print_error(f"Error sending message: {str(e)}")
+        return None
+
+
+def mark_message_as_read(speaker_token: str, message_id: str) -> bool:
+    """
+    Mark a message as read
+
+    Args:
+        speaker_token: Speaker authentication token
+        message_id: Message ID to mark as read
+
+    Returns:
+        True if successful, False otherwise
+    """
+    base_url = SPEAKER_API_URL.replace('/api/speakers', '')
+    url = f"{base_url}/api/messages/{message_id}/read"
+    headers = {
+        "Authorization": f"Bearer {speaker_token}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.put(url, headers=headers, timeout=10)
+        return response.status_code == 200
+    except Exception as e:
+        print_error(f"Error marking message as read: {str(e)}")
         return False
+
+
+def get_user_inbox_messages(speaker_token: str, user_id: str) -> List[Dict]:
+    """
+    Get all inbox messages for a user
+
+    Args:
+        speaker_token: Speaker authentication token
+        user_id: User ID
+
+    Returns:
+        List of message dictionaries
+    """
+    base_url = SPEAKER_API_URL.replace('/api/speakers', '')
+    url = f"{base_url}/api/messages/inbox/{user_id}"
+    headers = {
+        "Authorization": f"Bearer {speaker_token}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            response_data = response.json()
+            # Response format: {"success": true, "data": [messages...]}
+            return response_data.get('data', [])
+        return []
+    except Exception as e:
+        print_error(f"Error getting inbox messages: {str(e)}")
+        return []
 
 
 def invite_speakers_to_events(
     admin_token: str,
+    admin_user_id: str,
     speaker_emails: List[str],
     events: List[Dict]
 ) -> Dict:
@@ -363,7 +442,8 @@ def invite_speakers_to_events(
     print()
     print_info(f"Admin ({ADMIN_EMAIL}) is inviting speakers to events...")
 
-    stats = {'invitations_created': 0}
+    stats = {'invitations_created': 0, 'messages_sent': 0}
+    invitation_data = []  # Store invitation and message info for later use
 
     for speaker in speaker_profiles:
         # Assign each speaker to 2-4 random events
@@ -376,14 +456,35 @@ def invite_speakers_to_events(
 
             print_info(f"  Inviting {speaker['email']} (speaker ID: {speaker['id'][:8]}...) to event {event_name[:40]} (event ID: {event_id[:8]}...)")
 
-            if create_invitation(admin_token, speaker['id'], event_id):
+            result = create_invitation(
+                admin_token=admin_token,
+                admin_user_id=admin_user_id,
+                speaker_id=speaker['id'],
+                speaker_user_id=speaker['userId'],
+                event_id=event_id,
+                event_name=event_name
+            )
+
+            if result and result.get('invitation_id'):
                 stats['invitations_created'] += 1
-                print_success(f"  ✓ Successfully invited {speaker['email']} to {event_name[:40]}")
+                if result.get('message_id'):
+                    stats['messages_sent'] += 1
+                invitation_data.append({
+                    'invitation_id': result['invitation_id'],
+                    'message_id': result.get('message_id'),
+                    'event_id': event_id,
+                    'speaker_user_id': speaker['userId'],
+                    'speaker_email': speaker['email']
+                })
+                print_success(f"  ✓ Successfully invited {speaker['email']} to {event_name[:40]} and sent message")
             else:
                 print_error(f"  ✗ Failed to invite {speaker['email']} to {event_name[:40]}")
             time.sleep(0.1)
 
-    print_success(f"Admin created {stats['invitations_created']} invitations")
+    print_success(f"Admin created {stats['invitations_created']} invitations and sent {stats['messages_sent']} messages")
+
+    # Store invitation data globally for use in acceptance step
+    invite_speakers_to_events.invitation_data = invitation_data
 
     return stats
 
@@ -482,11 +583,40 @@ def speakers_accept_invitations(
                                     event_id = invitation.get('eventId')
 
                                     if random.random() < 0.7:
+                                        # First, get all inbox messages and find the invitation message
+                                        inbox_messages = get_user_inbox_messages(speaker_token, user_id)
+                                        invitation_message = None
+
+                                        # Find the message related to this invitation (from admin about this event)
+                                        for msg in inbox_messages:
+                                            if msg.get('eventId') == event_id and msg.get('status') != 'READ':
+                                                # Check if it's an invitation message (subject contains "Invitation" or "Speaking")
+                                                subject = msg.get('subject', '').lower()
+                                                if 'invitation' in subject or 'speaking' in subject:
+                                                    invitation_message = msg
+                                                    break
+
+                                        if invitation_message:
+                                            message_id = invitation_message.get('id')
+                                            if mark_message_as_read(speaker_token, message_id):
+                                                print_step(f"  {email} read invitation message for event {event_id[:8]}...")
+                                            time.sleep(0.1)
+
+                                        # Now respond to the invitation
                                         if respond_to_invitation(speaker_token, invitation_id, 'ACCEPTED'):
                                             stats['invitations_accepted'] += 1
                                             print_step(f"  {email} accepted invitation for event {event_id[:8]}...")
                                         time.sleep(0.1)
                                     else:
+                                        # Even if declining, mark message as read
+                                        inbox_messages = get_user_inbox_messages(speaker_token, user_id)
+                                        for msg in inbox_messages:
+                                            if msg.get('eventId') == event_id and msg.get('status') != 'READ':
+                                                subject = msg.get('subject', '').lower()
+                                                if 'invitation' in subject or 'speaking' in subject:
+                                                    mark_message_as_read(speaker_token, msg.get('id'))
+                                                    break
+
                                         print_info(f"  {email} declined invitation for event {event_id[:8]}...")
                             else:
                                 print_info(f"  Could not fetch invitations for {email} (HTTP {invites_response.status_code})")
@@ -632,7 +762,8 @@ def seed_speaker_data(
             subject = random.choice(message_subjects)
             content = random.choice(message_contents)
 
-            if send_message(admin_token, admin_user_id, speaker['userId'], subject, content):
+            message_id = send_message(admin_token, admin_user_id, speaker['userId'], subject, content)
+            if message_id:
                 stats['messages'] += 1
                 print_step(f"Sent message to {speaker['email']}: {subject}")
             time.sleep(0.1)
