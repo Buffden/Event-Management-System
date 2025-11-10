@@ -45,11 +45,11 @@ describe('Validation Middleware', () => {
     };
 
     mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
+      status: jest.fn().mockReturnThis() as jest.MockedFunction<Response['status']>,
+      json: jest.fn().mockReturnThis() as jest.MockedFunction<Response['json']>,
     };
 
-    mockNext = jest.fn();
+    mockNext = jest.fn((err?: unknown) => undefined) as jest.MockedFunction<NextFunction>;
   });
 
   describe('validateRequest', () => {

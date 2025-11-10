@@ -37,16 +37,19 @@ describe('Error Middleware', () => {
     mockRequest = {
       method: 'GET',
       url: '/test',
-      get: jest.fn(() => 'test-agent'),
+      get: jest.fn((name: string) => {
+        if (name === 'user-agent') return 'test-agent';
+        return undefined;
+      }) as jest.MockedFunction<Request['get']>,
       ip: '127.0.0.1',
     };
 
     mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
+      status: jest.fn().mockReturnThis() as jest.MockedFunction<Response['status']>,
+      json: jest.fn().mockReturnThis() as jest.MockedFunction<Response['json']>,
     };
 
-    mockNext = jest.fn();
+    mockNext = jest.fn((err?: unknown) => undefined) as jest.MockedFunction<NextFunction>;
     process.env.NODE_ENV = 'test';
   });
 

@@ -16,10 +16,10 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
 // Declare mocks outside jest.mock to avoid hoisting issues
 const mockLogger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
+  info: jest.fn() as jest.MockedFunction<any>,
+  warn: jest.fn() as jest.MockedFunction<any>,
+  error: jest.fn() as jest.MockedFunction<any>,
+  debug: jest.fn() as jest.MockedFunction<any>,
 };
 
 // CRITICAL: Unmock event-publisher.service to test the actual implementation
@@ -32,18 +32,18 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 // Create mock function that will be shared - must be declared before jest.mock
-const mockGetChannelFn = jest.fn();
+const mockGetChannelFn = jest.fn() as jest.MockedFunction<any>;
 
 // Mock rabbitmq service - use factory to ensure same reference
 jest.mock('../rabbitmq.service', () => {
   return {
     rabbitMQService: {
       getChannel: mockGetChannelFn,
-      connect: jest.fn(),
-      disconnect: jest.fn(),
-      sendMessage: jest.fn(),
-      consumeMessage: jest.fn(),
-      publishEvent: jest.fn(),
+      connect: jest.fn() as jest.MockedFunction<any>,
+      disconnect: jest.fn() as jest.MockedFunction<any>,
+      sendMessage: jest.fn() as jest.MockedFunction<any>,
+      consumeMessage: jest.fn() as jest.MockedFunction<any>,
+      publishEvent: jest.fn() as jest.MockedFunction<any>,
     },
   };
 });
@@ -59,10 +59,10 @@ describe('EventPublisherService', () => {
     jest.clearAllMocks();
     // Create a fresh mock channel for each test
     mockChannel = {
-      assertExchange: jest.fn().mockResolvedValue(undefined),
-      publish: jest.fn().mockReturnValue(true),
-      assertQueue: jest.fn().mockResolvedValue(undefined),
-      bindQueue: jest.fn().mockResolvedValue(undefined),
+      assertExchange: (jest.fn() as jest.MockedFunction<any>).mockResolvedValue(undefined),
+      publish: (jest.fn() as jest.MockedFunction<any>).mockReturnValue(true),
+      assertQueue: (jest.fn() as jest.MockedFunction<any>).mockResolvedValue(undefined),
+      bindQueue: (jest.fn() as jest.MockedFunction<any>).mockResolvedValue(undefined),
     };
 
     // Set up the mock to return the channel
@@ -81,9 +81,11 @@ describe('EventPublisherService', () => {
     it('should publish event.published message successfully', async () => {
       const message = {
         eventId: 'event-123',
-        title: 'Test Event',
-        status: 'PUBLISHED',
-        timestamp: new Date().toISOString(),
+        speakerId: 'speaker-123',
+        name: 'Test Event',
+        capacity: 100,
+        bookingStartDate: new Date('2024-12-01T08:00:00Z').toISOString(),
+        bookingEndDate: new Date('2024-12-01T18:00:00Z').toISOString(),
       };
 
       // Verify the service and method exist
@@ -124,9 +126,11 @@ describe('EventPublisherService', () => {
       mockGetChannelFn.mockReturnValueOnce(null);
       const message = {
         eventId: 'event-123',
-        title: 'Test Event',
-        status: 'PUBLISHED',
-        timestamp: new Date().toISOString(),
+        speakerId: 'speaker-123',
+        name: 'Test Event',
+        capacity: 100,
+        bookingStartDate: new Date('2024-12-01T08:00:00Z').toISOString(),
+        bookingEndDate: new Date('2024-12-01T18:00:00Z').toISOString(),
       };
 
       await expect(eventPublisherService.publishEventPublished(message)).rejects.toThrow(
@@ -145,9 +149,11 @@ describe('EventPublisherService', () => {
 
       const message = {
         eventId: 'event-123',
-        title: 'Test Event',
-        status: 'PUBLISHED',
-        timestamp: new Date().toISOString(),
+        speakerId: 'speaker-123',
+        name: 'Test Event',
+        capacity: 100,
+        bookingStartDate: new Date('2024-12-01T08:00:00Z').toISOString(),
+        bookingEndDate: new Date('2024-12-01T18:00:00Z').toISOString(),
       };
 
       await expect(eventPublisherService.publishEventPublished(message)).rejects.toThrow(
@@ -169,9 +175,11 @@ describe('EventPublisherService', () => {
 
       const message = {
         eventId: 'event-123',
-        title: 'Test Event',
-        status: 'PUBLISHED',
-        timestamp: new Date().toISOString(),
+        speakerId: 'speaker-123',
+        name: 'Test Event',
+        capacity: 100,
+        bookingStartDate: new Date('2024-12-01T08:00:00Z').toISOString(),
+        bookingEndDate: new Date('2024-12-01T18:00:00Z').toISOString(),
       };
 
       await expect(eventPublisherService.publishEventPublished(message)).rejects.toThrow('Publish failed');
@@ -188,9 +196,7 @@ describe('EventPublisherService', () => {
     it('should publish event.updated message successfully', async () => {
       const message = {
         eventId: 'event-123',
-        title: 'Updated Event',
-        changes: ['title'],
-        timestamp: new Date().toISOString(),
+        updatedFields: { name: 'Updated Event' },
       };
 
       await eventPublisherService.publishEventUpdated(message);
@@ -215,9 +221,7 @@ describe('EventPublisherService', () => {
       mockGetChannelFn.mockReturnValueOnce(null);
       const message = {
         eventId: 'event-123',
-        title: 'Updated Event',
-        changes: ['title'],
-        timestamp: new Date().toISOString(),
+        updatedFields: { name: 'Updated Event' },
       };
 
       await expect(eventPublisherService.publishEventUpdated(message)).rejects.toThrow(
@@ -235,9 +239,7 @@ describe('EventPublisherService', () => {
       mockGetChannelFn.mockReturnValueOnce(mockChannelWithFalsePublish);
       const message = {
         eventId: 'event-123',
-        title: 'Updated Event',
-        changes: ['title'],
-        timestamp: new Date().toISOString(),
+        updatedFields: { name: 'Updated Event' },
       };
 
       await expect(eventPublisherService.publishEventUpdated(message)).rejects.toThrow(
@@ -251,8 +253,6 @@ describe('EventPublisherService', () => {
     it('should publish event.cancelled message successfully', async () => {
       const message = {
         eventId: 'event-123',
-        title: 'Cancelled Event',
-        timestamp: new Date().toISOString(),
       };
 
       expect(eventPublisherService.publishEventCancelled).toBeDefined();
@@ -280,8 +280,6 @@ describe('EventPublisherService', () => {
       mockGetChannelFn.mockReturnValueOnce(null);
       const message = {
         eventId: 'event-123',
-        title: 'Cancelled Event',
-        timestamp: new Date().toISOString(),
       };
 
       await expect(eventPublisherService.publishEventCancelled(message)).rejects.toThrow(
@@ -299,8 +297,6 @@ describe('EventPublisherService', () => {
       mockGetChannelFn.mockReturnValueOnce(mockChannelWithFalsePublish);
       const message = {
         eventId: 'event-123',
-        title: 'Cancelled Event',
-        timestamp: new Date().toISOString(),
       };
 
       await expect(eventPublisherService.publishEventCancelled(message)).rejects.toThrow(
@@ -314,8 +310,6 @@ describe('EventPublisherService', () => {
     it('should publish event.deleted message successfully', async () => {
       const message = {
         eventId: 'event-123',
-        title: 'Deleted Event',
-        timestamp: new Date().toISOString(),
       };
 
       await eventPublisherService.publishEventDeleted(message);
@@ -398,7 +392,7 @@ describe('EventPublisherService', () => {
       // Create a new mock channel with assertExchange throwing error
       const mockChannelWithError = {
         ...mockChannel,
-        assertExchange: jest.fn().mockRejectedValue(error),
+        assertExchange: (jest.fn() as jest.MockedFunction<any>).mockRejectedValue(error),
       };
       mockGetChannelFn.mockReturnValueOnce(mockChannelWithError);
 
@@ -406,7 +400,7 @@ describe('EventPublisherService', () => {
       expect(mockGetChannelFn).toHaveBeenCalled();
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Failed to setup event publisher queues',
-        error
+        error as any
       );
     });
   });

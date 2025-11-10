@@ -9,8 +9,8 @@
  * - Error handling
  */
 
-import '@jest/globals';
-import { Request, Response, NextFunction } from 'express';
+import { describe, it, beforeEach, afterEach, expect, jest } from '@jest/globals';
+import type { Request, Response, NextFunction } from 'express';
 import jwt, { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
 import { authMiddleware } from '../middleware/auth.middleware';
 import {
@@ -21,44 +21,38 @@ import {
   createMockJWT,
   resetAllMocks,
 } from './mocks-simple';
-import { contextService } from '../services/context.service';
+import type { RequestContext } from '../services/context.service';
 
-// Mock uuid - use a simpler approach
-const mockUuidV4 = jest.fn(() => 'test-request-id-1234');
 jest.mock('uuid', () => ({
   v4: jest.fn(() => 'test-request-id-1234'),
 }));
 
 // Mock context service
-const mockContextServiceRun = jest.fn((context: any, callback: () => void) => {
-  return callback();
-});
-
 jest.mock('../services/context.service', () => {
-  const actual = jest.requireActual('../services/context.service');
-  const mockRun = jest.fn((context: any, callback: () => void) => {
-    return callback();
-  });
+  const actual = jest.requireActual<typeof import('../services/context.service')>('../services/context.service');
+  const mockRun = jest.fn(<T,>(context: RequestContext, callback: () => T): T => callback());
   return {
     ...actual,
     contextService: {
+      ...actual.contextService,
       run: mockRun,
     },
   };
 });
 
-// Get the mocked modules after jest.mock
-const { contextService } = require('../services/context.service');
-const mockContextServiceRunRef = contextService.run;
-const uuid = require('uuid');
-const mockUuidV4Ref = uuid.v4;
+const contextServiceModule = jest.requireMock('../services/context.service') as typeof import('../services/context.service');
+const mockContextServiceRunRef = contextServiceModule.contextService.run as jest.MockedFunction<
+  typeof contextServiceModule.contextService.run
+>;
+const uuidModule = jest.requireMock('uuid') as { v4: jest.Mock };
+const mockUuidV4Ref = uuidModule.v4;
 
 describe('Auth Middleware', () => {
   let mockRequest: Partial<Request>;
-  let mockResponse: Partial<Response>;
-  let mockNext: NextFunction;
-  let statusSpy: jest.Mock;
-  let jsonSpy: jest.Mock;
+  let mockResponse: Response;
+  let mockNext: jest.MockedFunction<NextFunction>;
+  let statusSpy: jest.MockedFunction<Response['status']>;
+  let jsonSpy: jest.MockedFunction<Response['json']>;
 
   beforeEach(() => {
     resetAllMocks();
@@ -74,20 +68,22 @@ describe('Auth Middleware', () => {
     };
 
     // Setup response mock
-    statusSpy = jest.fn().mockReturnThis();
-    jsonSpy = jest.fn().mockReturnThis();
-    mockResponse = {
-      status: statusSpy,
-      json: jsonSpy,
-    };
+    const response = {} as Response;
+    statusSpy = jest.fn<Response['status']>().mockImplementation(function (this: Response) {
+      return this;
+    });
+    jsonSpy = jest.fn<Response['json']>().mockImplementation(function (this: Response) {
+      return this;
+    });
+    response.status = statusSpy;
+    response.json = jsonSpy;
+    mockResponse = response;
 
     // Setup next function mock
-    mockNext = jest.fn();
+    mockNext = jest.fn((err?: unknown) => undefined) as jest.MockedFunction<NextFunction>;
 
     // Ensure context service mock executes callback
-    mockContextServiceRunRef.mockImplementation((context: any, callback: () => void) => {
-      return callback();
-    });
+    mockContextServiceRunRef.mockImplementation(<T,>(context: RequestContext, callback: () => T) => callback());
   });
 
   afterEach(() => {
@@ -437,9 +433,7 @@ describe('Auth Middleware', () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
       // Override contextService.run to verify callback is called
-      mockContextServiceRunRef.mockImplementation((context: any, callback: () => void) => {
-        return callback();
-      });
+      mockContextServiceRunRef.mockImplementation(<T,>(context: RequestContext, callback: () => T) => callback());
 
       await authMiddleware(
         mockRequest as Request,

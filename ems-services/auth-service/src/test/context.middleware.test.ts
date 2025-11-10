@@ -9,8 +9,8 @@
  * - Error handling
  */
 
-import '@jest/globals';
-import { Request, Response, NextFunction } from 'express';
+import { describe, it, beforeEach, afterEach, expect, jest } from '@jest/globals';
+import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { contextMiddleware, requireAuth } from '../middleware/context.middleware';
 import {
@@ -18,7 +18,7 @@ import {
   resetAllMocks,
   createMockJWT,
 } from './mocks-simple';
-import { contextService } from '../services/context.service';
+import type { RequestContext } from '../services/context.service';
 
 // Mock uuid
 jest.mock('uuid', () => {
@@ -30,29 +30,32 @@ jest.mock('uuid', () => {
 
 // Mock context service
 jest.mock('../services/context.service', () => {
-  const actual = jest.requireActual('../services/context.service');
-  const mockRun = jest.fn((context: any, callback: () => void) => {
-    return callback();
-  });
-  const mockGetCurrentUserId = jest.fn();
+  const actual = jest.requireActual<typeof import('../services/context.service')>('../services/context.service');
+  const mockRun = jest.fn(<T,>(context: RequestContext, callback: () => T): T => callback());
+  const mockGetCurrentUserId = jest.fn(() => '');
   return {
     ...actual,
     contextService: {
+      ...actual.contextService,
       run: mockRun,
       getCurrentUserId: mockGetCurrentUserId,
     },
   };
 });
 
-// Get the mocked context service after jest.mock
-const { contextService } = require('../services/context.service');
-const mockContextServiceRunRef = contextService.run;
-const mockGetCurrentUserIdRef = contextService.getCurrentUserId;
+const contextServiceModule = jest.requireMock('../services/context.service') as typeof import('../services/context.service');
+const mockContextServiceRunRef = contextServiceModule.contextService.run as jest.MockedFunction<
+  typeof contextServiceModule.contextService.run
+>;
+const mockGetCurrentUserIdRef = contextServiceModule.contextService.getCurrentUserId as jest.MockedFunction<
+  typeof contextServiceModule.contextService.getCurrentUserId
+>;
+const uuidModule = jest.requireMock('uuid') as { v4: jest.Mock };
 
 describe('Context Middleware', () => {
   let mockRequest: Partial<Request>;
-  let mockResponse: Partial<Response>;
-  let mockNext: NextFunction;
+  let mockResponse: Response;
+  let mockNext: jest.MockedFunction<NextFunction>;
 
   beforeEach(() => {
     resetAllMocks();
@@ -61,8 +64,7 @@ describe('Context Middleware', () => {
     // Reset mocks
     mockContextServiceRunRef.mockClear();
     mockGetCurrentUserIdRef.mockClear();
-    const uuid = require('uuid');
-    uuid.v4.mockReturnValue('test-request-id-5678');
+    uuidModule.v4.mockReturnValue('test-request-id-5678');
 
     // Setup request mock
     mockRequest = {
@@ -70,18 +72,20 @@ describe('Context Middleware', () => {
     };
 
     // Setup response mock
-    mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
-    };
+    const response = {} as Response;
+    response.status = jest.fn<Response['status']>().mockImplementation(function (this: Response) {
+      return this;
+    });
+    response.json = jest.fn<Response['json']>().mockImplementation(function (this: Response) {
+      return this;
+    });
+    mockResponse = response;
 
     // Setup next function mock
-    mockNext = jest.fn();
+    mockNext = jest.fn((err?: unknown) => undefined) as jest.MockedFunction<NextFunction>;
 
     // Ensure context service mock executes callback
-    mockContextServiceRunRef.mockImplementation((context: any, callback: () => void) => {
-      return callback();
-    });
+    mockContextServiceRunRef.mockImplementation(<T,>(context: RequestContext, callback: () => T) => callback());
   });
 
   afterEach(() => {
@@ -182,9 +186,7 @@ describe('Context Middleware', () => {
       mockJWT.verify.mockReturnValue(mockJWTData);
 
       // Override contextService.run to verify callback is called
-      mockContextServiceRunRef.mockImplementation((context, callback) => {
-        callback();
-      });
+      mockContextServiceRunRef.mockImplementation(<T,>(context: RequestContext, callback: () => T) => callback());
 
       contextMiddleware(
         mockRequest as Request,
@@ -387,8 +389,7 @@ describe('Context Middleware', () => {
 
       // Reset and call again
       mockContextServiceRunRef.mockClear();
-      const uuid = require('uuid');
-      uuid.v4.mockReturnValueOnce('different-request-id');
+      uuidModule.v4.mockReturnValueOnce('different-request-id');
 
       contextMiddleware(
         mockRequest as Request,

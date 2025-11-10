@@ -97,7 +97,7 @@ export const mockRabbitMQService = {
 // ============================================================================
 
 // Import actual JWT for error classes
-const actualJWT = jest.requireActual('jsonwebtoken');
+const actualJWT = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
 
 export const mockJWT = {
   sign: jest.fn() as jest.MockedFunction<any>,
@@ -330,7 +330,7 @@ jest.mock('../services/rabbitmq.service', () => ({
 
 // Mock JWT - include error classes
 jest.mock('jsonwebtoken', () => {
-  const actualJWT = jest.requireActual('jsonwebtoken');
+  const actualJWT = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
   return {
     ...mockJWT,
     // Include error classes from actual JWT module so instanceof checks work

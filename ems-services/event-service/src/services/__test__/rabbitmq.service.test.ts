@@ -15,18 +15,18 @@ jest.unmock('../rabbitmq.service');
 
 // Mock amqplib before importing rabbitMQService
 const mockChannel = {
-  assertQueue: jest.fn().mockResolvedValue(undefined),
-  sendToQueue: jest.fn(),
-  close: jest.fn().mockResolvedValue(undefined),
+  assertQueue: (jest.fn() as jest.MockedFunction<any>).mockResolvedValue(undefined),
+  sendToQueue: (jest.fn() as jest.MockedFunction<any>).mockReturnValue(true),
+  close: (jest.fn() as jest.MockedFunction<any>).mockResolvedValue(undefined),
 };
 
 const mockConnection = {
-  createChannel: jest.fn().mockResolvedValue(mockChannel),
-  close: jest.fn().mockResolvedValue(undefined),
+  createChannel: (jest.fn() as jest.MockedFunction<any>).mockResolvedValue(mockChannel),
+  close: (jest.fn() as jest.MockedFunction<any>).mockResolvedValue(undefined),
 };
 
 // Create a function that returns the mock connection
-const mockConnectFn = jest.fn().mockResolvedValue(mockConnection);
+const mockConnectFn = (jest.fn() as jest.MockedFunction<any>).mockResolvedValue(mockConnection);
 
 jest.mock('amqplib', () => ({
   connect: (...args: any[]) => mockConnectFn(...args),
@@ -54,7 +54,7 @@ describe('RabbitMQ Service', () => {
     mockConnectFn.mockResolvedValue(mockConnection);
     mockConnection.createChannel.mockResolvedValue(mockChannel);
     mockChannel.assertQueue.mockResolvedValue(undefined);
-    mockChannel.sendToQueue.mockImplementation(() => {});
+    mockChannel.sendToQueue.mockImplementation(() => true);
     mockChannel.close.mockResolvedValue(undefined);
     mockConnection.close.mockResolvedValue(undefined);
 
@@ -123,7 +123,7 @@ describe('RabbitMQ Service', () => {
       mockConnectFn.mockRejectedValue(connectionError);
 
       await expect(rabbitMQService.connect()).rejects.toThrow('Connection failed');
-      expect(mockLogger.error).toHaveBeenCalled();
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.any(String), expect.any(Error), expect.anything());
     });
 
     it('should throw error when channel creation fails', async () => {

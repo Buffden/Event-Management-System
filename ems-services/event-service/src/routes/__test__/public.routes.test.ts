@@ -21,9 +21,9 @@ jest.mock('../../middleware/error.middleware', () => ({
 }));
 
 jest.mock('../../middleware/validation.middleware', () => {
-  const actual = jest.requireActual('../../middleware/validation.middleware');
+  const actual = jest.requireActual<typeof import('../../middleware/validation.middleware')>('../../middleware/validation.middleware');
   return {
-    ...actual,
+    ...(actual || {}),
     validateQuery: (fn: any) => (req: any, res: any, next: any) => {
       const errors = fn(req.query);
       if (errors && errors.length > 0) {

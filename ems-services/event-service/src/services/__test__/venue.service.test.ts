@@ -61,8 +61,8 @@ describe('VenueService', () => {
       };
 
       // Set up mocks for this specific test
-      (mockPrisma.venue.findUnique as jest.Mock).mockResolvedValueOnce(null); // No existing venue
-      (mockPrisma.venue.create as jest.Mock).mockResolvedValueOnce(mockVenue);
+      (mockPrisma.venue.findUnique as jest.MockedFunction<any>).mockResolvedValueOnce(null); // No existing venue
+      (mockPrisma.venue.create as jest.MockedFunction<any>).mockResolvedValueOnce(mockVenue);
 
       const result = await venueService.createVenue(venueData);
 
@@ -416,7 +416,7 @@ describe('VenueService', () => {
         { id: 3, name: 'Venue 3', address: 'Address 3', capacity: 300, openingTime: '09:00', closingTime: '18:00', createdAt: new Date('2024-01-01T00:00:00Z'), updatedAt: new Date('2024-01-01T00:00:00Z') }
       ];
 
-      mockPrisma.venue.findMany = jest.fn().mockResolvedValue(mockVenues);
+      (mockPrisma.venue.findMany as jest.MockedFunction<any>).mockResolvedValue(mockVenues);
 
       const result = await venueService.getAllVenues();
 

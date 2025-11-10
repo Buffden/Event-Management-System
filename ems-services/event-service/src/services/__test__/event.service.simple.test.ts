@@ -15,12 +15,15 @@ import {
   setupEventNotFound,
   setupVenueNotFound,
 } from '../../test/mocks-simple';
+import { EventStatus } from '../../../generated/prisma';
 
 describe('EventService (simple)', () => {
   let eventService: EventService;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     eventService = new EventService();
+    mockAxios.isAxiosError.mockReturnValue(false);
   });
 
   describe('getEvent', () => {
@@ -171,6 +174,58 @@ describe('EventService (simple)', () => {
     it('should have required methods', () => {
       expect(typeof eventService.getEventById).toBe('function');
       expect(typeof eventService.createEvent).toBe('function');
+      expect(typeof eventService.deleteEvent).toBe('function');
+    });
+  });
+
+  describe('deleteEvent', () => {
+    it('allows a speaker to delete their own draft event', async () => {
+      const eventId = 'event-123';
+      const speakerId = 'speaker-123';
+      const eventRecord = createMockEvent({
+        id: eventId,
+        speakerId,
+        status: EventStatus.DRAFT,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(eventRecord);
+      mockPrisma.event.delete.mockResolvedValue(undefined);
+
+      await expect(eventService.deleteEvent(eventId, speakerId)).resolves.toBeUndefined();
+      expect(mockPrisma.event.delete).toHaveBeenCalledWith({ where: { id: eventId } });
+    });
+
+    it('prevents speakers from deleting non-draft events', async () => {
+      const eventId = 'event-123';
+      const speakerId = 'speaker-123';
+      const eventRecord = createMockEvent({
+        id: eventId,
+        speakerId,
+        status: EventStatus.PUBLISHED,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(eventRecord);
+
+      await expect(eventService.deleteEvent(eventId, speakerId)).rejects.toThrow(
+        'Event can only be deleted when in DRAFT status'
+      );
+      expect(mockPrisma.event.delete).not.toHaveBeenCalled();
+    });
+
+    it('allows admins to delete any event regardless of status or owner', async () => {
+      const eventId = 'event-123';
+      const adminId = 'admin-456';
+      const eventRecord = createMockEvent({
+        id: eventId,
+        speakerId: 'different-speaker',
+        status: EventStatus.PUBLISHED,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(eventRecord);
+      mockPrisma.event.delete.mockResolvedValue(undefined);
+
+      await expect(eventService.deleteEvent(eventId, adminId, { isAdmin: true })).resolves.toBeUndefined();
+      expect(mockPrisma.event.delete).toHaveBeenCalledWith({ where: { id: eventId } });
     });
   });
 });
