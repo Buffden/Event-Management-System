@@ -179,7 +179,9 @@ class EventApiClient extends BaseApiClient {
   }
 
   async listSessions(eventId: string): Promise<{ success: boolean; data: SessionResponse[] }> {
-    return this.request<{ success: boolean; data: SessionResponse[] }>(`/admin/admin/events/${eventId}/sessions`);
+    // Use public endpoint which allows all users (including attendees) to view sessions
+    // for published events. This endpoint checks that the event is published.
+    return this.request<{ success: boolean; data: SessionResponse[] }>(`/events/${eventId}/sessions`);
   }
 
   async createSession(eventId: string, payload: CreateSessionRequest): Promise<{ success: boolean; data: SessionResponse }> {
