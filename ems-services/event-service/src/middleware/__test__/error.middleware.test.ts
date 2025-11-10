@@ -201,31 +201,6 @@ describe('Error Middleware', () => {
       expect(mockNext).toHaveBeenCalledWith(error);
     });
 
-    it.skip('should handle synchronous errors', (done) => {
-      // Note: This test is skipped because Promise.resolve() doesn't catch synchronous errors
-      // thrown directly from the function. The asyncHandler implementation uses Promise.resolve()
-      // which only catches promise rejections, not synchronous throws.
-      // In practice, async handlers should return promises or use try-catch.
-      const error = new Error('Sync error');
-      const handler = jest.fn(() => {
-        throw error;
-      });
-
-      const wrappedHandler = asyncHandler(handler);
-
-      // Set up next to verify error was passed and call done
-      const mockNextWithDone = jest.fn((err) => {
-        try {
-          expect(err).toBe(error);
-          done();
-        } catch (e) {
-          done(e);
-        }
-      });
-
-      // Call the handler - Promise.resolve will catch the error
-      wrappedHandler(mockRequest as Request, mockResponse as Response, mockNextWithDone);
-    });
 
     it('should handle promise rejections', async () => {
       const error = new Error('Promise rejection');

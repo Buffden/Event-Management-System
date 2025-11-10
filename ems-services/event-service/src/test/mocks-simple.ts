@@ -105,6 +105,7 @@ export const mockRabbitMQService = {
   sendMessage: jest.fn() as jest.MockedFunction<any>,
   consumeMessage: jest.fn() as jest.MockedFunction<any>,
   publishEvent: jest.fn() as jest.MockedFunction<any>,
+  getChannel: jest.fn() as jest.MockedFunction<any>,
 };
 
 export const mockAuthValidationService = {

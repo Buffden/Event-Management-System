@@ -243,5 +243,113 @@ describe('Admin Routes', () => {
       expect(venueService.deleteVenue).toHaveBeenCalledWith(1);
     });
   });
+
+  describe('PATCH /api/admin/events/:id/cancel', () => {
+    it('should cancel event', async () => {
+      const mockEvent = createMockEvent({ id: 'event-123', status: 'CANCELLED' });
+      (eventService.cancelEvent as jest.MockedFunction<any>).mockResolvedValue(mockEvent);
+
+      const response = await request(app)
+        .patch('/api/admin/events/event-123/cancel');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(eventService.cancelEvent).toHaveBeenCalledWith('event-123');
+    });
+  });
+
+  describe('GET /api/admin/venues', () => {
+    it('should return list of venues with filters', async () => {
+      const mockVenues = {
+        venues: [createMockVenue()],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      };
+      (venueService.getVenues as jest.MockedFunction<any>).mockResolvedValue(mockVenues);
+
+      const response = await request(app)
+        .get('/api/admin/venues')
+        .query({ page: 1, limit: 10, name: 'Test Venue' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(venueService.getVenues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          limit: 10,
+          name: 'Test Venue',
+        })
+      );
+    });
+  });
+
+  describe('GET /api/admin/venues/:id', () => {
+    it('should return venue by ID', async () => {
+      const mockVenue = createMockVenue({ id: 1 });
+      (venueService.getVenueById as jest.MockedFunction<any>).mockResolvedValue(mockVenue);
+
+      const response = await request(app)
+        .get('/api/admin/venues/1');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(response.body.data.id).toBe(1);
+      expect(venueService.getVenueById).toHaveBeenCalledWith(1);
+    });
+
+    it('should return 404 when venue not found', async () => {
+      (venueService.getVenueById as jest.MockedFunction<any>).mockResolvedValue(null);
+
+      const response = await request(app)
+        .get('/api/admin/venues/999');
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Venue not found');
+    });
+  });
+
+  describe('GET /api/stats', () => {
+    it('should return event statistics', async () => {
+      mockPrisma.event.count
+        .mockResolvedValueOnce(100) // totalEvents
+        .mockResolvedValueOnce(50);  // activeEvents
+
+      const response = await request(app)
+        .get('/api/stats');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(response.body.data.totalEvents).toBe(100);
+      expect(response.body.data.activeEvents).toBe(50);
+    });
+  });
+
+  describe('GET /api/reports/event-status', () => {
+    it('should return event status distribution', async () => {
+      mockPrisma.event.count
+        .mockResolvedValueOnce(100) // totalEvents
+        .mockResolvedValueOnce(50)  // PUBLISHED
+        .mockResolvedValueOnce(20)  // DRAFT
+        .mockResolvedValueOnce(15)  // PENDING_APPROVAL
+        .mockResolvedValueOnce(10)  // REJECTED
+        .mockResolvedValueOnce(5)   // CANCELLED
+        .mockResolvedValueOnce(0);  // COMPLETED
+
+      const response = await request(app)
+        .get('/api/reports/event-status');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+  });
 });
 
