@@ -6,6 +6,8 @@
  */
 
 import '@jest/globals';
+// Note: jest-mocks.ts is loaded via setupFiles in jest.config.ts
+// so it runs before this file. We don't need to import it here.
 import { setupAllMocks, resetAllMocks } from './mocks-simple';
 
 // Setup all common mocks before any tests run

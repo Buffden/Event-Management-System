@@ -12,22 +12,13 @@
 
 import '@jest/globals';
 
-// Import mocks - use direct imports
-import {
-  mockPrisma,
-  mockEventPublisherService,
-  mockAxios,
-  mockLogger,
-  createMockTicket,
-  createMockBooking,
-  createMockEvent,
-  setupSuccessfulTicketGeneration,
-  setupBookingNotFound,
-  setupQRCodeGeneration,
-  setupEventServiceResponse,
-  setupEventServiceError,
-  setupDatabaseError,
-} from './mocks-simple';
+// Import mocks - use requireActual to bypass Jest's mock if it exists
+// This ensures we get the actual exports even if jest.mock() interferes
+const mocks = jest.requireActual('./mocks-simple');
+const mockPrisma = mocks.mockPrisma;
+const mockEventPublisherService = mocks.mockEventPublisherService;
+const mockAxios = mocks.mockAxios;
+const mockLogger = mocks.mockLogger;
 
 import { TicketService } from '../services/ticket.service';
 import { TicketStatus } from '../../generated/prisma';
@@ -37,6 +28,17 @@ describe('TicketService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Restore default ticket.create mockImplementation after clearing
+    // This ensures expiresAt and createdAt are always available
+    mockPrisma.ticket.create.mockImplementation(async (args: any) => {
+      const baseTicket = mocks.createMockTicket();
+      return {
+        ...baseTicket,
+        expiresAt: args.data?.expiresAt || baseTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
+        issuedAt: args.data?.issuedAt || baseTicket.issuedAt || new Date(),
+        createdAt: args.data?.createdAt || baseTicket.createdAt || new Date(),
+      };
+    });
     // Ensure mockPrisma.$transaction exists and set it up
     if (mockPrisma && mockPrisma.$transaction) {
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
@@ -62,9 +64,9 @@ describe('TicketService', () => {
 
   describe('generateTicket()', () => {
     it('should generate ticket successfully', async () => {
-      const { mockTicket, mockBooking } = setupSuccessfulTicketGeneration();
-      setupQRCodeGeneration();
-      setupEventServiceResponse({
+      const { mockTicket, mockBooking } = mocks.setupSuccessfulTicketGeneration();
+      mocks.setupQRCodeGeneration();
+      mocks.setupEventServiceResponse({
         bookingEndDate: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
       });
 
@@ -86,15 +88,15 @@ describe('TicketService', () => {
     });
 
     it('should return existing ticket if already generated', async () => {
-      const mockBooking = createMockBooking({ status: 'CONFIRMED' });
-      const existingTicket = createMockTicket({ bookingId: 'booking-123' });
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
+      const existingTicket = mocks.createMockTicket({ bookingId: 'booking-123' });
 
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
       mockPrisma.ticket.findUnique.mockResolvedValue({
         ...existingTicket,
         booking: mockBooking,
       });
-      setupEventServiceResponse();
+      mocks.setupEventServiceResponse();
 
       const result = await ticketService.generateTicket({
         bookingId: 'booking-123',
@@ -107,7 +109,7 @@ describe('TicketService', () => {
     });
 
     it('should reject ticket generation for non-existent booking', async () => {
-      setupBookingNotFound();
+      mocks.setupBookingNotFound();
 
       await expect(
         ticketService.generateTicket({
@@ -119,7 +121,7 @@ describe('TicketService', () => {
     });
 
     it('should reject ticket generation for unconfirmed booking', async () => {
-      const mockBooking = createMockBooking({ status: 'CANCELLED' });
+      const mockBooking = mocks.createMockBooking({ status: 'CANCELLED' });
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
 
       await expect(
@@ -132,21 +134,22 @@ describe('TicketService', () => {
     });
 
     it('should set expiration to 2 hours after event ends', async () => {
-      const mockBooking = createMockBooking({ status: 'CONFIRMED' });
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
       const eventEndDate = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
       mockPrisma.ticket.findUnique.mockResolvedValue(null);
-      setupQRCodeGeneration();
-      setupEventServiceResponse({
+      mocks.setupQRCodeGeneration();
+      mocks.setupEventServiceResponse({
         bookingEndDate: eventEndDate.toISOString(),
       });
 
-      const mockTicket = createMockTicket();
+      const mockTicket = mocks.createMockTicket();
       const expectedExpiresAt = new Date(eventEndDate.getTime() + 2 * 60 * 60 * 1000);
       mockPrisma.ticket.create.mockResolvedValue({
         ...mockTicket,
         expiresAt: expectedExpiresAt,
+        createdAt: mockTicket.createdAt || new Date(),
       });
 
       await ticketService.generateTicket({
@@ -165,14 +168,19 @@ describe('TicketService', () => {
     });
 
     it('should use fallback expiration if event service unavailable', async () => {
-      const mockBooking = createMockBooking({ status: 'CONFIRMED' });
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
       mockPrisma.ticket.findUnique.mockResolvedValue(null);
-      setupQRCodeGeneration();
-      setupEventServiceError();
+      mocks.setupQRCodeGeneration();
+      mocks.setupEventServiceError();
 
-      const mockTicket = createMockTicket();
-      mockPrisma.ticket.create.mockResolvedValue(mockTicket);
+      const mockTicket = mocks.createMockTicket();
+      // Ensure expiresAt and createdAt are set (service calculates expiresAt and Prisma adds createdAt)
+      mockPrisma.ticket.create.mockResolvedValue({
+        ...mockTicket,
+        expiresAt: mockTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
+        createdAt: mockTicket.createdAt || new Date(),
+      });
 
       await ticketService.generateTicket({
         bookingId: 'booking-123',
@@ -190,15 +198,15 @@ describe('TicketService', () => {
 
   describe('getTicketById()', () => {
     it('should get ticket by ID successfully', async () => {
-      const mockTicket = createMockTicket();
-      const mockBooking = createMockBooking();
+      const mockTicket = mocks.createMockTicket();
+      const mockBooking = mocks.createMockBooking();
 
       mockPrisma.ticket.findUnique.mockResolvedValue({
         ...mockTicket,
         qrCode: { id: 'qr-123', data: 'qr-data', format: 'PNG' },
         booking: mockBooking,
       });
-      setupEventServiceResponse();
+      mocks.setupEventServiceResponse();
 
       const result = await ticketService.getTicketById('ticket-123');
 
@@ -233,10 +241,10 @@ describe('TicketService', () => {
   describe('getUserTickets()', () => {
     it('should get user tickets successfully', async () => {
       const mockTickets = [
-        createMockTicket({ id: 'ticket-1' }),
-        createMockTicket({ id: 'ticket-2' }),
+        mocks.createMockTicket({ id: 'ticket-1' }),
+        mocks.createMockTicket({ id: 'ticket-2' }),
       ];
-      const mockBooking = createMockBooking();
+      const mockBooking = mocks.createMockBooking();
 
       mockPrisma.ticket.findMany.mockResolvedValue(
         mockTickets.map(ticket => ({
@@ -245,7 +253,7 @@ describe('TicketService', () => {
           booking: mockBooking,
         }))
       );
-      setupEventServiceResponse();
+      mocks.setupEventServiceResponse();
 
       const result = await ticketService.getUserTickets('user-123');
 
@@ -268,7 +276,7 @@ describe('TicketService', () => {
 
   describe('revokeTicket()', () => {
     it('should revoke ticket successfully', async () => {
-      const mockTicket = createMockTicket({ status: 'ISSUED' });
+      const mockTicket = mocks.createMockTicket({ status: 'ISSUED' });
       mockPrisma.ticket.findUnique.mockResolvedValue(mockTicket);
       mockPrisma.ticket.update.mockResolvedValue({
         ...mockTicket,
@@ -298,7 +306,7 @@ describe('TicketService', () => {
     });
 
     it('should return error for already revoked ticket', async () => {
-      const mockTicket = createMockTicket({ status: 'REVOKED' });
+      const mockTicket = mocks.createMockTicket({ status: 'REVOKED' });
       mockPrisma.ticket.findUnique.mockResolvedValue(mockTicket);
 
       const result = await ticketService.revokeTicket('ticket-123');
@@ -357,16 +365,21 @@ describe('TicketService', () => {
 
   describe('QR Code Generation', () => {
     it('should generate unique QR code data', async () => {
-      const { mockQRCode } = setupQRCodeGeneration();
+      const { mockQRCode } = mocks.setupQRCodeGeneration();
 
       // This is tested indirectly through generateTicket
-      const mockBooking = createMockBooking({ status: 'CONFIRMED' });
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
       mockPrisma.ticket.findUnique.mockResolvedValue(null);
 
-      const mockTicket = createMockTicket();
-      mockPrisma.ticket.create.mockResolvedValue(mockTicket);
-      setupEventServiceResponse();
+      const mockTicket = mocks.createMockTicket();
+      // Ensure expiresAt and createdAt are set (service calculates expiresAt and Prisma adds createdAt)
+      mockPrisma.ticket.create.mockResolvedValue({
+        ...mockTicket,
+        expiresAt: mockTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
+        createdAt: mockTicket.createdAt || new Date(),
+      });
+      mocks.setupEventServiceResponse();
 
       await ticketService.generateTicket({
         bookingId: 'booking-123',
@@ -386,13 +399,18 @@ describe('TicketService', () => {
     });
 
     it('should handle QR code collision by regenerating', async () => {
-      const mockBooking = createMockBooking({ status: 'CONFIRMED' });
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
       mockPrisma.ticket.findUnique.mockResolvedValue(null);
 
-      const mockTicket = createMockTicket();
-      mockPrisma.ticket.create.mockResolvedValue(mockTicket);
-      setupEventServiceResponse();
+      const mockTicket = mocks.createMockTicket();
+      // Ensure expiresAt and createdAt are set (service calculates expiresAt and Prisma adds createdAt)
+      mockPrisma.ticket.create.mockResolvedValue({
+        ...mockTicket,
+        expiresAt: mockTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
+        createdAt: mockTicket.createdAt || new Date(),
+      });
+      mocks.setupEventServiceResponse();
 
       // First call returns existing QR (collision)
       mockPrisma.qRCode.findUnique
@@ -425,8 +443,8 @@ describe('TicketService', () => {
 
   describe('Error Handling', () => {
     it('should handle database errors during ticket generation', async () => {
-      setupDatabaseError();
-      const mockBooking = createMockBooking({ status: 'CONFIRMED' });
+      mocks.setupDatabaseError();
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
       mockPrisma.ticket.findUnique.mockResolvedValue(null);
 
@@ -440,7 +458,7 @@ describe('TicketService', () => {
     });
 
     it('should handle errors gracefully in revokeTicket', async () => {
-      setupDatabaseError();
+      mocks.setupDatabaseError();
 
       const result = await ticketService.revokeTicket('ticket-123');
 

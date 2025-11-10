@@ -21,25 +21,13 @@ jest.mock('../services/ticket.service', () => ({
   },
 }));
 
-// Import mocks - use direct imports to avoid hoisting issues
-import {
-  mockPrisma,
-  mockEventPublisherService,
-  mockAxios,
-  mockLogger,
-  createMockBooking,
-  createMockEvent,
-  createMockUser,
-  setupSuccessfulBookingCreation,
-  setupExistingBooking,
-  setupEventNotFound,
-  setupEventFullCapacity,
-  setupEventAvailableCapacity,
-  setupSuccessfulBookingCancellation,
-  setupDatabaseError,
-  setupEventServiceResponse,
-  setupBookingNotFound,
-} from './mocks-simple';
+// Import mocks - use requireActual to bypass Jest's mock if it exists
+// This ensures we get the actual exports even if jest.mock() interferes
+const mocks = jest.requireActual('./mocks-simple');
+const mockPrisma = mocks.mockPrisma;
+const mockEventPublisherService = mocks.mockEventPublisherService;
+const mockAxios = mocks.mockAxios;
+const mockLogger = mocks.mockLogger;
 
 import { BookingService } from '../services/booking.service';
 import { BookingStatus } from '../../generated/prisma';
@@ -75,7 +63,7 @@ describe('BookingService', () => {
 
   describe('createBooking()', () => {
     it('should create a new booking successfully', async () => {
-      const { mockBooking, mockEvent } = setupSuccessfulBookingCreation();
+      const { mockBooking, mockEvent } = mocks.setupSuccessfulBookingCreation();
       mockPrisma.booking.findUnique.mockResolvedValue(null); // No existing booking
       mockPrisma.booking.count.mockResolvedValue(50); // Available capacity
       (ticketService.generateTicket as jest.Mock).mockResolvedValue(undefined);
@@ -104,7 +92,7 @@ describe('BookingService', () => {
     });
 
     it('should reject booking for non-existent event', async () => {
-      setupEventNotFound();
+      mocks.setupEventNotFound();
 
       await expect(
         bookingService.createBooking({
@@ -115,7 +103,7 @@ describe('BookingService', () => {
     });
 
     it('should reject booking for inactive event', async () => {
-      const mockEvent = createMockEvent({ isActive: false });
+      const mockEvent = mocks.createMockEvent({ isActive: false });
       mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
 
       await expect(
@@ -127,8 +115,8 @@ describe('BookingService', () => {
     });
 
     it('should reject duplicate booking', async () => {
-      const mockEvent = createMockEvent({ isActive: true });
-      const existingBooking = createMockBooking({ status: 'CONFIRMED' });
+      const mockEvent = mocks.createMockEvent({ isActive: true });
+      const existingBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
 
       mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
       mockPrisma.booking.findUnique.mockResolvedValue(existingBooking);
@@ -142,7 +130,7 @@ describe('BookingService', () => {
     });
 
     it('should reject booking when event is at full capacity', async () => {
-      setupEventFullCapacity();
+      mocks.setupEventFullCapacity();
       mockPrisma.booking.findUnique.mockResolvedValue(null); // No existing booking
 
       await expect(
@@ -154,7 +142,7 @@ describe('BookingService', () => {
     });
 
     it('should handle database errors during booking creation', async () => {
-      setupDatabaseError();
+      mocks.setupDatabaseError();
       mockPrisma.booking.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -166,7 +154,7 @@ describe('BookingService', () => {
     });
 
     it('should not fail booking if ticket generation fails', async () => {
-      const { mockBooking } = setupSuccessfulBookingCreation();
+      const { mockBooking } = mocks.setupSuccessfulBookingCreation();
       mockPrisma.booking.findUnique.mockResolvedValue(null);
       mockPrisma.booking.count.mockResolvedValue(50);
       (ticketService.generateTicket as jest.Mock).mockRejectedValue(new Error('Ticket generation failed'));
@@ -188,8 +176,8 @@ describe('BookingService', () => {
   describe('getUserBookings()', () => {
     it('should get user bookings successfully', async () => {
       const mockBookings = [
-        createMockBooking({ id: 'booking-1', status: 'CONFIRMED' }),
-        createMockBooking({ id: 'booking-2', status: 'CONFIRMED' }),
+        mocks.createMockBooking({ id: 'booking-1', status: 'CONFIRMED' }),
+        mocks.createMockBooking({ id: 'booking-2', status: 'CONFIRMED' }),
       ];
 
       mockPrisma.booking.findMany.mockResolvedValue(mockBookings);
@@ -204,7 +192,7 @@ describe('BookingService', () => {
     });
 
     it('should filter bookings by status', async () => {
-      const mockBookings = [createMockBooking({ status: 'CANCELLED' })];
+      const mockBookings = [mocks.createMockBooking({ status: 'CANCELLED' })];
       mockPrisma.booking.findMany.mockResolvedValue(mockBookings);
       mockPrisma.booking.count.mockResolvedValue(1);
 
@@ -223,7 +211,7 @@ describe('BookingService', () => {
     });
 
     it('should filter bookings by eventId', async () => {
-      const mockBookings = [createMockBooking({ eventId: 'event-123' })];
+      const mockBookings = [mocks.createMockBooking({ eventId: 'event-123' })];
       mockPrisma.booking.findMany.mockResolvedValue(mockBookings);
       mockPrisma.booking.count.mockResolvedValue(1);
 
@@ -241,7 +229,7 @@ describe('BookingService', () => {
     });
 
     it('should handle pagination correctly', async () => {
-      const mockBookings = [createMockBooking()];
+      const mockBookings = [mocks.createMockBooking()];
       mockPrisma.booking.findMany.mockResolvedValue(mockBookings);
       mockPrisma.booking.count.mockResolvedValue(25);
 
@@ -262,7 +250,7 @@ describe('BookingService', () => {
 
   describe('cancelBooking()', () => {
     it('should cancel booking successfully', async () => {
-      const { mockBooking, cancelledBooking } = setupSuccessfulBookingCancellation();
+      const { mockBooking, cancelledBooking } = mocks.setupSuccessfulBookingCancellation();
 
       const result = await bookingService.cancelBooking('booking-123', 'user-123');
 
@@ -280,7 +268,7 @@ describe('BookingService', () => {
     });
 
     it('should reject cancellation for non-existent booking', async () => {
-      setupBookingNotFound();
+      mocks.setupBookingNotFound();
 
       await expect(
         bookingService.cancelBooking('non-existent', 'user-123')
@@ -288,7 +276,7 @@ describe('BookingService', () => {
     });
 
     it('should reject cancellation by different user', async () => {
-      const mockBooking = createMockBooking({ userId: 'user-123' });
+      const mockBooking = mocks.createMockBooking({ userId: 'user-123' });
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
 
       await expect(
@@ -297,7 +285,7 @@ describe('BookingService', () => {
     });
 
     it('should reject cancellation of already cancelled booking', async () => {
-      const mockBooking = createMockBooking({
+      const mockBooking = mocks.createMockBooking({
         userId: 'user-123',
         status: 'CANCELLED',
       });
@@ -316,8 +304,8 @@ describe('BookingService', () => {
   describe('getEventBookings()', () => {
     it('should get event bookings successfully', async () => {
       const mockBookings = [
-        createMockBooking({ eventId: 'event-123' }),
-        createMockBooking({ eventId: 'event-123' }),
+        mocks.createMockBooking({ eventId: 'event-123' }),
+        mocks.createMockBooking({ eventId: 'event-123' }),
       ];
 
       mockPrisma.booking.findMany.mockResolvedValue(mockBookings);
@@ -336,7 +324,7 @@ describe('BookingService', () => {
     });
 
     it('should filter event bookings by status', async () => {
-      const mockBookings = [createMockBooking({ status: 'CONFIRMED' })];
+      const mockBookings = [mocks.createMockBooking({ status: 'CONFIRMED' })];
       mockPrisma.booking.findMany.mockResolvedValue(mockBookings);
       mockPrisma.booking.count.mockResolvedValue(1);
 
@@ -354,7 +342,7 @@ describe('BookingService', () => {
 
   describe('checkEventCapacity()', () => {
     it('should check event capacity successfully', async () => {
-      setupEventAvailableCapacity();
+      mocks.setupEventAvailableCapacity();
 
       const result = await bookingService.checkEventCapacity('event-123');
 
@@ -365,7 +353,7 @@ describe('BookingService', () => {
     });
 
     it('should return false for full capacity', async () => {
-      setupEventFullCapacity();
+      mocks.setupEventFullCapacity();
 
       const result = await bookingService.checkEventCapacity('event-123');
 
@@ -374,7 +362,7 @@ describe('BookingService', () => {
     });
 
     it('should reject capacity check for non-existent event', async () => {
-      setupEventNotFound();
+      mocks.setupEventNotFound();
 
       await expect(
         bookingService.checkEventCapacity('non-existent')
@@ -388,7 +376,7 @@ describe('BookingService', () => {
 
   describe('getBookingById()', () => {
     it('should get booking by ID successfully', async () => {
-      const mockBooking = createMockBooking();
+      const mockBooking = mocks.createMockBooking();
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
 
       const result = await bookingService.getBookingById('booking-123');
@@ -402,7 +390,7 @@ describe('BookingService', () => {
     });
 
     it('should return null for non-existent booking', async () => {
-      setupBookingNotFound();
+      mocks.setupBookingNotFound();
 
       const result = await bookingService.getBookingById('non-existent');
 
@@ -440,12 +428,12 @@ describe('BookingService', () => {
   describe('getDashboardStats()', () => {
     it('should get dashboard statistics successfully', async () => {
       const mockBookings = [
-        createMockBooking({
+        mocks.createMockBooking({
           status: 'CONFIRMED',
           isAttended: true,
           ticket: { id: 'ticket-1', status: 'ISSUED' },
         }),
-        createMockBooking({
+        mocks.createMockBooking({
           status: 'CONFIRMED',
           isAttended: false,
           ticket: { id: 'ticket-2', status: 'SCANNED' },
@@ -453,7 +441,7 @@ describe('BookingService', () => {
       ];
 
       mockPrisma.booking.findMany.mockResolvedValue(mockBookings);
-      setupEventServiceResponse();
+      mocks.setupEventServiceResponse();
 
       const result = await bookingService.getDashboardStats('user-123');
 
@@ -472,14 +460,14 @@ describe('BookingService', () => {
   describe('getUpcomingEvents()', () => {
     it('should get upcoming events successfully', async () => {
       const mockBookings = [
-        createMockBooking({
+        mocks.createMockBooking({
           status: 'CONFIRMED',
           ticket: { id: 'ticket-1', status: 'ISSUED' },
         }),
       ];
 
       mockPrisma.booking.findMany.mockResolvedValue(mockBookings);
-      setupEventServiceResponse({
+      mocks.setupEventServiceResponse({
         bookingStartDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       });
 
@@ -497,14 +485,14 @@ describe('BookingService', () => {
   describe('getRecentRegistrations()', () => {
     it('should get recent registrations successfully', async () => {
       const mockBookings = [
-        createMockBooking({
+        mocks.createMockBooking({
           status: 'CONFIRMED',
           ticket: { id: 'ticket-1', status: 'ISSUED' },
         }),
       ];
 
       mockPrisma.booking.findMany.mockResolvedValue(mockBookings);
-      setupEventServiceResponse();
+      mocks.setupEventServiceResponse();
 
       const result = await bookingService.getRecentRegistrations('user-123', 5);
 
@@ -519,10 +507,10 @@ describe('BookingService', () => {
 
   describe('getNumberOfUsersForEvent()', () => {
     it('should get number of users for event successfully', async () => {
-      const mockEvent = createMockEvent();
+      const mockEvent = mocks.createMockEvent();
       const mockBookings = [
-        createMockBooking({ status: 'CONFIRMED' }),
-        createMockBooking({ status: 'CONFIRMED' }),
+        mocks.createMockBooking({ status: 'CONFIRMED' }),
+        mocks.createMockBooking({ status: 'CONFIRMED' }),
       ];
 
       mockPrisma.event.findUnique.mockResolvedValue(mockEvent);
@@ -531,7 +519,7 @@ describe('BookingService', () => {
 
       // Mock getUserInfo
       jest.doMock('../utils/auth-helpers', () => ({
-        getUserInfo: jest.fn().mockResolvedValue(createMockUser({ role: 'USER' })),
+        getUserInfo: jest.fn().mockResolvedValue(mocks.createMockUser({ role: 'USER' })),
       }));
 
       const result = await bookingService.getNumberOfUsersForEvent('event-123');
@@ -542,7 +530,7 @@ describe('BookingService', () => {
     });
 
     it('should reject for non-existent event', async () => {
-      setupEventNotFound();
+      mocks.setupEventNotFound();
 
       await expect(
         bookingService.getNumberOfUsersForEvent('non-existent')

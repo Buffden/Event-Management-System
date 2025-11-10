@@ -23,8 +23,8 @@ export const createMockBooking = (overrides: any = {}) => ({
     capacity: 100,
     isActive: true,
   },
-  createdAt: '2024-01-01T00:00:00.000Z',
-  updatedAt: '2024-01-01T00:00:00.000Z',
+  createdAt: new Date('2024-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2024-01-01T00:00:00.000Z'),
   ...overrides,
 });
 
@@ -36,8 +36,10 @@ export const createMockTicket = (overrides: any = {}) => ({
   bookingId: 'booking-123',
   eventId: 'event-123',
   status: 'ISSUED',
-  issuedAt: '2024-01-01T00:00:00.000Z',
-  expiresAt: '2024-12-31T23:59:59.000Z',
+  issuedAt: new Date('2024-01-01T00:00:00.000Z'),
+  expiresAt: new Date('2024-12-31T23:59:59.000Z'),
+  createdAt: new Date('2024-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2024-01-01T00:00:00.000Z'),
   qrCode: { id: 'qr-123', data: 'QR_CODE_DATA', format: 'PNG' },
   scannedAt: undefined,
   ...overrides,
@@ -95,6 +97,7 @@ export const mockPrisma = {
     findFirst: jest.fn() as jest.MockedFunction<any>,
     create: jest.fn() as jest.MockedFunction<any>,
     update: jest.fn() as jest.MockedFunction<any>,
+    updateMany: jest.fn() as jest.MockedFunction<any>,
     delete: jest.fn() as jest.MockedFunction<any>,
     count: jest.fn() as jest.MockedFunction<any>,
     upsert: jest.fn() as jest.MockedFunction<any>,
@@ -136,6 +139,14 @@ export const mockPrisma = {
     create: jest.fn() as jest.MockedFunction<any>,
     count: jest.fn() as jest.MockedFunction<any>,
   },
+  account: {
+    findUnique: jest.fn() as jest.MockedFunction<any>,
+    findMany: jest.fn() as jest.MockedFunction<any>,
+    create: jest.fn() as jest.MockedFunction<any>,
+    update: jest.fn() as jest.MockedFunction<any>,
+    delete: jest.fn() as jest.MockedFunction<any>,
+    count: jest.fn() as jest.MockedFunction<any>,
+  },
   $transaction: jest.fn() as jest.MockedFunction<any>,
   $connect: jest.fn() as jest.MockedFunction<any>,
   $disconnect: jest.fn() as jest.MockedFunction<any>,
@@ -161,6 +172,7 @@ export const mockAuthValidationService = {
 
 export const mockEventPublisherService = {
   publishBookingCreated: jest.fn() as jest.MockedFunction<any>,
+  publishBookingConfirmed: jest.fn() as jest.MockedFunction<any>,
   publishBookingUpdated: jest.fn() as jest.MockedFunction<any>,
   publishBookingCancelled: jest.fn() as jest.MockedFunction<any>,
   publishTicketGenerated: jest.fn() as jest.MockedFunction<any>,
@@ -243,11 +255,20 @@ export const setupSuccessfulTicketGeneration = () => {
     status: 200,
     data: { success: true, data: { id: 'event-123', name: 'Test Event' } }
   });
-  mockPrisma.ticket.create.mockResolvedValue(mockTicket);
+  // Ensure the mock ticket has expiresAt set (service calculates it and passes it in data)
+  // Use mockImplementation to return expiresAt from input data
+  mockPrisma.ticket.create.mockImplementation(async (args: any) => {
+    const baseTicket = createMockTicket();
+    return {
+      ...baseTicket,
+      expiresAt: args.data?.expiresAt || baseTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
+      issuedAt: args.data?.issuedAt || baseTicket.issuedAt || new Date(),
+    };
+  });
   mockEventPublisherService.publishTicketGenerated.mockResolvedValue(undefined);
   mockNotificationService.sendTicketNotification.mockResolvedValue(undefined);
 
-  return { mockTicket, mockBooking };
+  return { mockTicket: mockTicket, mockBooking };
 };
 
 /**
@@ -294,6 +315,8 @@ export const setupAuthFailure = () => {
 export const setupDatabaseError = () => {
   const dbError = new Error('Database connection failed');
   mockPrisma.booking.findUnique.mockRejectedValue(dbError);
+  mockPrisma.booking.findFirst.mockRejectedValue(dbError);
+  mockPrisma.booking.findMany.mockRejectedValue(dbError);
   mockPrisma.event.findUnique.mockRejectedValue(dbError);
   mockPrisma.booking.create.mockRejectedValue(dbError);
   mockPrisma.booking.update.mockRejectedValue(dbError);
@@ -424,7 +447,11 @@ export const setupSuccessfulAttendanceJoin = () => {
 
   mockPrisma.booking.findFirst.mockResolvedValue(mockBooking);
   mockPrisma.booking.update.mockResolvedValue(updatedBooking);
-  setupEventServiceResponse();
+  // Setup event service to return event that has started
+  setupEventServiceResponse({
+    bookingStartDate: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1 hour ago
+    bookingEndDate: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
+  });
 
   return { mockBooking, updatedBooking };
 };
@@ -464,6 +491,30 @@ export const setupAllMocks = () => {
   mockRabbitMQService.connect.mockResolvedValue(undefined);
   mockRabbitMQService.disconnect.mockResolvedValue(undefined);
 
+  // Setup default ticket.create mock to always return expiresAt from input data
+  // This ensures expiresAt is always available even if tests override the mock
+  mockPrisma.ticket.create.mockImplementation(async (args: any) => {
+    const baseTicket = createMockTicket();
+    return {
+      ...baseTicket,
+      expiresAt: args.data?.expiresAt || baseTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
+      issuedAt: args.data?.issuedAt || baseTicket.issuedAt || new Date(),
+      createdAt: args.data?.createdAt || baseTicket.createdAt || new Date(),
+    };
+  });
+
+  // Setup transaction mock to return the result of the callback
+  mockPrisma.$transaction.mockImplementation(async (callback: any) => {
+    const mockTx = {
+      user: mockPrisma.user,
+      booking: mockPrisma.booking,
+      event: mockPrisma.event,
+      ticket: mockPrisma.ticket,
+      account: mockPrisma.account || {},
+    };
+    return await callback(mockTx);
+  });
+
   // Setup default logger behavior
   mockLogger.info.mockImplementation(() => {});
   mockLogger.warn.mockImplementation(() => {});
@@ -484,8 +535,9 @@ export const resetAllMocks = () => {
 // ============================================================================
 // MOCK MODULE IMPORTS
 // ============================================================================
-// Note: jest.mock() calls are at the end of the file so all exports
-// are available. The factory functions execute at runtime, not during hoisting.
+// Note: jest.mock() calls are at the end of the file after all exports.
+// The factory functions execute at runtime, not during hoisting,
+// so they can safely reference the mocks defined above.
 
 // Mock Prisma Client
 jest.mock('@prisma/client', () => ({
@@ -496,6 +548,10 @@ jest.mock('@prisma/client', () => ({
 jest.mock('../database', () => ({
   prisma: mockPrisma,
 }));
+
+// Export prisma for direct access (helps preserve exports)
+// This export between jest.mock() calls helps Jest preserve other exports
+export const prisma = mockPrisma;
 
 // Mock external services
 jest.mock('../services/event-consumer.service', () => ({
@@ -528,3 +584,7 @@ jest.mock('jsonwebtoken', () => mockJWT);
 jest.mock('../utils/logger', () => ({
   logger: mockLogger,
 }));
+
+// Note: All functions and mocks are already exported above.
+// Re-exporting them here would cause TypeScript errors.
+// The exports should be accessible despite jest.mock() calls.

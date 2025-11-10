@@ -6,12 +6,13 @@
  */
 
 import '@jest/globals';
-import {
-  setupEventNotFound,
-  setupSuccessfulBookingCreation,
-  createMockBooking,
-  createMockEvent,
-} from './mocks-simple';
+// Import mocks - use requireActual to bypass Jest's mock if it exists
+// This ensures we get the actual exports even if jest.mock() interferes
+const mocks = jest.requireActual('./mocks-simple');
+const setupEventNotFound = mocks.setupEventNotFound;
+const setupSuccessfulBookingCreation = mocks.setupSuccessfulBookingCreation;
+const createMockBooking = mocks.createMockBooking;
+const createMockEvent = mocks.createMockEvent;
 
 describe('Basic Test Setup', () => {
   it('should have Jest globals available', () => {
