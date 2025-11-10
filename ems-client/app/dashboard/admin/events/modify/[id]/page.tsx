@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ArrowLeft,
   Save,
@@ -23,13 +24,14 @@ import {
   Clock3
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
 import { eventAPI } from "@/lib/api/event.api";
-import { UpdateEventRequest, VenueResponse, EventResponse, EventStatus } from "@/lib/api/types/event.types";
+import { UpdateEventRequest, VenueResponse, EventResponse, EventStatus, SessionResponse } from "@/lib/api/types/event.types";
 import { adminApiClient, SpeakerInvitation } from "@/lib/api/admin.api";
 import { SpeakerProfile } from "@/lib/api/speaker.api";
 import { SpeakerSearchModal } from "@/components/admin/SpeakerSearchModal";
+import { SessionsPanel } from "@/components/admin/SessionsPanel";
 import { withAdminAuth } from "@/components/hoc/withAuth";
 
 const LOGGER_COMPONENT_NAME = 'AdminModifyEventPage';
@@ -75,30 +77,16 @@ function AdminModifyEventPage() {
   const [eventInvitations, setEventInvitations] = useState<SpeakerInvitation[]>([]);
   const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [acceptedSpeakerFromInvitation, setAcceptedSpeakerFromInvitation] = useState<SpeakerProfile | null>(null);
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/login');
-      return;
-    } else if (!authLoading && user?.role !== 'ADMIN') {
-      router.push('/dashboard');
-      return;
-    }
-
-    if (isAuthenticated && user && eventId) {
-      loadEvent();
-      loadVenues();
-      loadSpeakerData();
-      loadEventInvitations();
-    }
-  }, [isAuthenticated, authLoading, user, router, eventId]);
-
-  // Load accepted speaker when invitations change
-  useEffect(() => {
-    if (eventInvitations.length > 0) {
-      loadAcceptedSpeakerFromInvitations();
-    }
-  }, [eventInvitations]);
+  
+  // Sessions and accepted speakers state
+  const [sessions, setSessions] = useState<SessionResponse[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [acceptedSpeakers, setAcceptedSpeakers] = useState<Array<{
+    invitation: SpeakerInvitation | null;
+    speaker: SpeakerProfile;
+    session?: SessionResponse;
+  }>>([]);
+  const [loadingAcceptedSpeakers, setLoadingAcceptedSpeakers] = useState(false);
 
   const loadEvent = async () => {
     try {
@@ -197,9 +185,155 @@ function AdminModifyEventPage() {
     }
   };
 
+  const loadSessions = async () => {
+    try {
+      setLoadingSessions(true);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading sessions', { eventId });
+
+      const response = await eventAPI.listSessions(eventId);
+        setSessions(response.data);
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Sessions loaded', { count: response.data.length });
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load sessions', error as Error);
+      // Don't set error state - sessions might not exist yet
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  const loadAcceptedSpeakers = useCallback(async () => {
+    try {
+      setLoadingAcceptedSpeakers(true);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading speakers for sessions', { eventId });
+
+      // Get all session speakers from all sessions
+      const allSessionSpeakers: Array<{ speakerId: string; session: SessionResponse }> = [];
+      sessions.forEach(session => {
+        session.speakers.forEach(speaker => {
+          allSessionSpeakers.push({
+            speakerId: speaker.speakerId,
+            session,
+          });
+        });
+      });
+
+      // Also include event-level accepted invitations (for backward compatibility)
+      const eventLevelAcceptedInvitations = eventInvitations.filter(
+        inv => inv.status === 'ACCEPTED' && !inv.sessionId
+      );
+      eventLevelAcceptedInvitations.forEach(invitation => {
+        // Only add if not already in session speakers
+        if (!allSessionSpeakers.some(ss => ss.speakerId === invitation.speakerId)) {
+          allSessionSpeakers.push({
+            speakerId: invitation.speakerId,
+            session: undefined as any, // Event-level, no session
+          });
+      }
+    });
+
+      if (allSessionSpeakers.length === 0) {
+        setAcceptedSpeakers([]);
+        setLoadingAcceptedSpeakers(false);
+        return;
+      }
+
+      // Create invitation lookup map by sessionId and speakerId
+      const invitationMap = new Map<string, SpeakerInvitation>();
+      eventInvitations.forEach(invitation => {
+        const key = invitation.sessionId 
+          ? `${invitation.sessionId}:${invitation.speakerId}`
+          : `event-level:${invitation.speakerId}`;
+        invitationMap.set(key, invitation);
+      });
+
+      // Create a map to track all session-speaker combinations
+      // Key: `${sessionId}:${speakerId}` or `event-level:${speakerId}`
+      const sessionSpeakerMap = new Map<string, { speakerId: string; session?: SessionResponse; invitation?: SpeakerInvitation }>();
+      
+      // Process all session speakers
+      allSessionSpeakers.forEach(({ speakerId, session }) => {
+        const key = session ? `${session.id}:${speakerId}` : `event-level:${speakerId}`;
+        const invitation = invitationMap.get(key);
+        
+        // Store each session-speaker combination separately
+        sessionSpeakerMap.set(key, { speakerId, session, invitation });
+      });
+
+      // Fetch speaker profiles for all session-speaker combinations
+      const speakersWithInfo = await Promise.all(
+        Array.from(sessionSpeakerMap.values()).map(async ({ speakerId, session, invitation }) => {
+          try {
+            const speaker = await adminApiClient.getSpeakerProfile(speakerId);
+            
+            return {
+              invitation: invitation || null,
+              speaker,
+              session: session || undefined,
+            };
+          } catch (error) {
+            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker profile', {
+              speakerId,
+              error
+            });
+            return null;
+          }
+        })
+      );
+
+      // Filter out any null results
+      const validSpeakers = speakersWithInfo.filter((item): item is NonNullable<typeof item> => item !== null);
+      
+      setAcceptedSpeakers(validSpeakers);
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Speakers loaded for sessions', {
+        eventId,
+        count: validSpeakers.length,
+        sessionsCount: sessions.length
+      });
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load speakers for sessions', error as Error);
+      setAcceptedSpeakers([]);
+    } finally {
+      setLoadingAcceptedSpeakers(false);
+    }
+  }, [eventInvitations, sessions, eventId, logger]);
+
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push('/login');
+      return;
+    } else if (!authLoading && user?.role !== 'ADMIN') {
+      router.push('/dashboard');
+      return;
+      }
+
+    if (isAuthenticated && user && eventId) {
+      loadEvent();
+      loadVenues();
+      loadSpeakerData();
+      loadEventInvitations();
+      loadSessions();
+    }
+  }, [isAuthenticated, authLoading, user, router, eventId]);
+
+  // Load accepted speakers when invitations or sessions change
+  useEffect(() => {
+    loadAcceptedSpeakers();
+  }, [loadAcceptedSpeakers]);
+
+  // Also load accepted speaker for backward compatibility (event-level speaker)
+  useEffect(() => {
+    if (eventInvitations.length > 0) {
+      loadAcceptedSpeakerFromInvitations();
+    }
+  }, [eventInvitations]);
+
   const loadAcceptedSpeakerFromInvitations = async () => {
     try {
-      const acceptedInvitation = eventInvitations.find(inv => inv.status === 'ACCEPTED');
+      // For backward compatibility: find event-level accepted invitation (sessionId is null)
+      const acceptedInvitation = eventInvitations.find(inv => inv.status === 'ACCEPTED' && !inv.sessionId);
       if (acceptedInvitation) {
         logger.debug(LOGGER_COMPONENT_NAME, 'Loading accepted speaker from invitation', {
           invitationId: acceptedInvitation.id,
@@ -217,7 +351,7 @@ function AdminModifyEventPage() {
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load accepted speaker from invitation', error as Error);
       setAcceptedSpeakerFromInvitation(null);
-    }
+        }
   };
 
   const handleInviteSpeaker = async (speakerId: string, message: string) => {
@@ -242,6 +376,7 @@ function AdminModifyEventPage() {
 
       // Reload invitations to show the new one
       await loadEventInvitations();
+      await loadSessions();
 
       // Close the modal
       setShowSpeakerSearchModal(false);
@@ -624,15 +759,208 @@ function AdminModifyEventPage() {
                 </div>
               </div>
 
+              {/* Sessions & Agenda */}
+              <div className="pt-6">
+                <SessionsPanel eventId={eventId} disabled={authLoading || isSubmitting} />
+                </div>
+
               {/* Speaker Assignment */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
-                  <Users className="h-5 w-5 mr-2" />
-                  Speaker Assignment
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
+                    <Users className="h-5 w-5 mr-2" />
+                    Speaker Assignment
+                  </h3>
+                  {acceptedSpeakers.length > 0 && (
+                        <Badge variant="outline" className="ml-2">
+                      {acceptedSpeakers.length} accepted speaker{acceptedSpeakers.length !== 1 ? 's' : ''}
+                        </Badge>
+                                          )}
+                                        </div>
 
-                {/* Current Speaker Display */}
-                {(currentSpeaker || acceptedSpeakerFromInvitation) ? (
+                {/* Accepted Speakers List */}
+                {loadingAcceptedSpeakers ? (
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span className="ml-2 text-slate-600 dark:text-slate-400">Loading accepted speakers...</span>
+                                      </div>
+                    </CardContent>
+                  </Card>
+                ) : acceptedSpeakers.length > 0 ? (
+                  <div className="space-y-3">
+                    {acceptedSpeakers.map(({ invitation, speaker, session }, index) => {
+                      // Determine invitation status badge
+                      const getInvitationStatusBadge = () => {
+                        if (!invitation) {
+                                            return (
+                            <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-200">
+                              No invitation
+                                                  </Badge>
+                          );
+                        }
+
+                        switch (invitation.status) {
+                          case 'ACCEPTED':
+                                                return (
+                              <Badge variant="default" className="bg-green-100 text-green-800 border-green-300">
+                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                Accepted
+                              </Badge>
+                            );
+                          case 'PENDING':
+                                                return (
+                              <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-200">
+                                Pending
+                                                    </Badge>
+                            );
+                          case 'DECLINED':
+                                            return (
+                              <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200">
+                                <XCircle className="mr-1 h-3 w-3" />
+                                Declined
+                                              </Badge>
+                                            );
+                          case 'EXPIRED':
+                                            return (
+                              <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-200">
+                                Expired
+                                              </Badge>
+                                            );
+                          default:
+                            return null;
+                        }
+                      };
+
+                      // Determine card styling based on invitation status
+                      const getCardClassName = () => {
+                        if (!invitation || invitation.status === 'ACCEPTED') {
+                          return "border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800";
+                        } else if (invitation.status === 'PENDING') {
+                          return "border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800";
+                        } else if (invitation.status === 'DECLINED') {
+                          return "border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800";
+                        } else {
+                          return "border-gray-200 bg-gray-50 dark:bg-gray-800 dark:border-gray-700";
+                        }
+                      };
+
+                      const textColorClass = invitation && invitation.status === 'ACCEPTED' 
+                        ? "text-green-800 dark:text-green-200" 
+                        : invitation && invitation.status === 'PENDING'
+                        ? "text-yellow-800 dark:text-yellow-200"
+                        : invitation && invitation.status === 'DECLINED'
+                        ? "text-red-800 dark:text-red-200"
+                        : "text-gray-800 dark:text-gray-200";
+
+                                          return (
+                        <Card
+                          key={invitation?.id || `${speaker.id}-${session?.id || 'event-level'}-${index}`}
+                          className={getCardClassName()}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3 flex-1">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-semibold">
+                                    {speaker.name.slice(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <h4 className={`font-medium ${textColorClass}`}>
+                                      {speaker.name}
+                                    </h4>
+                                    {getInvitationStatusBadge()}
+                                    {session && (
+                                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                        Session: {session.title}
+                                      </Badge>
+                                    )}
+                                    {!session && (
+                                      <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                                        Event-level
+                                                </Badge>
+                                              )}
+                                            </div>
+                                  <div className={`space-y-1 text-sm ${textColorClass}`}>
+                                    <p className="flex items-center gap-1">
+                                      <Mail className="h-3 w-3" />
+                                      {speaker.email}
+                                    </p>
+                                    {session && (
+                                      <p className={`flex items-center gap-1 ${textColorClass.replace('800', '700').replace('200', '300')}`}>
+                                        <Clock className="h-3 w-3" />
+                                        {new Date(session.startsAt).toLocaleString()} - {new Date(session.endsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                      </p>
+                                    )}
+                                    {speaker.expertise && speaker.expertise.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-2">
+                                        {speaker.expertise.slice(0, 3).map((exp) => (
+                                          <Badge key={exp} variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300">
+                                            {exp}
+                                        </Badge>
+                                        ))}
+                                        {speaker.expertise.length > 3 && (
+                                          <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300">
+                                            +{speaker.expertise.length - 3} more
+                                              </Badge>
+                                        )}
+                                            </div>
+                                      )}
+                                  </div>
+                                </div>
+                              </div>
+                              {!session && (
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                  onClick={() => setShowSpeakerSearchModal(true)}
+                                  className="border-green-300 text-green-700 hover:bg-green-100"
+                                          >
+                                  <UserPlus className="h-4 w-4 mr-2" />
+                                  Change
+                                          </Button>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <Card className="border-gray-200 bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-gray-500" />
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                              No Speakers Assigned
+                            </h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Speakers assigned to sessions will appear here
+                            </p>
+                          </div>
+                        </div>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                          onClick={() => setShowSpeakerSearchModal(true)}
+                          className="bg-blue-600 hover:bg-blue-700"
+                                          >
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Invite Speaker
+                                          </Button>
+                                        </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Legacy: Event-level speaker display (for backward compatibility) */}
+                {(currentSpeaker || acceptedSpeakerFromInvitation) && acceptedSpeakers.length === 0 && (
                   <Card className="border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
@@ -640,12 +968,12 @@ function AdminModifyEventPage() {
                           <div className="flex items-center gap-2 mb-2">
                             <UserPlus className="h-4 w-4 text-green-600" />
                             <h4 className="font-medium text-green-900 dark:text-green-100">
-                              Current Speaker
+                              Event Speaker
                             </h4>
                             <Badge variant="default" className="bg-green-100 text-green-800">
                               {currentSpeaker ? 'Assigned' : 'Accepted Invitation'}
                             </Badge>
-                          </div>
+                                      </div>
                           <div className="space-y-1 text-sm">
                             <p className="text-green-800 dark:text-green-200">
                               <strong>Name:</strong> {(currentSpeaker || acceptedSpeakerFromInvitation)?.name}
@@ -665,11 +993,12 @@ function AdminModifyEventPage() {
                                     +{(currentSpeaker || acceptedSpeakerFromInvitation)!.expertise.length - 3} more
                                   </Badge>
                                 )}
-                              </div>
-                            )}
+                      </div>
+                    )}
                           </div>
                         </div>
                         <Button
+                          type="button"
                           size="sm"
                           variant="outline"
                           onClick={() => setShowSpeakerSearchModal(true)}
@@ -679,34 +1008,7 @@ function AdminModifyEventPage() {
                           Change Speaker
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card className="border-gray-200 bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-gray-500" />
-                          <div>
-                            <h4 className="font-medium text-gray-900 dark:text-gray-100">
-                              No Speaker Assigned
-                            </h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              Invite a speaker to present at this event
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => setShowSpeakerSearchModal(true)}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <UserPlus className="h-4 w-4 mr-2" />
-                          Invite Speaker
-                        </Button>
-                      </div>
-                    </CardContent>
+                  </CardContent>
                   </Card>
                 )}
 
@@ -730,7 +1032,7 @@ function AdminModifyEventPage() {
                         <div className="flex items-center justify-center py-4">
                           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                           <span className="ml-2 text-gray-600 dark:text-gray-400">Loading invitations...</span>
-                        </div>
+                                              </div>
                       ) : (
                         <div className="space-y-4">
                           {eventInvitations.map((invitation, index) => (
@@ -763,7 +1065,7 @@ function AdminModifyEventPage() {
                                     ) : (
                                       <Mail className="h-4 w-4" />
                                     )}
-                                  </div>
+                                                  </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
                                       <h4 className="font-medium text-gray-900 dark:text-gray-100">
@@ -771,15 +1073,15 @@ function AdminModifyEventPage() {
                                       </h4>
                                       <Badge variant="outline" className="text-xs">
                                         Speaker ID: {invitation.speakerId.slice(-8)}
-                                      </Badge>
+                                                    </Badge>
                                     </div>
                                     <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                                       <div className="flex items-center gap-2">
                                         <Calendar className="h-3 w-3" />
                                         <span>
                                           Sent: {new Date(invitation.sentAt).toLocaleDateString()} at {new Date(invitation.sentAt).toLocaleTimeString()}
-                                        </span>
-                                      </div>
+                                                    </span>
+                                                  </div>
                                       {invitation.respondedAt && (
                                         <div className="flex items-center gap-2">
                                           <Clock className="h-3 w-3" />
@@ -791,7 +1093,7 @@ function AdminModifyEventPage() {
                                       {invitation.message && (
                                         <div className="mt-2 p-2 bg-white dark:bg-gray-800 rounded border text-xs">
                                           <strong>Message:</strong> {invitation.message}
-                                        </div>
+                                            </div>
                                       )}
                                     </div>
                                   </div>
@@ -801,13 +1103,13 @@ function AdminModifyEventPage() {
                                     <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200">
                                       <Clock3 className="h-3 w-3 mr-1" />
                                       Pending Response
-                                    </Badge>
+                                        </Badge>
                                   )}
                                   {invitation.status === 'ACCEPTED' && (
                                     <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                       <CheckCircle2 className="h-3 w-3 mr-1" />
                                       Accepted
-                                    </Badge>
+                                              </Badge>
                                   )}
                                   {invitation.status === 'DECLINED' && (
                                     <Badge variant="destructive" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
@@ -823,14 +1125,14 @@ function AdminModifyEventPage() {
                                   )}
                                   <div className="text-xs text-gray-500 dark:text-gray-400">
                                     ID: {invitation.id.slice(-8)}
-                                  </div>
-                                </div>
+                                        </div>
+                                      </div>
                               </div>
                             </div>
                           ))}
-                        </div>
-                      )}
-                    </CardContent>
+                      </div>
+                    )}
+                  </CardContent>
                   </Card>
                 )}
               </div>

@@ -51,6 +51,7 @@ export interface EventResponse {
     bookingEndDate: string;
     createdAt: string;
     updatedAt: string;
+    sessions?: SessionResponse[];
 }
 
 export interface EventListResponse {
@@ -119,4 +120,66 @@ export interface VenueFilters {
     capacity?: number;
     page?: number;
     limit?: number;
+}
+
+export enum SessionSpeakerMaterialsStatus {
+    REQUESTED = 'REQUESTED',
+    UPLOADED = 'UPLOADED',
+    ACKNOWLEDGED = 'ACKNOWLEDGED',
+}
+
+export interface CreateSessionRequest {
+    title: string;
+    description?: string;
+    startsAt: string;
+    endsAt: string;
+    stage?: string;
+}
+
+export interface UpdateSessionRequest {
+    title?: string;
+    description?: string;
+    startsAt?: string;
+    endsAt?: string;
+    stage?: string;
+}
+
+export interface SessionSpeakerAssignRequest {
+    speakerId: string;
+    materialsAssetId?: string;
+    materialsStatus?: SessionSpeakerMaterialsStatus;
+    speakerCheckinConfirmed?: boolean;
+    specialNotes?: string;
+}
+
+export interface SessionSpeakerUpdateRequest {
+    materialsAssetId?: string | null;
+    materialsStatus?: SessionSpeakerMaterialsStatus;
+    speakerCheckinConfirmed?: boolean;
+    specialNotes?: string | null;
+}
+
+export interface SessionSpeakerResponse {
+    id: string;
+    sessionId: string;
+    speakerId: string;
+    materialsAssetId?: string | null;
+    materialsStatus: SessionSpeakerMaterialsStatus;
+    speakerCheckinConfirmed: boolean;
+    specialNotes?: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface SessionResponse {
+    id: string;
+    eventId: string;
+    title: string;
+    description?: string | null;
+    startsAt: string;
+    endsAt: string;
+    stage?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    speakers: SessionSpeakerResponse[];
 }
