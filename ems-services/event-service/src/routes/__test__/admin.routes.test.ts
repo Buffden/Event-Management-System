@@ -121,6 +121,28 @@ describe('Admin Routes', () => {
         true
       );
     });
+
+    it('should handle query without venueId', async () => {
+      const mockEvents = {
+        events: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+        totalPages: 0,
+      };
+
+      (eventService.getEvents as jest.MockedFunction<any>).mockResolvedValue(mockEvents);
+
+      const response = await request(app)
+        .get('/api/admin/events')
+        .query({ page: 1, limit: 10 });
+
+      expect(response.status).toBe(200);
+      expect(eventService.getEvents).toHaveBeenCalledWith(
+        expect.objectContaining({ venueId: undefined }),
+        true
+      );
+    });
   });
 
   describe('GET /api/admin/events/:id', () => {
@@ -178,9 +200,33 @@ describe('Admin Routes', () => {
       expect(response.body.success).toBe(true);
       expect(eventService.rejectEvent).toHaveBeenCalledWith('event-123', 'Not suitable');
     });
+
+    it('should return 400 when rejection reason is missing', async () => {
+      const response = await request(app)
+        .patch('/api/admin/events/event-123/reject')
+        .send({});
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when rejection reason is empty', async () => {
+      const response = await request(app)
+        .patch('/api/admin/events/event-123/reject')
+        .send({ rejectionReason: '   ' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when rejection reason is too short', async () => {
+      const response = await request(app)
+        .patch('/api/admin/events/event-123/reject')
+        .send({ rejectionReason: 'Short' });
+
+      expect(response.status).toBe(400);
+    });
   });
 
-  describe('PATCH /api/admin/events/:id', () => {
+  describe('PUT /api/admin/events/:id', () => {
     it('should update event as admin', async () => {
       const mockEvent = createMockEvent({ id: 'event-123', name: 'Updated Event' });
       (eventService.updateEventAsAdmin as jest.MockedFunction<any>).mockResolvedValue(mockEvent);
@@ -192,6 +238,65 @@ describe('Admin Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(eventService.updateEventAsAdmin).toHaveBeenCalledWith('event-123', { name: 'Updated Event' });
+    });
+
+    it('should return 400 when name is empty', async () => {
+      const response = await request(app)
+        .put('/api/admin/events/event-123')
+        .send({ name: '   ' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when description is empty', async () => {
+      const response = await request(app)
+        .put('/api/admin/events/event-123')
+        .send({ description: '   ' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when category is empty', async () => {
+      const response = await request(app)
+        .put('/api/admin/events/event-123')
+        .send({ category: '   ' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when venueId is invalid', async () => {
+      const response = await request(app)
+        .put('/api/admin/events/event-123')
+        .send({ venueId: 'invalid' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when bookingStartDate is invalid', async () => {
+      const response = await request(app)
+        .put('/api/admin/events/event-123')
+        .send({ bookingStartDate: 'invalid-date' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when bookingEndDate is invalid', async () => {
+      const response = await request(app)
+        .put('/api/admin/events/event-123')
+        .send({ bookingEndDate: 'invalid-date' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when booking start date is after end date', async () => {
+      const response = await request(app)
+        .put('/api/admin/events/event-123')
+        .send({
+          bookingStartDate: '2025-12-31T23:59:59Z',
+          bookingEndDate: '2025-12-01T00:00:00Z',
+        });
+
+      expect(response.status).toBe(400);
     });
   });
 
@@ -214,9 +319,119 @@ describe('Admin Routes', () => {
       expect(response.body.success).toBe(true);
       expect(venueService.createVenue).toHaveBeenCalled();
     });
+
+    it('should return 400 when name is missing', async () => {
+      const response = await request(app)
+        .post('/api/admin/venues')
+        .send({
+          address: '123 Test St',
+          capacity: 100,
+          openingTime: '09:00',
+          closingTime: '18:00',
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when name is empty', async () => {
+      const response = await request(app)
+        .post('/api/admin/venues')
+        .send({
+          name: '   ',
+          address: '123 Test St',
+          capacity: 100,
+          openingTime: '09:00',
+          closingTime: '18:00',
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when address is missing', async () => {
+      const response = await request(app)
+        .post('/api/admin/venues')
+        .send({
+          name: 'New Venue',
+          capacity: 100,
+          openingTime: '09:00',
+          closingTime: '18:00',
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when address is empty', async () => {
+      const response = await request(app)
+        .post('/api/admin/venues')
+        .send({
+          name: 'New Venue',
+          address: '   ',
+          capacity: 100,
+          openingTime: '09:00',
+          closingTime: '18:00',
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when capacity is invalid', async () => {
+      const response = await request(app)
+        .post('/api/admin/venues')
+        .send({
+          name: 'New Venue',
+          address: '123 Test St',
+          capacity: 'invalid',
+          openingTime: '09:00',
+          closingTime: '18:00',
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when capacity is zero or negative', async () => {
+      const response = await request(app)
+        .post('/api/admin/venues')
+        .send({
+          name: 'New Venue',
+          address: '123 Test St',
+          capacity: 0,
+          openingTime: '09:00',
+          closingTime: '18:00',
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when openingTime format is invalid', async () => {
+      const response = await request(app)
+        .post('/api/admin/venues')
+        .send({
+          name: 'New Venue',
+          address: '123 Test St',
+          capacity: 100,
+          openingTime: '25:00',
+          closingTime: '18:00',
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when closingTime format is invalid', async () => {
+      const response = await request(app)
+        .post('/api/admin/venues')
+        .send({
+          name: 'New Venue',
+          address: '123 Test St',
+          capacity: 100,
+          openingTime: '09:00',
+          closingTime: '25:00',
+        });
+
+      expect(response.status).toBe(400);
+    });
   });
 
-  describe('PATCH /api/admin/venues/:id', () => {
+  describe('PUT /api/admin/venues/:id', () => {
     it('should update venue', async () => {
       const mockVenue = createMockVenue({ id: 1, name: 'Updated Venue' });
       (venueService.updateVenue as jest.MockedFunction<any>).mockResolvedValue(mockVenue);
@@ -228,6 +443,54 @@ describe('Admin Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(venueService.updateVenue).toHaveBeenCalledWith(1, { name: 'Updated Venue' });
+    });
+
+    it('should return 400 when name is empty', async () => {
+      const response = await request(app)
+        .put('/api/admin/venues/1')
+        .send({ name: '   ' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when address is empty', async () => {
+      const response = await request(app)
+        .put('/api/admin/venues/1')
+        .send({ address: '   ' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when capacity is invalid', async () => {
+      const response = await request(app)
+        .put('/api/admin/venues/1')
+        .send({ capacity: 'invalid' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when capacity is zero or negative', async () => {
+      const response = await request(app)
+        .put('/api/admin/venues/1')
+        .send({ capacity: -1 });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when openingTime format is invalid', async () => {
+      const response = await request(app)
+        .put('/api/admin/venues/1')
+        .send({ openingTime: '25:00' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when closingTime format is invalid', async () => {
+      const response = await request(app)
+        .put('/api/admin/venues/1')
+        .send({ closingTime: '25:00' });
+
+      expect(response.status).toBe(400);
     });
   });
 
@@ -282,6 +545,28 @@ describe('Admin Routes', () => {
           page: 1,
           limit: 10,
           name: 'Test Venue',
+        })
+      );
+    });
+
+    it('should handle query without capacity filter', async () => {
+      const mockVenues = {
+        venues: [createMockVenue()],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      };
+      (venueService.getVenues as jest.MockedFunction<any>).mockResolvedValue(mockVenues);
+
+      const response = await request(app)
+        .get('/api/admin/venues')
+        .query({ page: 1, limit: 10 });
+
+      expect(response.status).toBe(200);
+      expect(venueService.getVenues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          capacity: undefined,
         })
       );
     });
@@ -349,6 +634,26 @@ describe('Admin Routes', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.data).toBeDefined();
       expect(Array.isArray(response.body.data)).toBe(true);
+    });
+
+    it('should handle case when totalEvents is 0', async () => {
+      mockPrisma.event.count
+        .mockResolvedValueOnce(0)   // totalEvents
+        .mockResolvedValueOnce(0)   // PUBLISHED
+        .mockResolvedValueOnce(0)   // DRAFT
+        .mockResolvedValueOnce(0)   // PENDING_APPROVAL
+        .mockResolvedValueOnce(0)   // REJECTED
+        .mockResolvedValueOnce(0)   // CANCELLED
+        .mockResolvedValueOnce(0);  // COMPLETED
+
+      const response = await request(app)
+        .get('/api/reports/event-status');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.data.length).toBe(0); // All filtered out since count is 0
     });
   });
 });

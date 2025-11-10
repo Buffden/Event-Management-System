@@ -39,6 +39,8 @@ jest.mock('../../services/event.service', () => ({
     createEvent: jest.fn(),
     updateEvent: jest.fn(),
     deleteEvent: jest.fn(),
+    submitEvent: jest.fn(),
+    getEventById: jest.fn(),
   },
 }));
 
@@ -185,9 +187,150 @@ describe('Speaker Routes', () => {
 
       expect(response.status).toBe(400);
     });
+
+    it('should return 400 when description is missing', async () => {
+      const eventData = {
+        name: 'Test Event',
+        category: 'CONFERENCE',
+        venueId: 1,
+        bookingStartDate: '2025-12-01T00:00:00Z',
+        bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
+      };
+
+      const response = await request(app)
+        .post('/api/events')
+        .send(eventData);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when description is empty', async () => {
+      const eventData = {
+        name: 'Test Event',
+        description: '   ',
+        category: 'CONFERENCE',
+        venueId: 1,
+        bookingStartDate: '2025-12-01T00:00:00Z',
+        bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
+      };
+
+      const response = await request(app)
+        .post('/api/events')
+        .send(eventData);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when category is missing', async () => {
+      const eventData = {
+        name: 'Test Event',
+        description: 'Test Description',
+        venueId: 1,
+        bookingStartDate: '2025-12-01T00:00:00Z',
+        bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
+      };
+
+      const response = await request(app)
+        .post('/api/events')
+        .send(eventData);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when category is empty', async () => {
+      const eventData = {
+        name: 'Test Event',
+        description: 'Test Description',
+        category: '   ',
+        venueId: 1,
+        bookingStartDate: '2025-12-01T00:00:00Z',
+        bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
+      };
+
+      const response = await request(app)
+        .post('/api/events')
+        .send(eventData);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when bookingStartDate is invalid', async () => {
+      const eventData = {
+        name: 'Test Event',
+        description: 'Test Description',
+        category: 'CONFERENCE',
+        venueId: 1,
+        bookingStartDate: 'invalid-date',
+        bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
+      };
+
+      const response = await request(app)
+        .post('/api/events')
+        .send(eventData);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when bookingEndDate is invalid', async () => {
+      const eventData = {
+        name: 'Test Event',
+        description: 'Test Description',
+        category: 'CONFERENCE',
+        venueId: 1,
+        bookingStartDate: '2025-12-01T00:00:00Z',
+        bookingEndDate: 'invalid-date',
+        userId: 'speaker-123',
+      };
+
+      const response = await request(app)
+        .post('/api/events')
+        .send(eventData);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when userId is missing', async () => {
+      const eventData = {
+        name: 'Test Event',
+        description: 'Test Description',
+        category: 'CONFERENCE',
+        venueId: 1,
+        bookingStartDate: '2025-12-01T00:00:00Z',
+        bookingEndDate: '2025-12-31T23:59:59Z',
+      };
+
+      const response = await request(app)
+        .post('/api/events')
+        .send(eventData);
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when userId is empty', async () => {
+      const eventData = {
+        name: 'Test Event',
+        description: 'Test Description',
+        category: 'CONFERENCE',
+        venueId: 1,
+        bookingStartDate: '2025-12-01T00:00:00Z',
+        bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: '   ',
+      };
+
+      const response = await request(app)
+        .post('/api/events')
+        .send(eventData);
+
+      expect(response.status).toBe(400);
+    });
   });
 
-  describe('PATCH /api/events/:id', () => {
+  describe('PUT /api/events/:id', () => {
     it('should update event', async () => {
       const mockEvent = createMockEvent({ id: 'event-123', name: 'Updated Event' });
       (eventService.updateEvent as jest.MockedFunction<any>).mockResolvedValue(mockEvent);
@@ -199,6 +342,79 @@ describe('Speaker Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(eventService.updateEvent).toHaveBeenCalledWith('event-123', { name: 'Updated Event' }, 'speaker-123');
+    });
+
+    it('should return 400 when name is empty', async () => {
+      const response = await request(app)
+        .put('/api/events/event-123')
+        .send({ name: '   ' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when description is empty', async () => {
+      const response = await request(app)
+        .put('/api/events/event-123')
+        .send({ description: '   ' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when category is empty', async () => {
+      const response = await request(app)
+        .put('/api/events/event-123')
+        .send({ category: '   ' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when venueId is invalid', async () => {
+      const response = await request(app)
+        .put('/api/events/event-123')
+        .send({ venueId: 'invalid' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when bookingStartDate is invalid', async () => {
+      const response = await request(app)
+        .put('/api/events/event-123')
+        .send({ bookingStartDate: 'invalid-date' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when bookingEndDate is invalid', async () => {
+      const response = await request(app)
+        .put('/api/events/event-123')
+        .send({ bookingEndDate: 'invalid-date' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should return 400 when booking start date is after end date', async () => {
+      const response = await request(app)
+        .put('/api/events/event-123')
+        .send({
+          bookingStartDate: '2025-12-31T23:59:59Z',
+          bookingEndDate: '2025-12-01T00:00:00Z',
+        });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe('PATCH /api/events/:id/submit', () => {
+    it('should submit event for approval', async () => {
+      const mockEvent = createMockEvent({ id: 'event-123', status: 'PENDING_APPROVAL' });
+      (eventService.submitEvent as jest.MockedFunction<any>).mockResolvedValue(mockEvent);
+
+      const response = await request(app)
+        .patch('/api/events/event-123/submit');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(eventService.submitEvent).toHaveBeenCalledWith('event-123', 'speaker-123');
     });
   });
 
@@ -212,6 +428,45 @@ describe('Speaker Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(eventService.deleteEvent).toHaveBeenCalledWith('event-123', 'speaker-123');
+    });
+  });
+
+  describe('GET /api/events/:id', () => {
+    it('should return event by ID when speaker owns it', async () => {
+      const mockEvent = createMockEvent({ id: 'event-123', speakerId: 'speaker-123' });
+      (eventService.getEventById as jest.MockedFunction<any>).mockResolvedValue(mockEvent);
+
+      const response = await request(app)
+        .get('/api/events/event-123');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(response.body.data.id).toBe('event-123');
+      expect(eventService.getEventById).toHaveBeenCalledWith('event-123', true);
+    });
+
+    it('should return 404 when event not found', async () => {
+      (eventService.getEventById as jest.MockedFunction<any>).mockResolvedValue(null);
+
+      const response = await request(app)
+        .get('/api/events/non-existent');
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Event not found');
+    });
+
+    it('should return 403 when event belongs to different speaker', async () => {
+      const mockEvent = createMockEvent({ id: 'event-123', speakerId: 'different-speaker' });
+      (eventService.getEventById as jest.MockedFunction<any>).mockResolvedValue(mockEvent);
+
+      const response = await request(app)
+        .get('/api/events/event-123');
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('Access denied: You can only view your own events');
     });
   });
 });

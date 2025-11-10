@@ -174,6 +174,7 @@ export const mockEventPublisherService = {
   publishEventUpdated: jest.fn() as jest.MockedFunction<any>,
   publishEventDeleted: jest.fn() as jest.MockedFunction<any>,
   publishEventPublished: jest.fn() as jest.MockedFunction<any>,
+  publishEventCancelled: jest.fn() as jest.MockedFunction<any>,
 };
 
 // ============================================================================
@@ -341,6 +342,7 @@ export const prisma = mockPrisma;
 // Mock external services
 jest.mock('../services/rabbitmq.service', () => ({
   RabbitMQService: jest.fn(() => mockRabbitMQService),
+  rabbitMQService: mockRabbitMQService,
 }));
 
 jest.mock('../services/auth-validation.service', () => ({
