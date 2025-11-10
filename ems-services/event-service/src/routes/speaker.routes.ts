@@ -1,5 +1,6 @@
 import {Router, Request, Response} from 'express';
 import {eventService} from '../services/event.service';
+import {sessionService} from '../services/session.service';
 import {logger} from '../utils/logger';
 import {requireAdminOrSpeaker} from '../middleware/auth.middleware';
 import {asyncHandler} from '../middleware/error.middleware';
@@ -148,6 +149,25 @@ router.get('/events/:id',
         res.json({
             success: true,
             data: event
+        });
+    })
+);
+
+/**
+ * GET /events/:eventId/sessions - List sessions for an event
+ * Accessible to authenticated speakers and admins (same as admin endpoint)
+ */
+router.get('/events/:eventId/sessions',
+    asyncHandler(async (req: Request, res: Response) => {
+        const {eventId} = req.params;
+
+        logger.info('Listing sessions for event (speaker route)', {eventId});
+
+        const sessions = await sessionService.listSessions(eventId);
+
+        res.json({
+            success: true,
+            data: sessions,
         });
     })
 );
