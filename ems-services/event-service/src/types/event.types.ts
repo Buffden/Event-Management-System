@@ -1,4 +1,4 @@
-import { EventStatus } from '../../generated/prisma';
+import { EventStatus, SessionSpeakerMaterialsStatus } from '../../generated/prisma';
 
 // Event-related types
 export interface CreateEventRequest {
@@ -20,6 +20,62 @@ export interface UpdateEventRequest {
   venueId?: number;
   bookingStartDate?: string; // ISO string
   bookingEndDate?: string; // ISO string
+}
+
+export interface CreateSessionRequest {
+  title: string;
+  description?: string;
+  startsAt: string; // ISO string
+  endsAt: string; // ISO string
+  stage?: string;
+}
+
+export interface UpdateSessionRequest {
+  title?: string;
+  description?: string;
+  startsAt?: string; // ISO string
+  endsAt?: string; // ISO string
+  stage?: string;
+}
+
+export interface SessionSpeakerAssignRequest {
+  speakerId: string;
+  materialsAssetId?: string;
+  materialsStatus?: SessionSpeakerMaterialsStatus;
+  speakerCheckinConfirmed?: boolean;
+  specialNotes?: string;
+}
+
+export interface SessionSpeakerUpdateRequest {
+  materialsAssetId?: string | null;
+  materialsStatus?: SessionSpeakerMaterialsStatus;
+  speakerCheckinConfirmed?: boolean;
+  specialNotes?: string | null;
+}
+
+export interface SessionSpeakerResponse {
+  id: string;
+  sessionId: string;
+  speakerId: string;
+  materialsAssetId?: string | null;
+  materialsStatus: SessionSpeakerMaterialsStatus;
+  speakerCheckinConfirmed: boolean;
+  specialNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SessionResponse {
+  id: string;
+  eventId: string;
+  title: string;
+  description?: string | null;
+  startsAt: string;
+  endsAt: string;
+  stage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  speakers: SessionSpeakerResponse[];
 }
 
 export interface EventResponse {
@@ -44,6 +100,7 @@ export interface EventResponse {
   bookingEndDate: string;
   createdAt: string;
   updatedAt: string;
+  sessions: SessionResponse[];
 }
 
 export interface EventListResponse {
