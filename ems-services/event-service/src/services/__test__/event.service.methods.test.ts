@@ -674,6 +674,7 @@ describe('EventService Methods Coverage', () => {
         venueId: 1,
         bookingStartDate: '2025-12-01T00:00:00Z',
         bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'admin-123',
       };
 
       const mockVenue = createMockVenue({ id: 1, capacity: 100 });
@@ -725,6 +726,7 @@ describe('EventService Methods Coverage', () => {
         venueId: 1,
         bookingStartDate: '2025-12-01T00:00:00Z',
         bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
       };
 
       const mockVenue = createMockVenue({ id: 1 });
@@ -770,6 +772,7 @@ describe('EventService Methods Coverage', () => {
         venueId: 1,
         bookingStartDate: '2025-12-01T00:00:00Z',
         bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
       };
 
       const mockVenue = createMockVenue({ id: 1 });
@@ -811,6 +814,7 @@ describe('EventService Methods Coverage', () => {
         venueId: 1,
         bookingStartDate: '2025-12-01T00:00:00Z',
         bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
       };
 
       const mockVenue = createMockVenue({ id: 1 });
@@ -848,6 +852,7 @@ describe('EventService Methods Coverage', () => {
         venueId: 1,
         bookingStartDate: '2025-12-01T00:00:00Z',
         bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
       };
 
       const mockVenue = createMockVenue({ id: 1 });
@@ -888,6 +893,7 @@ describe('EventService Methods Coverage', () => {
         venueId: 999,
         bookingStartDate: '2025-12-01T00:00:00Z',
         bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
       };
 
       mockPrisma.venue.findUnique.mockResolvedValue(null);
@@ -916,6 +922,7 @@ describe('EventService Methods Coverage', () => {
         venueId: 1,
         bookingStartDate: '2025-12-31T23:59:59Z',
         bookingEndDate: '2025-12-01T00:00:00Z', // End before start
+        userId: 'speaker-123',
       };
 
       const mockVenue = createMockVenue({ id: 1 });
@@ -947,6 +954,7 @@ describe('EventService Methods Coverage', () => {
         venueId: 1,
         bookingStartDate: pastDate.toISOString(),
         bookingEndDate: futureDate.toISOString(),
+        userId: 'speaker-123',
       };
 
       const mockVenue = createMockVenue({ id: 1 });
@@ -976,6 +984,7 @@ describe('EventService Methods Coverage', () => {
         venueId: 1,
         bookingStartDate: '2025-12-01T00:00:00Z',
         bookingEndDate: '2025-12-31T23:59:59Z',
+        userId: 'speaker-123',
       };
 
       const mockVenue = createMockVenue({ id: 1 });
