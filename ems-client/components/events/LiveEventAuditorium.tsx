@@ -244,6 +244,16 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
         sessionSpeakerMap.set(key, { speakerId, session, invitation });
       });
 
+      // Create a map of joined speaker IDs from current speaker attendance (if available)
+      const joinedSpeakerIds = new Set<string>();
+      if (currentSpeakerAttendance && currentSpeakerAttendance.speakers) {
+        currentSpeakerAttendance.speakers.forEach(speaker => {
+          if (speaker.isAttended) {
+            joinedSpeakerIds.add(speaker.speakerId);
+          }
+        });
+      }
+
       // Fetch speaker profiles for all session-speaker combinations
       const speakersWithInfo = await Promise.all(
         Array.from(sessionSpeakerMap.values()).map(async ({ speakerId, session, invitation }) => {
@@ -282,11 +292,14 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
               }
             }
             
+            // Check join status from current speaker attendance data
+            const hasJoined = joinedSpeakerIds.has(speakerId);
+            
             return {
               speaker,
               session: session || undefined,
               invitation: invitation || undefined,
-              hasJoined: false, // Will be updated separately
+              hasJoined, // Set join status immediately from current speaker attendance
             };
           } catch (error) {
             logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker profile', {
@@ -301,13 +314,18 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       // Filter out any null results
       const validSpeakers = speakersWithInfo.filter((item): item is NonNullable<typeof item> => item !== null);
       
-      setAllSpeakers(validSpeakers);
-
+      // Log join status for debugging
+      const joinedCount = validSpeakers.filter(s => s.hasJoined).length;
       logger.info(LOGGER_COMPONENT_NAME, 'All speakers loaded for sessions', {
         eventId,
         count: validSpeakers.length,
-        sessionsCount: sessions.length
+        joinedCount,
+        sessionsCount: sessions.length,
+        hasSpeakerAttendance: !!currentSpeakerAttendance,
+        speakerAttendanceCount: currentSpeakerAttendance?.speakers?.length || 0
       });
+      
+      setAllSpeakers(validSpeakers);
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load all speakers for sessions', error as Error);
       setAllSpeakers([]);
@@ -329,22 +347,41 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
         }
       });
 
+      logger.debug(LOGGER_COMPONENT_NAME, 'Updating speaker join status', {
+        joinedSpeakerIds: Array.from(joinedSpeakerIds),
+        prevSpeakersCount: prevSpeakers.length,
+        speakerAttendanceCount: speakerAttendance.speakers.length
+      });
+
       // Only update if join status has changed
       const hasChanges = prevSpeakers.some(speaker => 
         speaker.hasJoined !== joinedSpeakerIds.has(speaker.speaker.id)
       );
 
       if (!hasChanges) {
+        logger.debug(LOGGER_COMPONENT_NAME, 'No join status changes detected');
         return prevSpeakers; // No changes, return same reference
       }
 
       // Update join status
-      return prevSpeakers.map(speaker => ({
-        ...speaker,
-        hasJoined: joinedSpeakerIds.has(speaker.speaker.id)
-      }));
+      const updatedSpeakers = prevSpeakers.map(speaker => {
+        const hasJoined = joinedSpeakerIds.has(speaker.speaker.id);
+        return {
+          ...speaker,
+          hasJoined
+        };
+      });
+
+      const updatedJoinedCount = updatedSpeakers.filter(s => s.hasJoined).length;
+      logger.info(LOGGER_COMPONENT_NAME, 'Speaker join status updated', {
+        totalSpeakers: updatedSpeakers.length,
+        joinedCount: updatedJoinedCount,
+        joinedSpeakerIds: Array.from(joinedSpeakerIds)
+      });
+
+      return updatedSpeakers;
     });
-  }, [speakerAttendance]);
+  }, [speakerAttendance, logger]);
 
   const loadAllSpeakerMaterials = useCallback(async (joinedSpeakers: Array<{
     speakerId: string;
@@ -652,11 +689,14 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   }, [sessions, eventInvitations, loadAllSpeakers]);
 
   // Update speaker join status when attendance changes (without re-fetching profiles)
-  // Depend directly on speakerAttendance, not on the callback
+  // This ensures join status is updated even if speakerAttendance loads after speakers are loaded
   useEffect(() => {
-    if (speakerAttendance && allSpeakers.length > 0) {
-      updateSpeakerJoinStatus();
+    if (!speakerAttendance || !speakerAttendance.speakers || allSpeakers.length === 0) {
+      return;
     }
+
+    // Update join status for already-loaded speakers
+    updateSpeakerJoinStatus();
   }, [speakerAttendance, allSpeakers.length, updateSpeakerJoinStatus]);
 
   if (loading) {
@@ -717,6 +757,31 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       minute: '2-digit',
       timeZone: 'America/Chicago'
     });
+  };
+
+  const getTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) {
+      return 'just now';
+    } else if (diffMins < 60) {
+      return `${diffMins} ${diffMins === 1 ? 'minute' : 'minutes'} ago`;
+    } else if (diffHours < 24) {
+      return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+    } else if (diffDays < 7) {
+      return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    } else {
+      // For longer periods, show the actual date
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+      });
+    }
   };
 
   const isEventStarted = new Date(event.bookingStartDate) <= new Date();
@@ -1101,27 +1166,45 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
               {(userRole === 'ADMIN' || userRole === 'SPEAKER') && (
                 <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-slate-900 dark:text-white flex items-center">
-                    <UserCheck className="h-5 w-5 mr-2 text-green-600 dark:text-green-400" />
-                    In Auditorium ({joinedAttendees.length})
+                  <CardTitle className="text-slate-900 dark:text-white flex items-center justify-between">
+                    <div className="flex items-center">
+                      <UserCheck className="h-5 w-5 mr-2 text-green-600 dark:text-green-400" />
+                      Joined Attendees ({joinedAttendees.length})
+                    </div>
+                    <div 
+                      className="text-xs text-slate-500 dark:text-slate-400 cursor-help"
+                      title="Shows attendees who joined the event. They may have left the page but are still counted as having joined."
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-64">
                     <div className="space-y-2">
                       {joinedAttendees.length > 0 ? (
-                        joinedAttendees.map((attendee) => (
-                          <div key={attendee.userId} className="flex items-center space-x-3 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700/30">
-                            <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                              {attendee.userName.charAt(0).toUpperCase()}
+                        joinedAttendees.map((attendee) => {
+                          const joinedAt = attendee.joinedAt ? new Date(attendee.joinedAt) : null;
+                          const timeAgo = joinedAt ? getTimeAgo(joinedAt) : null;
+                          
+                          return (
+                            <div key={attendee.userId} className="flex items-center space-x-3 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700/30">
+                              <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                                {attendee.userName.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-slate-900 dark:text-white text-sm font-medium truncate">{attendee.userName}</p>
+                                <p className="text-slate-600 dark:text-slate-400 text-xs truncate">{attendee.userEmail}</p>
+                                {timeAgo && (
+                                  <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
+                                    Joined {timeAgo}
+                                  </p>
+                                )}
+                              </div>
+                              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-slate-900 dark:text-white text-sm font-medium truncate">{attendee.userName}</p>
-                              <p className="text-slate-600 dark:text-slate-400 text-xs truncate">{attendee.userEmail}</p>
-                            </div>
-                            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
                         <div className="text-center py-4">
                           <UserCheck className="h-8 w-8 text-slate-400 dark:text-slate-500 mx-auto mb-2" />
