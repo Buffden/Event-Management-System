@@ -23,7 +23,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
 import { eventAPI } from "@/lib/api/event.api";
 import { AttendanceApiClient } from "@/lib/api/attendance.api";
@@ -80,6 +80,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     invitation?: SpeakerInvitation;
     hasJoined?: boolean;
   }>>([]);
+  const hasAttemptedAutoJoinRef = useRef(false);
 
   // Create API client instance
   const attendanceAPI = new AttendanceApiClient();
@@ -500,6 +501,41 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     setRefreshing(false);
   };
 
+  // Auto-join attendees when they enter the auditorium
+  const autoJoinEvent = useCallback(async () => {
+    // Only auto-join for attendees (USER role)
+    if (userRole !== 'USER' || hasAttemptedAutoJoinRef.current || !eventId) {
+      return;
+    }
+
+    // Mark that we've attempted to join (even if it fails, don't retry immediately)
+    hasAttemptedAutoJoinRef.current = true;
+
+    try {
+      logger.info(LOGGER_COMPONENT_NAME, 'Attempting to auto-join attendee to event', { eventId });
+
+      const result = await attendanceAPI.joinEvent(eventId);
+      
+      if (result.success) {
+        logger.info(LOGGER_COMPONENT_NAME, 'Attendee auto-joined event successfully', { 
+          eventId, 
+          isFirstJoin: result.isFirstJoin 
+        });
+        // The auto-refresh interval (every 5 seconds) will pick up the change
+        // for admins and speakers viewing the event
+      } else {
+        logger.warn(LOGGER_COMPONENT_NAME, 'Failed to auto-join attendee', { 
+          eventId, 
+          message: result.message 
+        });
+        // Don't show error to user - they might have already joined or event hasn't started
+      }
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Error auto-joining attendee to event', error as Error, { eventId });
+      // Don't show error to user - they can still view the event
+    }
+  }, [userRole, eventId, logger, attendanceAPI]);
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -514,9 +550,14 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
   useEffect(() => {
     if (event) {
+      // Auto-join attendees when they enter the auditorium
+      // The backend will validate if the event has started
+      if (userRole === 'USER') {
+        autoJoinEvent();
+      }
       loadAttendance();
     }
-  }, [event, userRole]);
+  }, [event, userRole, autoJoinEvent]);
 
   useEffect(() => {
     // Load speakers whenever sessions are loaded, or when speakerAttendance changes
