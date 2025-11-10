@@ -9,7 +9,9 @@ import {
     EventPublishedMessage,
     EventUpdatedMessage,
     EventCancelledMessage,
-    EventApprovedMessage
+    EventApprovedMessage,
+    SessionResponse,
+    SessionSpeakerResponse
 } from '../types';
 import {EventStatus} from '../../generated/prisma';
 import {eventPublisherService} from './event-publisher.service';
@@ -18,11 +20,23 @@ import axios from 'axios';
 
 class EventService {
     private readonly authServiceUrl: string;
+    private readonly speakerServiceUrl: string;
+    private readonly eventInclude = {
+        venue: true,
+        sessions: {
+            include: {
+                speakers: true
+            }
+        }
+    } as const;
 
     constructor() {
         this.authServiceUrl = process.env.GATEWAY_URL ?
             `${process.env.GATEWAY_URL}/api/auth` :
-            'http://ems-gateway/api/auth';
+            'http://auth-service:3000';
+        this.speakerServiceUrl = process.env.GATEWAY_URL ?
+            `${process.env.GATEWAY_URL}/api/speaker` :
+            'http://speaker-service:3000';
     }
 
     /**
@@ -167,9 +181,7 @@ class EventService {
                     bookingEndDate: bookingEnd,
                     status: initialStatus
                 },
-                include: {
-                    venue: true
-                }
+                include: this.eventInclude
             });
 
             logger.info('createEvent() - Event created successfully', {
@@ -208,7 +220,7 @@ class EventService {
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             if (!existingEvent) {
@@ -290,7 +302,7 @@ class EventService {
             const event = await prisma.event.update({
                 where: {id: eventId},
                 data: updateData,
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             logger.info('updateEvent() - Event updated successfully', {eventId, speakerId});
@@ -311,7 +323,7 @@ class EventService {
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             if (!existingEvent) {
@@ -380,7 +392,7 @@ class EventService {
             const event = await prisma.event.update({
                 where: {id: eventId},
                 data: updateData,
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             logger.info('updateEventAsAdmin() - Event updated successfully by admin', {eventId});
@@ -415,7 +427,7 @@ class EventService {
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             if (!existingEvent) {
@@ -439,7 +451,7 @@ class EventService {
                     status: EventStatus.PENDING_APPROVAL,
                     rejectionReason: null // Clear any previous rejection reason
                 },
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             logger.info('submitEvent() - Event submitted for approval', {eventId, speakerId});
@@ -460,7 +472,7 @@ class EventService {
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             if (!existingEvent) {
@@ -476,7 +488,7 @@ class EventService {
             const event = await prisma.event.update({
                 where: {id: eventId},
                 data: {status: EventStatus.PUBLISHED},
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             logger.info("approveEvent() - Event status updated to PUBLISHED", {eventId});
@@ -560,7 +572,7 @@ class EventService {
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             if (!existingEvent) {
@@ -579,7 +591,7 @@ class EventService {
                     status: EventStatus.REJECTED,
                     rejectionReason
                 },
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             logger.info('rejectEvent() - Event rejected', {eventId, rejectionReason});
@@ -600,7 +612,7 @@ class EventService {
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId},
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             if (!existingEvent) {
@@ -616,7 +628,7 @@ class EventService {
             const event = await prisma.event.update({
                 where: {id: eventId},
                 data: {status: EventStatus.CANCELLED},
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             logger.info("cancelEvent() - Event status updated to CANCELLED", {eventId});
@@ -642,9 +654,10 @@ class EventService {
     /**
      * Delete event (only if DRAFT)
      */
-    async deleteEvent(eventId: string, speakerId: string): Promise<void> {
+    async deleteEvent(eventId: string, requesterId: string, options: { isAdmin?: boolean } = {}): Promise<void> {
         try {
-            logger.info('Deleting event', {eventId, speakerId});
+            const isAdmin = options.isAdmin ?? false;
+            logger.info('Deleting event', {eventId, requesterId, isAdmin});
 
             const existingEvent = await prisma.event.findUnique({
                 where: {id: eventId}
@@ -654,21 +667,74 @@ class EventService {
                 throw new Error('Event not found');
             }
 
-            if (existingEvent.speakerId !== speakerId) {
+            if (!isAdmin) {
+                if (existingEvent.speakerId !== requesterId) {
                 throw new Error('Unauthorized: You can only delete your own events');
             }
 
             if (existingEvent.status !== EventStatus.DRAFT) {
                 throw new Error('Event can only be deleted when in DRAFT status');
             }
+            }
 
+            // Delete all invitations for this event (both session-specific and event-level)
+            // This frees up speakers for future events/sessions in the same time slot
+            try {
+                logger.info('Deleting all invitations for event', {eventId});
+                const response = await axios.delete(
+                    `${this.speakerServiceUrl}/internal/invitations/event/${eventId}`,
+                    {
+                        timeout: 5000,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-internal-service': 'event-service',
+                        },
+                    }
+                );
+
+                if (response.status === 200 && response.data.success) {
+                    logger.info('All invitations deleted successfully for event', {
+                        eventId,
+                        deletedCount: response.data.deletedCount || 0,
+                    });
+                }
+            } catch (error) {
+                // Log error but don't fail the event deletion if invitation deletion fails
+                // The invitations might not exist or the service might be unavailable
+                if (axios.isAxiosError(error)) {
+                    if (error.response) {
+                        logger.warn('Failed to delete invitations for event', {
+                            eventId,
+                            status: error.response.status,
+                            message: error.response.data?.error || 'Unknown error',
+                        });
+                    } else if (error.request) {
+                        logger.warn('Speaker service unavailable when deleting invitations', {
+                            eventId,
+                            url: this.speakerServiceUrl,
+                        });
+                    } else {
+                        logger.warn('Error deleting invitations for event', {
+                            eventId,
+                            message: error.message,
+                        });
+                    }
+                } else {
+                    logger.warn('Unexpected error deleting invitations for event', {
+                        eventId,
+                        error: error instanceof Error ? error.message : 'Unknown',
+                    });
+                }
+            }
+
+            // Delete the event (this will cascade delete all sessions and session_speakers)
             await prisma.event.delete({
                 where: {id: eventId}
             });
 
-            logger.info('Event deleted', {eventId, speakerId});
+            logger.info('Event deleted', {eventId, requesterId, isAdmin});
         } catch (error) {
-            logger.error('Failed to delete event', error as Error, {eventId, speakerId});
+            logger.error('Failed to delete event', error as Error, {eventId, requesterId, isAdmin: options.isAdmin ?? false});
             throw error;
         }
     }
@@ -681,7 +747,7 @@ class EventService {
         try {
             const event = await prisma.event.findUnique({
                 where: {id: eventId},
-                include: {venue: true}
+                include: this.eventInclude
             });
 
             if (!event) {
@@ -790,7 +856,7 @@ class EventService {
             const [events, total] = await Promise.all([
                 prisma.event.findMany({
                     where,
-                    include: {venue: true},
+                    include: this.eventInclude,
                     orderBy: {createdAt: 'desc'},
                     skip,
                     take: limit
@@ -847,7 +913,41 @@ class EventService {
             bookingStartDate: event.bookingStartDate.toISOString(),
             bookingEndDate: event.bookingEndDate.toISOString(),
             createdAt: event.createdAt.toISOString(),
-            updatedAt: event.updatedAt.toISOString()
+            updatedAt: event.updatedAt.toISOString(),
+            sessions: Array.isArray(event.sessions)
+                ? event.sessions.map((session: any) => this.mapSessionToResponse(session))
+                : []
+        };
+    }
+
+    private mapSessionToResponse(session: any): SessionResponse {
+        return {
+            id: session.id,
+            eventId: session.eventId,
+            title: session.title,
+            description: session.description,
+            startsAt: session.startsAt instanceof Date ? session.startsAt.toISOString() : session.startsAt,
+            endsAt: session.endsAt instanceof Date ? session.endsAt.toISOString() : session.endsAt,
+            stage: session.stage,
+            createdAt: session.createdAt instanceof Date ? session.createdAt.toISOString() : session.createdAt,
+            updatedAt: session.updatedAt instanceof Date ? session.updatedAt.toISOString() : session.updatedAt,
+            speakers: Array.isArray(session.speakers)
+                ? session.speakers.map((speaker: any) => this.mapSessionSpeakerToResponse(speaker))
+                : []
+        };
+    }
+
+    private mapSessionSpeakerToResponse(speaker: any): SessionSpeakerResponse {
+        return {
+            id: speaker.id,
+            sessionId: speaker.sessionId,
+            speakerId: speaker.speakerId,
+            materialsAssetId: speaker.materialsAssetId,
+            materialsStatus: speaker.materialsStatus,
+            speakerCheckinConfirmed: speaker.speakerCheckinConfirmed,
+            specialNotes: speaker.specialNotes,
+            createdAt: speaker.createdAt instanceof Date ? speaker.createdAt.toISOString() : speaker.createdAt,
+            updatedAt: speaker.updatedAt instanceof Date ? speaker.updatedAt.toISOString() : speaker.updatedAt
         };
     }
 }
