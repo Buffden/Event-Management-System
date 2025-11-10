@@ -41,11 +41,19 @@ describe('EventService.updateEventAsAdmin', () => {
         status: EventStatus.DRAFT,
         name: 'Original Event',
         description: 'Original description',
+        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
 
       const updatedEvent = createMockEvent({
         ...existingEvent,
         ...updateData,
+        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-02T00:00:00Z'),
       });
 
       mockPrisma.event.findUnique.mockResolvedValue({
@@ -74,22 +82,33 @@ describe('EventService.updateEventAsAdmin', () => {
       const existingEvent = createMockEvent({
         id: eventId,
         status: EventStatus.PUBLISHED,
+        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
 
       const updatedEvent = createMockEvent({
         ...existingEvent,
         ...updateData,
         status: EventStatus.PUBLISHED,
+        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-02T00:00:00Z'),
       });
 
       mockPrisma.event.findUnique.mockResolvedValue({
         ...existingEvent,
         venue: createMockVenue(),
       });
-      mockPrisma.event.update.mockResolvedValue({
+      const mockUpdatedEvent = {
         ...updatedEvent,
+        status: EventStatus.PUBLISHED, // Ensure status is explicitly PUBLISHED
         venue: createMockVenue(),
-      });
+      };
+
+      mockPrisma.event.update.mockResolvedValue(mockUpdatedEvent);
       mockEventPublisherService.publishEventUpdated.mockResolvedValue(undefined);
 
       const result = await eventService.updateEventAsAdmin(eventId, updateData);
@@ -110,12 +129,20 @@ describe('EventService.updateEventAsAdmin', () => {
       const existingEvent = createMockEvent({
         id: eventId,
         status: EventStatus.DRAFT,
+        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
 
       const updatedEvent = createMockEvent({
         ...existingEvent,
         ...updateData,
         status: EventStatus.DRAFT,
+        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-02T00:00:00Z'),
       });
 
       mockPrisma.event.findUnique.mockResolvedValue({
@@ -213,6 +240,10 @@ describe('EventService.updateEventAsAdmin', () => {
       mockPrisma.event.update.mockResolvedValue({
         ...existingEvent,
         ...updateData,
+        bookingStartDate: new Date(updateData.bookingStartDate),
+        bookingEndDate: new Date(updateData.bookingEndDate),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-02T00:00:00Z'),
         venue: createMockVenue({ id: venueId }),
       });
 
@@ -233,6 +264,10 @@ describe('EventService.updateEventAsAdmin', () => {
         id: eventId,
         status: EventStatus.DRAFT,
         venueId: venueId,
+        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
 
       mockPrisma.event.findUnique.mockResolvedValue({
@@ -242,6 +277,10 @@ describe('EventService.updateEventAsAdmin', () => {
       mockPrisma.venue.findUnique.mockResolvedValue(createMockVenue({ id: venueId }));
       mockPrisma.event.update.mockResolvedValue({
         ...existingEvent,
+        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-02T00:00:00Z'),
         venue: createMockVenue({ id: venueId }),
       });
 
@@ -285,6 +324,10 @@ describe('EventService.updateEventAsAdmin', () => {
 
       const existingEvent = createMockEvent({
         id: eventId,
+        bookingStartDate: new Date('2025-11-01T00:00:00Z'),
+        bookingEndDate: new Date('2025-11-30T23:59:59Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
 
       mockPrisma.event.findUnique.mockResolvedValue({
@@ -294,6 +337,10 @@ describe('EventService.updateEventAsAdmin', () => {
       mockPrisma.event.update.mockResolvedValue({
         ...existingEvent,
         ...updateData,
+        bookingStartDate: new Date(updateData.bookingStartDate),
+        bookingEndDate: new Date(updateData.bookingEndDate),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-02T00:00:00Z'),
         venue: createMockVenue(),
       });
 

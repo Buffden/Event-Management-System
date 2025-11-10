@@ -1,6 +1,6 @@
 /**
  * Simplified Mock Definitions for Event Service Tests
- * 
+ *
  * This file contains simplified mocks that work better with TypeScript.
  */
 
@@ -109,6 +109,7 @@ export const mockRabbitMQService = {
 
 export const mockAuthValidationService = {
   validateToken: jest.fn() as jest.MockedFunction<any>,
+  validateTokenWithRole: jest.fn() as jest.MockedFunction<any>,
   validateUserRole: jest.fn() as jest.MockedFunction<any>,
   getUserFromToken: jest.fn() as jest.MockedFunction<any>,
 };
@@ -170,12 +171,12 @@ export const mockLogger = {
 export const setupSuccessfulEventCreation = () => {
   const mockEvent = createMockEvent();
   const mockVenue = createMockVenue();
-  
+
   mockPrisma.venue.findUnique.mockResolvedValue(mockVenue);
   mockPrisma.event.findMany.mockResolvedValue([]); // Mock overlapping events check
   mockPrisma.event.create.mockResolvedValue(mockEvent);
   mockEventPublisherService.publishEventCreated.mockResolvedValue(undefined);
-  
+
   return { mockEvent, mockVenue };
 };
 
@@ -199,11 +200,11 @@ export const setupVenueNotFound = () => {
 export const setupSuccessfulAuth = (userRole: string = 'USER') => {
   const mockUser = createMockUser({ role: userRole });
   const mockToken = { userId: mockUser.id, role: userRole };
-  
+
   mockJWT.verify.mockReturnValue(mockToken);
   mockAuthValidationService.validateToken.mockResolvedValue({ valid: true, user: mockUser });
   mockAuthValidationService.getUserFromToken.mockResolvedValue(mockUser);
-  
+
   return { mockUser, mockToken };
 };
 
@@ -248,13 +249,13 @@ export const setupRabbitMQError = () => {
 export const setupAllMocks = () => {
   // Reset all mocks
   jest.clearAllMocks();
-  
+
   // Setup default successful responses
   mockPrisma.$connect.mockResolvedValue(undefined);
   mockPrisma.$disconnect.mockResolvedValue(undefined);
   mockRabbitMQService.connect.mockResolvedValue(undefined);
   mockRabbitMQService.disconnect.mockResolvedValue(undefined);
-  
+
   // Setup default logger behavior
   mockLogger.info.mockImplementation(() => {});
   mockLogger.warn.mockImplementation(() => {});
@@ -292,6 +293,7 @@ jest.mock('../services/auth-validation.service', () => ({
 }));
 
 jest.mock('../services/event-publisher.service', () => ({
+  eventPublisherService: mockEventPublisherService,
   EventPublisherService: jest.fn(() => mockEventPublisherService),
 }));
 
