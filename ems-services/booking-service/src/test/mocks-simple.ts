@@ -166,6 +166,7 @@ export const mockRabbitMQService = {
 
 export const mockAuthValidationService = {
   validateToken: jest.fn() as jest.MockedFunction<any>,
+  validateTokenWithRole: jest.fn() as jest.MockedFunction<any>,
   validateUserRole: jest.fn() as jest.MockedFunction<any>,
   getUserFromToken: jest.fn() as jest.MockedFunction<any>,
 };
