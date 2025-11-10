@@ -15,7 +15,8 @@ export class InvitationService {
     try {
       logger.info('Creating speaker invitation', { 
         speakerId: data.speakerId, 
-        eventId: data.eventId 
+        eventId: data.eventId,
+        sessionId: data.sessionId
       });
 
       // Check if speaker exists
@@ -27,11 +28,52 @@ export class InvitationService {
         throw new Error('Speaker not found');
       }
 
-      // Check if invitation already exists for this speaker-event combination
+      // If sessionId is provided, check for session-specific invitation
+      if (data.sessionId) {
+        try {
+          const existingSessionInvitation = await prisma.speakerInvitation.findUnique({
+            where: {
+              sessionId_speakerId: {
+                sessionId: data.sessionId,
+                speakerId: data.speakerId,
+              }
+            }
+          });
+
+          if (existingSessionInvitation) {
+            // If an invitation already exists, delete it first (this handles the case where
+            // a previous deletion failed, leaving a stale invitation)
+            logger.info('Found existing invitation for session and speaker, deleting it', {
+              invitationId: existingSessionInvitation.id,
+              sessionId: data.sessionId,
+              speakerId: data.speakerId,
+            });
+            
+            await prisma.speakerInvitation.delete({
+              where: { id: existingSessionInvitation.id }
+            });
+            
+            logger.info('Deleted existing invitation, will create a new one', {
+              sessionId: data.sessionId,
+              speakerId: data.speakerId,
+            });
+          }
+        } catch (error) {
+          // If the unique constraint doesn't exist or there's an error, log and continue
+          // This handles cases where the migration hasn't been applied yet
+          logger.warn('Error checking for existing session invitation (may be due to missing migration)', {
+            sessionId: data.sessionId,
+            speakerId: data.speakerId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      } else {
+        // For event-level invitations (backward compatibility), check event-level duplicates
       const existingInvitation = await prisma.speakerInvitation.findFirst({
         where: {
           speakerId: data.speakerId,
           eventId: data.eventId,
+            sessionId: null, // Only check event-level invitations
           status: {
             in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED]
           }
@@ -41,20 +83,70 @@ export class InvitationService {
       if (existingInvitation) {
         throw new Error('Invitation already exists for this speaker and event');
       }
+      }
 
-      const invitation = await prisma.speakerInvitation.create({
+      // Try to create the invitation
+      // If it fails due to unique constraint violation, try to delete and recreate
+      let invitation;
+      try {
+        invitation = await prisma.speakerInvitation.create({
         data: {
           speakerId: data.speakerId,
           eventId: data.eventId,
+            sessionId: data.sessionId || null,
           message: data.message || null,
           status: InvitationStatus.PENDING
         }
       });
+      } catch (createError: any) {
+        // If creation fails due to unique constraint (P2002), try to handle it
+        if (createError?.code === 'P2002' && data.sessionId) {
+          logger.info('Invitation creation failed due to unique constraint, attempting to update existing invitation', {
+            sessionId: data.sessionId,
+            speakerId: data.speakerId,
+          });
+          
+          // Try to find and update the existing invitation
+          const existingInvitation = await prisma.speakerInvitation.findFirst({
+            where: {
+              sessionId: data.sessionId,
+              speakerId: data.speakerId,
+            }
+          });
+          
+          if (existingInvitation) {
+            // Update the existing invitation to reset it to PENDING
+            invitation = await prisma.speakerInvitation.update({
+              where: { id: existingInvitation.id },
+              data: {
+                message: data.message || null,
+                status: InvitationStatus.PENDING,
+                sentAt: new Date(),
+                respondedAt: null,
+                updatedAt: new Date(),
+              }
+            });
+            
+            logger.info('Updated existing invitation', {
+              invitationId: invitation.id,
+              sessionId: data.sessionId,
+              speakerId: data.speakerId,
+            });
+          } else {
+            // If we can't find it, re-throw the original error
+            throw createError;
+          }
+        } else {
+          // For other errors, re-throw
+          throw createError;
+        }
+      }
 
-      logger.info('Speaker invitation created successfully', { 
+      logger.info('Speaker invitation created/updated successfully', { 
         invitationId: invitation.id,
         speakerId: data.speakerId,
-        eventId: data.eventId
+        eventId: data.eventId,
+        sessionId: data.sessionId
       });
 
       return invitation;
@@ -131,7 +223,7 @@ export class InvitationService {
       if (search) {
         const searchLower = search.toLowerCase();
         // Simple search on eventId - client will handle full event name search
-        allInvitations = allInvitations.filter(inv => 
+        allInvitations = allInvitations.filter((inv: SpeakerInvitation) => 
           inv.eventId.toLowerCase().includes(searchLower)
         );
       }
@@ -288,6 +380,129 @@ export class InvitationService {
       logger.info('Invitation deleted successfully', { invitationId: id });
     } catch (error) {
       logger.error('Error deleting invitation', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete an invitation by sessionId and speakerId
+   */
+  async deleteInvitationBySessionAndSpeaker(sessionId: string, speakerId: string): Promise<void> {
+    try {
+      logger.info('Deleting invitation by session and speaker', { sessionId, speakerId });
+
+      const invitation = await prisma.speakerInvitation.findUnique({
+        where: {
+          sessionId_speakerId: {
+            sessionId,
+            speakerId,
+          }
+        }
+      });
+
+      if (!invitation) {
+        logger.warn('Invitation not found for session and speaker', { sessionId, speakerId });
+        return; // No invitation found, nothing to delete
+      }
+
+      await prisma.speakerInvitation.delete({
+        where: { id: invitation.id }
+      });
+
+      logger.info('Invitation deleted successfully by session and speaker', { 
+        invitationId: invitation.id,
+        sessionId, 
+        speakerId 
+      });
+    } catch (error) {
+      logger.error('Error deleting invitation by session and speaker', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete an invitation by eventId and speakerId (for backward compatibility)
+   */
+  async deleteInvitationByEventAndSpeaker(eventId: string, speakerId: string): Promise<void> {
+    try {
+      logger.info('Deleting invitation by event and speaker', { eventId, speakerId });
+
+      const invitation = await prisma.speakerInvitation.findFirst({
+        where: {
+          eventId,
+          speakerId,
+          sessionId: null // Only event-level invitations
+        }
+      });
+
+      if (!invitation) {
+        logger.warn('Invitation not found for event and speaker', { eventId, speakerId });
+        return; // No invitation found, nothing to delete
+      }
+
+      await prisma.speakerInvitation.delete({
+        where: { id: invitation.id }
+      });
+
+      logger.info('Invitation deleted successfully by event and speaker', { 
+        invitationId: invitation.id,
+        eventId, 
+        speakerId 
+      });
+    } catch (error) {
+      logger.error('Error deleting invitation by event and speaker', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get accepted invitations for a speaker with sessionIds (for overlap checking)
+   */
+  async getAcceptedInvitationsWithSessions(speakerId: string): Promise<SpeakerInvitation[]> {
+    try {
+      logger.debug('Retrieving accepted invitations with sessions', { speakerId });
+
+      const invitations = await prisma.speakerInvitation.findMany({
+        where: {
+          speakerId,
+          status: InvitationStatus.ACCEPTED,
+          sessionId: {
+            not: null // Only invitations with sessionIds
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      return invitations;
+    } catch (error) {
+      logger.error('Error retrieving accepted invitations with sessions', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete all invitations for an event (both session-specific and event-level)
+   */
+  async deleteAllInvitationsByEvent(eventId: string): Promise<number> {
+    try {
+      logger.info('Deleting all invitations for event', { eventId });
+
+      const result = await prisma.speakerInvitation.deleteMany({
+        where: {
+          eventId
+        }
+      });
+
+      logger.info('Deleted all invitations for event', { 
+        eventId,
+        deletedCount: result.count
+      });
+
+      return result.count;
+    } catch (error) {
+      logger.error('Error deleting all invitations for event', error as Error, { eventId });
       throw error;
     }
   }

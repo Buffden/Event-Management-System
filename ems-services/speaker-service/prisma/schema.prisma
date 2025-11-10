@@ -49,6 +49,7 @@ model SpeakerInvitation {
   id          String           @id @default(cuid())
   speakerId   String
   eventId     String
+  sessionId   String?          // Optional: session ID for session-specific invitations
   message     String?
   status      InvitationStatus @default(PENDING)
   sentAt      DateTime         @default(now())
@@ -65,6 +66,9 @@ model SpeakerInvitation {
 
   speaker     SpeakerProfile @relation(fields: [speakerId], references: [id])
 
+  @@unique([sessionId, speakerId]) // Unique constraint: one invitation per session per speaker
+  @@index([sessionId])
+  @@index([eventId, speakerId])
   @@map("speaker_invitations")
 }
 

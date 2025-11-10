@@ -46,6 +46,7 @@ export interface SpeakerInvitation {
   id: string;
   speakerId: string;
   eventId: string;
+  sessionId?: string | null;
   message?: string | null;
   status: InvitationStatus;
   sentAt: Date;
@@ -57,6 +58,7 @@ export interface SpeakerInvitation {
 export interface CreateInvitationRequest {
   speakerId: string;
   eventId: string;
+  sessionId?: string; // Optional: for session-specific invitations
   message?: string;
 }
 

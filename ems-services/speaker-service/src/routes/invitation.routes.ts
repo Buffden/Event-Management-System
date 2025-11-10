@@ -10,7 +10,7 @@ const invitationService = new InvitationService();
 // Create invitation (Admin only)
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { speakerId, eventId, message } = req.body;
+    const { speakerId, eventId, sessionId, message } = req.body;
 
     if (!speakerId || !eventId) {
       return res.status(400).json({
@@ -23,13 +23,15 @@ router.post('/', async (req: Request, res: Response) => {
     const invitation = await invitationService.createInvitation({
       speakerId,
       eventId,
+      sessionId,
       message
     });
 
     logger.info('Invitation created', {
       invitationId: invitation.id,
       speakerId,
-      eventId
+      eventId,
+      sessionId
     });
 
     return res.status(201).json({
@@ -40,9 +42,11 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error('Error creating invitation', error as Error);
-    return res.status(500).json({
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create invitation';
+    const statusCode = errorMessage.includes('already exists') ? 409 : 500;
+    return res.status(statusCode).json({
       success: false,
-      error: 'Failed to create invitation',
+      error: errorMessage,
       timestamp: new Date().toISOString()
     });
   }
