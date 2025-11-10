@@ -248,7 +248,7 @@ export const setupSuccessfulBookingCreation = () => {
  */
 export const setupSuccessfulTicketGeneration = () => {
   const mockTicket = createMockTicket();
-  const mockBooking = createMockBooking();
+  const mockBooking = createMockBooking({ eventId: 'event-123' });
 
   mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
   mockAxios.get.mockResolvedValue({
@@ -257,12 +257,17 @@ export const setupSuccessfulTicketGeneration = () => {
   });
   // Ensure the mock ticket has expiresAt set (service calculates it and passes it in data)
   // Use mockImplementation to return expiresAt from input data
+  // Also include the booking relationship with eventId for mapTicketToResponse
   mockPrisma.ticket.create.mockImplementation(async (args: any) => {
     const baseTicket = createMockTicket();
     return {
       ...baseTicket,
       expiresAt: args.data?.expiresAt || baseTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
       issuedAt: args.data?.issuedAt || baseTicket.issuedAt || new Date(),
+      booking: {
+        ...mockBooking,
+        eventId: 'event-123',
+      },
     };
   });
   mockEventPublisherService.publishTicketGenerated.mockResolvedValue(undefined);

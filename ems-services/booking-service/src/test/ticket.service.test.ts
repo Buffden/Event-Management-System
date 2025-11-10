@@ -134,7 +134,7 @@ describe('TicketService', () => {
     });
 
     it('should set expiration to 2 hours after event ends', async () => {
-      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED', eventId: 'event-123' });
       const eventEndDate = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
@@ -150,6 +150,10 @@ describe('TicketService', () => {
         ...mockTicket,
         expiresAt: expectedExpiresAt,
         createdAt: mockTicket.createdAt || new Date(),
+        booking: {
+          ...mockBooking,
+          eventId: 'event-123',
+        },
       });
 
       await ticketService.generateTicket({
@@ -168,7 +172,7 @@ describe('TicketService', () => {
     });
 
     it('should use fallback expiration if event service unavailable', async () => {
-      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED', eventId: 'event-123' });
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
       mockPrisma.ticket.findUnique.mockResolvedValue(null);
       mocks.setupQRCodeGeneration();
@@ -180,6 +184,10 @@ describe('TicketService', () => {
         ...mockTicket,
         expiresAt: mockTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
         createdAt: mockTicket.createdAt || new Date(),
+        booking: {
+          ...mockBooking,
+          eventId: 'event-123',
+        },
       });
 
       await ticketService.generateTicket({
@@ -368,7 +376,7 @@ describe('TicketService', () => {
       const { mockQRCode } = mocks.setupQRCodeGeneration();
 
       // This is tested indirectly through generateTicket
-      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED', eventId: 'event-123' });
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
       mockPrisma.ticket.findUnique.mockResolvedValue(null);
 
@@ -378,6 +386,10 @@ describe('TicketService', () => {
         ...mockTicket,
         expiresAt: mockTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
         createdAt: mockTicket.createdAt || new Date(),
+        booking: {
+          ...mockBooking,
+          eventId: 'event-123',
+        },
       });
       mocks.setupEventServiceResponse();
 
@@ -399,7 +411,7 @@ describe('TicketService', () => {
     });
 
     it('should handle QR code collision by regenerating', async () => {
-      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED' });
+      const mockBooking = mocks.createMockBooking({ status: 'CONFIRMED', eventId: 'event-123' });
       mockPrisma.booking.findUnique.mockResolvedValue(mockBooking);
       mockPrisma.ticket.findUnique.mockResolvedValue(null);
 
@@ -409,6 +421,10 @@ describe('TicketService', () => {
         ...mockTicket,
         expiresAt: mockTicket.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000),
         createdAt: mockTicket.createdAt || new Date(),
+        booking: {
+          ...mockBooking,
+          eventId: 'event-123',
+        },
       });
       mocks.setupEventServiceResponse();
 
@@ -458,7 +474,9 @@ describe('TicketService', () => {
     });
 
     it('should handle errors gracefully in revokeTicket', async () => {
-      mocks.setupDatabaseError();
+      // Setup database error - make findUnique throw to trigger the catch block
+      const dbError = new Error('Database connection failed');
+      mockPrisma.ticket.findUnique.mockRejectedValue(dbError);
 
       const result = await ticketService.revokeTicket('ticket-123');
 
