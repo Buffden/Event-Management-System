@@ -24,6 +24,7 @@ CREATE TABLE "speaker_invitations" (
     "id" TEXT NOT NULL,
     "speakerId" TEXT NOT NULL,
     "eventId" TEXT NOT NULL,
+    "sessionId" TEXT,
     "message" TEXT,
     "status" "InvitationStatus" NOT NULL DEFAULT 'PENDING',
     "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -76,6 +77,15 @@ CREATE TABLE "presentation_materials" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "speaker_profiles_userId_key" ON "speaker_profiles"("userId");
+
+-- CreateIndex
+CREATE INDEX "speaker_invitations_sessionId_idx" ON "speaker_invitations"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "speaker_invitations_eventId_speakerId_idx" ON "speaker_invitations"("eventId", "speakerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "speaker_invitations_sessionId_speakerId_key" ON "speaker_invitations"("sessionId", "speakerId");
 
 -- CreateIndex
 CREATE INDEX "messages_fromUserId_idx" ON "messages"("fromUserId");
