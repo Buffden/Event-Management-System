@@ -163,11 +163,11 @@ def get_venues(admin_token: str) -> List[Dict]:
 def create_event(admin_token: str, admin_user_id: str, venue: Dict,
                 event_name: str, description: str, category: str) -> Optional[Dict]:
     """
-    Create an event as admin (admin is the creator)
+    Create an event as admin using the admin endpoint
 
     Args:
         admin_token: Admin authentication token
-        admin_user_id: User ID of the admin creating the event
+        admin_user_id: User ID of the admin creating the event (used for logging)
         venue: Venue dictionary
         event_name: Event name
         description: Event description
@@ -185,10 +185,12 @@ def create_event(admin_token: str, admin_user_id: str, venue: Dict,
         venue['openingTime'], venue['closingTime']
     )
 
-    # Create event as admin (admin uses their own userId)
-    # Admin uses the speaker endpoint but with admin token - this auto-publishes the event
-    # Note: Gateway rewrites /api/event/speaker/events to /speaker/events on event-service
-    url = f"{EVENT_API_URL}/speaker/events"
+    # Create event as admin using the admin endpoint
+    # Gateway rewrites /api/event/ to /, so /api/event/admin/admin/events becomes /admin/admin/events
+    # Service mounts admin routes at /admin, and route is defined as /admin/events
+    # So the full path is /admin/admin/events
+    # The admin route automatically uses the admin's userId from the token
+    url = f"{EVENT_API_URL}/admin/admin/events"
     headers = {
         "Authorization": f"Bearer {admin_token}",
         "Content-Type": "application/json"
@@ -199,8 +201,8 @@ def create_event(admin_token: str, admin_user_id: str, venue: Dict,
         "category": category,
         "venueId": venue['id'],
         "bookingStartDate": start_date.isoformat(),
-        "bookingEndDate": end_date.isoformat(),
-        "userId": admin_user_id  # Admin creates event with their own userId
+        "bookingEndDate": end_date.isoformat()
+        # Note: userId is not needed - the admin route extracts it from the token
     }
 
     try:
@@ -215,10 +217,10 @@ def create_event(admin_token: str, admin_user_id: str, venue: Dict,
         else:
             try:
                 error_data = response.json()
-                error_msg = error_data.get('error', response.text)
+                error_msg = error_data.get('error', error_data.get('message', response.text))
                 print_error(f"Failed to create event '{event_name}': HTTP {response.status_code} - {error_msg}")
             except:
-                print_error(f"Failed to create event '{event_name}': HTTP {response.status_code}")
+                print_error(f"Failed to create event '{event_name}': HTTP {response.status_code} - {response.text[:200]}")
             return None
 
     except Exception as e:
@@ -228,11 +230,11 @@ def create_event(admin_token: str, admin_user_id: str, venue: Dict,
 
 def seed_events(admin_token: str, admin_user_id: str, num_events: int = 8) -> List[Dict]:
     """
-    Seed events by creating them as admin (admin is the creator)
+    Seed events by creating them as admin using the admin endpoint
 
     Args:
         admin_token: Admin authentication token
-        admin_user_id: Admin user ID
+        admin_user_id: Admin user ID (used for logging)
         num_events: Number of events to create
 
     Returns:
