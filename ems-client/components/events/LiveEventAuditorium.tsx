@@ -81,6 +81,10 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     hasJoined?: boolean;
   }>>([]);
   const hasAttemptedAutoJoinRef = useRef(false);
+  const previousMaterialIdsRef = useRef<Set<string>>(new Set());
+  const loadedSessionsHashRef = useRef<string>('');
+  const speakerAttendanceRef = useRef<SpeakerAttendanceResponse | null>(null);
+  const loadedAttendanceEventIdRef = useRef<string>('');
 
   // Create API client instance
   const attendanceAPI = new AttendanceApiClient();
@@ -136,7 +140,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     }
   };
 
-  const loadEvent = async () => {
+  const loadEvent = useCallback(async () => {
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading event details', { eventId });
       const eventResponse = await eventAPI.getEventById(eventId);
@@ -163,9 +167,9 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event', err as Error);
       setError('Failed to load event details');
     }
-  };
+  }, [eventId, logger]);
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       setLoadingSessions(true);
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading sessions', { eventId });
@@ -180,9 +184,9 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     } finally {
       setLoadingSessions(false);
     }
-  };
+  }, [eventId, logger]);
 
-  const loadEventInvitations = async () => {
+  const loadEventInvitations = useCallback(async () => {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading event invitations', { eventId });
 
@@ -199,9 +203,9 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event invitations', error as Error);
       // Don't set error state - invitations might not exist yet
     }
-  };
+  }, [eventId, userRole, logger]);
 
-  const loadAllSpeakers = async () => {
+  const loadAllSpeakers = useCallback(async (currentSpeakerAttendance?: SpeakerAttendanceResponse | null) => {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading all speakers for sessions', { eventId });
 
@@ -240,16 +244,6 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
         sessionSpeakerMap.set(key, { speakerId, session, invitation });
       });
 
-      // Also check speakerAttendance to see who has joined
-      const joinedSpeakerIds = new Set<string>();
-      if (speakerAttendance && speakerAttendance.speakers) {
-        speakerAttendance.speakers.forEach(speaker => {
-          if (speaker.isAttended) {
-            joinedSpeakerIds.add(speaker.speakerId);
-          }
-        });
-      }
-
       // Fetch speaker profiles for all session-speaker combinations
       const speakersWithInfo = await Promise.all(
         Array.from(sessionSpeakerMap.values()).map(async ({ speakerId, session, invitation }) => {
@@ -259,7 +253,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
               speaker = await adminApiClient.getSpeakerProfile(speakerId);
             } else {
               // For non-admin users, try to get speaker info from speakerAttendance
-              const speakerData = speakerAttendance?.speakers.find(s => s.speakerId === speakerId);
+              const speakerData = currentSpeakerAttendance?.speakers.find(s => s.speakerId === speakerId);
               if (speakerData) {
                 speaker = {
                   id: speakerId,
@@ -292,7 +286,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
               speaker,
               session: session || undefined,
               invitation: invitation || undefined,
-              hasJoined: joinedSpeakerIds.has(speakerId),
+              hasJoined: false, // Will be updated separately
             };
           } catch (error) {
             logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker profile', {
@@ -318,9 +312,41 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load all speakers for sessions', error as Error);
       setAllSpeakers([]);
     }
-  };
+  }, [sessions, eventInvitations, userRole, eventId, logger]);
 
-  const loadAllSpeakerMaterials = async (joinedSpeakers: Array<{
+  // Update join status for speakers without re-fetching profiles
+  const updateSpeakerJoinStatus = useCallback(() => {
+    if (!speakerAttendance || !speakerAttendance.speakers) {
+      return;
+    }
+
+    setAllSpeakers(prevSpeakers => {
+      // Create a map of joined speaker IDs
+      const joinedSpeakerIds = new Set<string>();
+      speakerAttendance.speakers.forEach(speaker => {
+        if (speaker.isAttended) {
+          joinedSpeakerIds.add(speaker.speakerId);
+        }
+      });
+
+      // Only update if join status has changed
+      const hasChanges = prevSpeakers.some(speaker => 
+        speaker.hasJoined !== joinedSpeakerIds.has(speaker.speaker.id)
+      );
+
+      if (!hasChanges) {
+        return prevSpeakers; // No changes, return same reference
+      }
+
+      // Update join status
+      return prevSpeakers.map(speaker => ({
+        ...speaker,
+        hasJoined: joinedSpeakerIds.has(speaker.speaker.id)
+      }));
+    });
+  }, [speakerAttendance]);
+
+  const loadAllSpeakerMaterials = useCallback(async (joinedSpeakers: Array<{
     speakerId: string;
     speakerName: string;
     speakerEmail: string;
@@ -348,9 +374,28 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
       // Get all unique material IDs
       const allMaterialIds = Array.from(materialSpeakerMap.keys());
+      const currentMaterialIdsSet = new Set(allMaterialIds);
+
+      // Check if material IDs have changed - if not, skip fetching
+      const previousIds = previousMaterialIdsRef.current;
+      const idsChanged = 
+        previousIds.size !== currentMaterialIdsSet.size ||
+        !Array.from(currentMaterialIdsSet).every(id => previousIds.has(id));
+
+      if (!idsChanged && previousIds.size > 0) {
+        // Material IDs haven't changed, no need to re-fetch
+        logger.debug(LOGGER_COMPONENT_NAME, 'Material IDs unchanged, skipping fetch', {
+          materialCount: allMaterialIds.length
+        });
+        return;
+      }
+
+      // Update the ref with current material IDs
+      previousMaterialIdsRef.current = currentMaterialIdsSet;
 
       if (allMaterialIds.length === 0) {
         setSelectedMaterials([]);
+        previousMaterialIdsRef.current = new Set();
         return;
       }
 
@@ -433,15 +478,18 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     } catch (err) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load all speaker materials', err as Error);
       setSelectedMaterials([]);
+      previousMaterialIdsRef.current = new Set();
     }
-  };
+  }, [eventId, logger, attendanceAPI]);
 
-  const loadSpeakerAttendanceForAll = async () => {
+  const loadSpeakerAttendanceForAll = useCallback(async () => {
     // Load speaker attendance for all roles (to show speaker join status)
     try {
       // Try to load speaker attendance - all authenticated users can now access it
       const speakerData = await attendanceAPI.getSpeakerAttendance(eventId).catch(() => null);
       setSpeakerAttendance(speakerData);
+      // Also update the ref for use in loadAllSpeakers
+      speakerAttendanceRef.current = speakerData;
 
       // Update speaker info from speaker attendance data
       if (speakerData) {
@@ -456,18 +504,22 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
         } else {
           // Clear materials if no speaker joined or no materials selected
           setSelectedMaterials([]);
+          previousMaterialIdsRef.current = new Set();
         }
       } else {
         setSelectedMaterials([]);
+        previousMaterialIdsRef.current = new Set();
       }
     } catch (err) {
       logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker attendance data', err as Error);
       // Don't fail the whole page - clear materials and continue
       setSelectedMaterials([]);
+      previousMaterialIdsRef.current = new Set();
+      speakerAttendanceRef.current = null;
     }
-  };
+  }, [eventId, logger, attendanceAPI, loadAllSpeakerMaterials]);
 
-  const loadAttendance = async () => {
+  const loadAttendance = useCallback(async () => {
     if (!event) return;
 
     // Load speaker attendance for all roles
@@ -488,18 +540,25 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     } catch (err) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load attendance data', err as Error);
     }
-  };
+  }, [event, userRole, eventId, logger, attendanceAPI, loadSpeakerAttendanceForAll]);
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([
-      loadEvent(), 
-      loadAttendance(), 
-      loadSessions(), 
-      loadEventInvitations()
-    ]);
-    setRefreshing(false);
-  };
+    try {
+      await Promise.all([
+        loadEvent(), 
+        loadAttendance(), 
+        loadSessions(), 
+        loadEventInvitations()
+      ]);
+      // Note: updateSpeakerJoinStatus will be called automatically via useEffect
+      // when speakerAttendance state updates from loadAttendance
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Error refreshing data', error as Error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadEvent, loadAttendance, loadSessions, loadEventInvitations, logger]);
 
   // Auto-join attendees when they enter the auditorium
   const autoJoinEvent = useCallback(async () => {
@@ -537,6 +596,13 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   }, [userRole, eventId, logger, attendanceAPI]);
 
   useEffect(() => {
+    // Reset refs when eventId changes
+    loadedAttendanceEventIdRef.current = '';
+    loadedSessionsHashRef.current = '';
+    previousMaterialIdsRef.current = new Set();
+    speakerAttendanceRef.current = null;
+    hasAttemptedAutoJoinRef.current = false;
+
     const loadData = async () => {
       setLoading(true);
       await loadEvent();
@@ -546,10 +612,13 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     };
 
     loadData();
-  }, [eventId, userRole]);
+  }, [eventId, userRole, loadEvent, loadSessions, loadEventInvitations]);
 
   useEffect(() => {
-    if (event) {
+    // Only load attendance if event is loaded and we haven't loaded it for this event yet
+    if (event && event.id !== loadedAttendanceEventIdRef.current) {
+      loadedAttendanceEventIdRef.current = event.id;
+      
       // Auto-join attendees when they enter the auditorium
       // The backend will validate if the event has started
       if (userRole === 'USER') {
@@ -557,31 +626,38 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       }
       loadAttendance();
     }
-  }, [event, userRole, autoJoinEvent]);
+  }, [event, userRole, autoJoinEvent, loadAttendance]);
 
+  // Load speakers only when sessions or invitations change (not when attendance changes)
+  // Use a hash to track if sessions/invitations have actually changed
   useEffect(() => {
-    // Load speakers whenever sessions are loaded, or when speakerAttendance changes
-    // For non-admin users, we rely on speakerAttendance data
-    if (sessions.length >= 0) {
-      loadAllSpeakers();
-    }
-  }, [sessions, eventInvitations, speakerAttendance, userRole]);
+    // Create a hash from sessions and invitations to detect changes
+    const sessionsHash = JSON.stringify({
+      sessionIds: sessions.map(s => s.id).sort(),
+      invitationIds: eventInvitations.map(i => i.id).sort()
+    });
 
-  // Auto-refresh attendance data every 5 seconds for live experience
-  useEffect(() => {
-    if (!event) return;
-
-    const interval = setInterval(() => {
-      loadAttendance();
-      // Also refresh sessions and speakers periodically (every 30 seconds)
-      loadSessions();
-      if (userRole === 'ADMIN') {
-        loadEventInvitations();
+    // Only load speakers if the hash has changed (sessions or invitations changed)
+    if (sessionsHash !== loadedSessionsHashRef.current) {
+      if (sessions.length > 0) {
+        // Use ref to get latest speakerAttendance without triggering re-runs
+        loadAllSpeakers(speakerAttendanceRef.current);
+        loadedSessionsHashRef.current = sessionsHash;
+      } else {
+        // Clear speakers if no sessions
+        setAllSpeakers([]);
+        loadedSessionsHashRef.current = '';
       }
-    }, 5000); // Reduced to 5 seconds for more real-time updates
+    }
+  }, [sessions, eventInvitations, loadAllSpeakers]);
 
-    return () => clearInterval(interval);
-  }, [event, userRole]);
+  // Update speaker join status when attendance changes (without re-fetching profiles)
+  // Depend directly on speakerAttendance, not on the callback
+  useEffect(() => {
+    if (speakerAttendance && allSpeakers.length > 0) {
+      updateSpeakerJoinStatus();
+    }
+  }, [speakerAttendance, allSpeakers.length, updateSpeakerJoinStatus]);
 
   if (loading) {
     return (
@@ -704,14 +780,12 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
               <Button
                 onClick={() => {
                   refreshData();
-                  // Also immediately refresh attendance
-                  loadAttendance();
                 }}
                 disabled={refreshing}
                 variant="outline"
                 size="sm"
                 className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                title="Refresh attendance data"
+                title="Refresh auditorium data"
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
@@ -720,11 +794,6 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                 <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
                 LIVE
               </Badge>
-              {attendance && (
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Auto-refreshing every 5s
-                </span>
-              )}
             </div>
           </div>
         </div>
