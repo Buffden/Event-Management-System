@@ -30,15 +30,16 @@ function AdminCreateEventPage() {
   const logger = useLogger();
 
   // Form state
-  const [formData, setFormData] = useState<CreateEventRequest>({
+  type AdminCreateEventForm = Omit<CreateEventRequest, 'userId'>;
+
+  const [formData, setFormData] = useState<AdminCreateEventForm>({
     name: '',
     description: '',
     category: '',
     bannerImageUrl: '',
     venueId: 0,
     bookingStartDate: '',
-    bookingEndDate: '',
-    userId: ''
+    bookingEndDate: ''
   });
 
   const [venues, setVenues] = useState<VenueResponse[]>([]);
@@ -61,8 +62,6 @@ function AdminCreateEventPage() {
     }
 
     if (isAuthenticated && user) {
-      // Admin creates events on behalf of the system, using their ID as creator
-      setFormData(prev => ({ ...prev, userId: user.id }));
       loadVenues();
     }
   }, [isAuthenticated, isLoading, user, router]);
@@ -126,7 +125,7 @@ function AdminCreateEventPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleInputChange = (field: keyof CreateEventRequest, value: string | number) => {
+  const handleInputChange = (field: keyof AdminCreateEventForm, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     // Clear error when user starts typing
     if (errors[field]) {
@@ -147,7 +146,7 @@ function AdminCreateEventPage() {
 
     try {
       // Create event - backend auto-publishes for admin users
-      const createResponse = await eventAPI.createEvent(formData);
+      const createResponse = await eventAPI.createEventAsAdmin(formData);
       
       if (!createResponse.success) {
         throw new Error('Failed to create event');

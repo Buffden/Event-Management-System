@@ -1,6 +1,7 @@
 import { BaseApiClient } from './base-api.client';
 import { eventAPI } from './event.api';
 import { speakerApiClient, SpeakerProfile, SpeakerSearchRequest, CreateInvitationRequest } from './speaker.api';
+import { CreateEventRequest, UpdateEventRequest } from './types/event.types';
 import { logger } from '../logger';
 
 const LOGGER_COMPONENT_NAME = 'AdminApiClient';
@@ -17,6 +18,7 @@ export interface SpeakerInvitation {
   id: string;
   speakerId: string;
   eventId: string;
+  sessionId?: string | null;
   message?: string | null;
   status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
   sentAt: string;
@@ -74,16 +76,16 @@ export class AdminApiClient extends BaseApiClient {
     return eventAPI.getEventById(eventId);
   }
 
-  async createEvent(eventData: any) {
-    return eventAPI.createEvent(eventData);
+  async createEvent(eventData: Omit<CreateEventRequest, 'userId'>) {
+    return eventAPI.createEventAsAdmin(eventData);
   }
 
-  async updateEvent(eventId: string, eventData: any) {
-    return eventAPI.updateEvent(eventId, eventData);
+  async updateEvent(eventId: string, eventData: UpdateEventRequest) {
+    return eventAPI.updateEventAsAdmin(eventId, eventData);
   }
 
   async deleteEvent(eventId: string) {
-    return eventAPI.deleteEvent(eventId);
+    return eventAPI.deleteEventAsAdmin(eventId);
   }
 
   // Speaker Search and Management

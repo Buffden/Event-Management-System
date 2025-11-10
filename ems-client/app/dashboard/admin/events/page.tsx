@@ -180,7 +180,7 @@ function EventManagementPage() {
           response = await eventAPI.cancelEvent(eventId);
           break;
         case 'delete':
-          response = await eventAPI.deleteEvent(eventId);
+          response = await eventAPI.deleteEventAsAdmin(eventId);
           break;
         default:
           throw new Error(`Unknown action: ${action}`);

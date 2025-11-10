@@ -159,21 +159,11 @@ function SpeakerCreateEventPage() {
       return;
     }
 
-    setIsSubmitting(true);
-    logger.userAction(LOGGER_COMPONENT_NAME, 'Creating event', { eventName: formData.name });
-
-    try {
-      const response = await eventAPI.createEvent(formData);
-      logger.info(LOGGER_COMPONENT_NAME, 'Event created successfully', { eventId: response.data.id });
-
-      // Redirect to speaker events page
-      router.push('/dashboard/speaker/events');
-    } catch (error) {
-      logger.errorWithContext(LOGGER_COMPONENT_NAME, 'Failed to create event', error as Error);
-      setErrors({ general: 'Failed to create event. Please try again.' });
-    } finally {
+    logger.warn(LOGGER_COMPONENT_NAME, 'Speakers attempted to create an event; action is restricted');
+    setErrors({
+      general: 'Event creation is now restricted to administrators. Please contact the admin team to create a new event.',
+    });
       setIsSubmitting(false);
-    }
   };
 
   const handlePreview = () => {
