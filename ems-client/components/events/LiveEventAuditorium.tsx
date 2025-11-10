@@ -27,10 +27,12 @@ import { useEffect, useState } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
 import { eventAPI } from "@/lib/api/event.api";
 import { AttendanceApiClient } from "@/lib/api/attendance.api";
-import { EventResponse, EventStatus } from "@/lib/api/types/event.types";
+import { EventResponse, EventStatus, SessionResponse } from "@/lib/api/types/event.types";
 import { LiveAttendanceResponse, SpeakerAttendanceResponse } from "@/lib/api/attendance.api";
-import { adminApiClient } from "@/lib/api/admin.api";
-import { speakerApiClient, PresentationMaterial } from "@/lib/api/speaker.api";
+import { adminApiClient, SpeakerInvitation } from "@/lib/api/admin.api";
+import { speakerApiClient, PresentationMaterial, SpeakerProfile } from "@/lib/api/speaker.api";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Mail, Clock as ClockIcon } from "lucide-react";
 
 const LOGGER_COMPONENT_NAME = 'LiveEventAuditorium';
 
@@ -59,10 +61,25 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   const [attendance, setAttendance] = useState<LiveAttendanceResponse | null>(null);
   const [speakerAttendance, setSpeakerAttendance] = useState<SpeakerAttendanceResponse | null>(null);
   const [speakerInfo, setSpeakerInfo] = useState<{ name: string | null; email: string } | null>(null);
-  const [selectedMaterials, setSelectedMaterials] = useState<PresentationMaterial[]>([]);
+  const [selectedMaterials, setSelectedMaterials] = useState<Array<{
+    material: PresentationMaterial;
+    speakerId: string;
+    speakerName: string;
+  }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Sessions and speakers state
+  const [sessions, setSessions] = useState<SessionResponse[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [eventInvitations, setEventInvitations] = useState<SpeakerInvitation[]>([]);
+  const [allSpeakers, setAllSpeakers] = useState<Array<{
+    speaker: SpeakerProfile;
+    session?: SessionResponse;
+    invitation?: SpeakerInvitation;
+    hasJoined?: boolean;
+  }>>([]);
 
   // Create API client instance
   const attendanceAPI = new AttendanceApiClient();
@@ -147,6 +164,277 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     }
   };
 
+  const loadSessions = async () => {
+    try {
+      setLoadingSessions(true);
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading sessions', { eventId });
+
+      const response = await eventAPI.listSessions(eventId);
+      setSessions(response.data);
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Sessions loaded', { count: response.data.length });
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load sessions', error as Error);
+      // Don't set error state - sessions might not exist yet
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  const loadEventInvitations = async () => {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading event invitations', { eventId });
+
+      // Only load invitations if user is admin (for other roles, we'll use speakerAttendance data)
+      if (userRole === 'ADMIN') {
+        const invitations = await adminApiClient.getEventInvitations(eventId);
+        setEventInvitations(invitations);
+        logger.info(LOGGER_COMPONENT_NAME, 'Event invitations loaded', {
+          eventId,
+          count: invitations.length
+        });
+      }
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event invitations', error as Error);
+      // Don't set error state - invitations might not exist yet
+    }
+  };
+
+  const loadAllSpeakers = async () => {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading all speakers for sessions', { eventId });
+
+      // Get all session speakers from all sessions
+      const allSessionSpeakers: Array<{ speakerId: string; session: SessionResponse }> = [];
+      sessions.forEach(session => {
+        session.speakers.forEach(speaker => {
+          allSessionSpeakers.push({
+            speakerId: speaker.speakerId,
+            session,
+          });
+        });
+      });
+
+      if (allSessionSpeakers.length === 0) {
+        setAllSpeakers([]);
+        return;
+      }
+
+      // Create invitation lookup map by sessionId and speakerId
+      const invitationMap = new Map<string, SpeakerInvitation>();
+      eventInvitations.forEach(invitation => {
+        const key = invitation.sessionId 
+          ? `${invitation.sessionId}:${invitation.speakerId}`
+          : `event-level:${invitation.speakerId}`;
+        invitationMap.set(key, invitation);
+      });
+
+      // Create a map to track all session-speaker combinations
+      const sessionSpeakerMap = new Map<string, { speakerId: string; session?: SessionResponse; invitation?: SpeakerInvitation }>();
+      
+      // Process all session speakers
+      allSessionSpeakers.forEach(({ speakerId, session }) => {
+        const key = session ? `${session.id}:${speakerId}` : `event-level:${speakerId}`;
+        const invitation = invitationMap.get(key);
+        sessionSpeakerMap.set(key, { speakerId, session, invitation });
+      });
+
+      // Also check speakerAttendance to see who has joined
+      const joinedSpeakerIds = new Set<string>();
+      if (speakerAttendance && speakerAttendance.speakers) {
+        speakerAttendance.speakers.forEach(speaker => {
+          if (speaker.isAttended) {
+            joinedSpeakerIds.add(speaker.speakerId);
+          }
+        });
+      }
+
+      // Fetch speaker profiles for all session-speaker combinations
+      const speakersWithInfo = await Promise.all(
+        Array.from(sessionSpeakerMap.values()).map(async ({ speakerId, session, invitation }) => {
+          try {
+            let speaker: SpeakerProfile;
+            if (userRole === 'ADMIN') {
+              speaker = await adminApiClient.getSpeakerProfile(speakerId);
+            } else {
+              // For non-admin users, try to get speaker info from speakerAttendance
+              const speakerData = speakerAttendance?.speakers.find(s => s.speakerId === speakerId);
+              if (speakerData) {
+                speaker = {
+                  id: speakerId,
+                  userId: '',
+                  name: speakerData.speakerName || 'Speaker',
+                  email: speakerData.speakerEmail,
+                  bio: null,
+                  expertise: [],
+                  isAvailable: true,
+                  createdAt: '',
+                  updatedAt: '',
+                } as SpeakerProfile;
+              } else {
+                // Fallback: create a minimal speaker profile
+                speaker = {
+                  id: speakerId,
+                  userId: '',
+                  name: 'Speaker',
+                  email: '',
+                  bio: null,
+                  expertise: [],
+                  isAvailable: true,
+                  createdAt: '',
+                  updatedAt: '',
+                } as SpeakerProfile;
+              }
+            }
+            
+            return {
+              speaker,
+              session: session || undefined,
+              invitation: invitation || undefined,
+              hasJoined: joinedSpeakerIds.has(speakerId),
+            };
+          } catch (error) {
+            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load speaker profile', {
+              speakerId,
+              error
+            });
+            return null;
+          }
+        })
+      );
+
+      // Filter out any null results
+      const validSpeakers = speakersWithInfo.filter((item): item is NonNullable<typeof item> => item !== null);
+      
+      setAllSpeakers(validSpeakers);
+
+      logger.info(LOGGER_COMPONENT_NAME, 'All speakers loaded for sessions', {
+        eventId,
+        count: validSpeakers.length,
+        sessionsCount: sessions.length
+      });
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load all speakers for sessions', error as Error);
+      setAllSpeakers([]);
+    }
+  };
+
+  const loadAllSpeakerMaterials = async (joinedSpeakers: Array<{
+    speakerId: string;
+    speakerName: string;
+    speakerEmail: string;
+    materialsSelected: string[];
+    isAttended: boolean;
+    joinedAt?: string;
+  }>) => {
+    try {
+      const token = attendanceAPI.getToken();
+      
+      // Collect all unique material IDs with their speaker information
+      const materialSpeakerMap = new Map<string, Array<{ speakerId: string; speakerName: string }>>();
+      
+      joinedSpeakers.forEach(speaker => {
+        speaker.materialsSelected.forEach(materialId => {
+          if (!materialSpeakerMap.has(materialId)) {
+            materialSpeakerMap.set(materialId, []);
+          }
+          materialSpeakerMap.get(materialId)!.push({
+            speakerId: speaker.speakerId,
+            speakerName: speaker.speakerName || 'Speaker'
+          });
+        });
+      });
+
+      // Get all unique material IDs
+      const allMaterialIds = Array.from(materialSpeakerMap.keys());
+
+      if (allMaterialIds.length === 0) {
+        setSelectedMaterials([]);
+        return;
+      }
+
+      // Load all materials
+      const materialPromises = allMaterialIds.map(async (materialId) => {
+        try {
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json'
+          };
+          // Only add auth header if token exists
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+
+          const response = await fetch(`/api/materials/${materialId}`, {
+            headers
+          });
+          if (!response.ok) {
+            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load material', { materialId, status: response.status });
+            return null;
+          }
+          const result = await response.json();
+          const material = result.data || null;
+          
+          if (material) {
+            // Get speaker info for this material
+            const speakers = materialSpeakerMap.get(materialId) || [];
+            // For each speaker that selected this material, create an entry
+            return speakers.map(speaker => ({
+              material,
+              speakerId: speaker.speakerId,
+              speakerName: speaker.speakerName
+            }));
+          }
+          
+          return null;
+        } catch (err) {
+          logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load material', err as Error);
+          return null;
+        }
+      });
+
+      const materialResults = await Promise.all(materialPromises);
+      
+      // Flatten the results (each material might be associated with multiple speakers)
+      const allMaterials: Array<{
+        material: PresentationMaterial;
+        speakerId: string;
+        speakerName: string;
+      }> = [];
+      
+      materialResults.forEach(result => {
+        if (result && Array.isArray(result)) {
+          allMaterials.push(...result);
+        }
+      });
+
+      // Deduplicate: if same material is selected by multiple speakers, we show it once per speaker
+      // Deduplicate by material ID + speaker ID to avoid duplicates
+      const uniqueMaterials = new Map<string, {
+        material: PresentationMaterial;
+        speakerId: string;
+        speakerName: string;
+      }>();
+      
+      allMaterials.forEach(item => {
+        const key = `${item.material.id}-${item.speakerId}`;
+        if (!uniqueMaterials.has(key)) {
+          uniqueMaterials.set(key, item);
+        }
+      });
+
+      setSelectedMaterials(Array.from(uniqueMaterials.values()));
+      
+      logger.info(LOGGER_COMPONENT_NAME, 'All speaker materials loaded', {
+        eventId,
+        totalMaterials: uniqueMaterials.size,
+        joinedSpeakersCount: joinedSpeakers.length
+      });
+    } catch (err) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load all speaker materials', err as Error);
+      setSelectedMaterials([]);
+    }
+  };
+
   const loadSpeakerAttendanceForAll = async () => {
     // Load speaker attendance for all roles (to show speaker join status)
     try {
@@ -159,11 +447,11 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
         await loadSpeakerInfo(eventId, speakerData);
       }
 
-      // Load selected materials if speaker has joined and selected materials
+      // Load selected materials from ALL joined speakers
       if (speakerData && speakerData.speakers.length > 0) {
-        const joinedSpeaker = speakerData.speakers.find(s => s.isAttended);
-        if (joinedSpeaker && joinedSpeaker.materialsSelected.length > 0) {
-          await loadMaterialDetails(joinedSpeaker.materialsSelected);
+        const joinedSpeakers = speakerData.speakers.filter(s => s.isAttended);
+        if (joinedSpeakers.length > 0) {
+          await loadAllSpeakerMaterials(joinedSpeakers);
         } else {
           // Clear materials if no speaker joined or no materials selected
           setSelectedMaterials([]);
@@ -201,44 +489,14 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     }
   };
 
-  const loadMaterialDetails = async (materialIds: string[]) => {
-    try {
-      const token = attendanceAPI.getToken();
-      const materialPromises = materialIds.map(async (materialId) => {
-        try {
-          const headers: HeadersInit = {
-            'Content-Type': 'application/json'
-          };
-          // Only add auth header if token exists
-          if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-          }
-
-          const response = await fetch(`/api/materials/${materialId}`, {
-            headers
-          });
-          if (!response.ok) {
-            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load material', { materialId, status: response.status });
-            return null;
-          }
-          const result = await response.json();
-          return result.data || null;
-        } catch (err) {
-          logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load material', err as Error);
-          return null;
-        }
-      });
-
-      const materials = await Promise.all(materialPromises);
-      setSelectedMaterials(materials.filter(m => m !== null) as PresentationMaterial[]);
-    } catch (err) {
-      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load material details', err as Error);
-    }
-  };
-
   const refreshData = async () => {
     setRefreshing(true);
-    await Promise.all([loadEvent(), loadAttendance()]);
+    await Promise.all([
+      loadEvent(), 
+      loadAttendance(), 
+      loadSessions(), 
+      loadEventInvitations()
+    ]);
     setRefreshing(false);
   };
 
@@ -246,11 +504,13 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     const loadData = async () => {
       setLoading(true);
       await loadEvent();
+      await loadSessions();
+      await loadEventInvitations();
       setLoading(false);
     };
 
     loadData();
-  }, [eventId]);
+  }, [eventId, userRole]);
 
   useEffect(() => {
     if (event) {
@@ -258,12 +518,25 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     }
   }, [event, userRole]);
 
+  useEffect(() => {
+    // Load speakers whenever sessions are loaded, or when speakerAttendance changes
+    // For non-admin users, we rely on speakerAttendance data
+    if (sessions.length >= 0) {
+      loadAllSpeakers();
+    }
+  }, [sessions, eventInvitations, speakerAttendance, userRole]);
+
   // Auto-refresh attendance data every 5 seconds for live experience
   useEffect(() => {
     if (!event) return;
 
     const interval = setInterval(() => {
       loadAttendance();
+      // Also refresh sessions and speakers periodically (every 30 seconds)
+      loadSessions();
+      if (userRole === 'ADMIN') {
+        loadEventInvitations();
+      }
     }, 5000); // Reduced to 5 seconds for more real-time updates
 
     return () => clearInterval(interval);
@@ -466,14 +739,40 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                     </Badge>
                   )}
                 </CardTitle>
+                {selectedMaterials.length > 0 && (
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                    Materials from {new Set(selectedMaterials.map(m => m.speakerId)).size} {new Set(selectedMaterials.map(m => m.speakerId)).size === 1 ? 'speaker' : 'speakers'}
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 {isEventStarted ? (
                   selectedMaterials.length > 0 ? (
-                    <div className="space-y-3">
-                      {selectedMaterials.map((material) => (
+                    <div className="space-y-4">
+                      {/* Group materials by speaker for better organization */}
+                      {Array.from(new Set(selectedMaterials.map(m => m.speakerId))).map(speakerId => {
+                        const speakerMaterials = selectedMaterials.filter(m => m.speakerId === speakerId);
+                        const speakerName = speakerMaterials[0]?.speakerName || 'Speaker';
+                        const uniqueSpeakers = new Set(selectedMaterials.map(m => m.speakerId)).size;
+                        const showSpeakerHeader = uniqueSpeakers > 1;
+                        
+                        return (
+                          <div key={speakerId} className="space-y-2">
+                            {showSpeakerHeader && (
+                              <div className="flex items-center gap-2 mb-2">
+                                <Crown className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
+                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                  {speakerName}
+                                </p>
+                                <Badge variant="outline" className="text-xs">
+                                  {speakerMaterials.length} {speakerMaterials.length === 1 ? 'file' : 'files'}
+                                </Badge>
+                              </div>
+                            )}
+                            <div className={`space-y-2 ${showSpeakerHeader ? 'pl-4 border-l-2 border-slate-200 dark:border-slate-600' : ''}`}>
+                              {speakerMaterials.map(({ material }) => (
                         <div
-                          key={material.id}
+                                  key={`${material.id}-${speakerId}`}
                           className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                         >
                           <div className="flex items-center space-x-3 flex-1">
@@ -523,14 +822,18 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                           </Button>
                         </div>
                       ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8">
                       <FileText className="h-12 w-12 text-slate-500 mx-auto mb-4" />
                       <p className="text-slate-400">
                         {speakerAttendance && speakerAttendance.speakers.some(s => s.isAttended)
-                          ? 'No materials selected by the speaker'
-                          : 'Materials will be available when the speaker joins and selects materials'}
+                          ? 'No materials selected by speakers'
+                          : 'Materials will be available when speakers join and select materials'}
                       </p>
                     </div>
                   )
@@ -547,38 +850,100 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
           {/* Right Sidebar - Attendance Panel */}
           <div className="lg:col-span-1">
             <div className="sticky top-6 space-y-6">
-              {/* Speaker Info */}
+              {/* Speakers List */}
               <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-slate-900 dark:text-white flex items-center justify-between">
                     <div className="flex items-center">
                       <Crown className="h-5 w-5 mr-2 text-yellow-500 dark:text-yellow-400" />
-                      Speaker
+                      Speakers
                     </div>
-                    {speakerAttendance && speakerAttendance.speakers.length > 0 && speakerAttendance.speakers.some(s => s.isAttended) && (
-                      <Badge className="bg-green-600 text-white">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Joined
-                      </Badge>
-                    )}
-                    {speakerAttendance && speakerAttendance.speakers.length > 0 && !speakerAttendance.speakers.some(s => s.isAttended) && (
-                      <Badge className="bg-gray-600 text-white">
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Not Joined
+                    {allSpeakers.length > 0 && (
+                      <Badge variant="outline" className="ml-2">
+                        {allSpeakers.length} {allSpeakers.length === 1 ? 'speaker' : 'speakers'}
                       </Badge>
                     )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                      {speakerInfo?.name ? speakerInfo.name.charAt(0).toUpperCase() : (event.speakerId ? event.speakerId.charAt(0).toUpperCase() : 'S')}
+                  {loadingSessions ? (
+                    <div className="text-center py-4">
+                      <RefreshCw className="h-6 w-6 text-slate-400 dark:text-slate-500 mx-auto mb-2 animate-spin" />
+                      <p className="text-slate-600 dark:text-slate-400 text-sm">Loading speakers...</p>
                     </div>
-                    <div>
-                      <p className="text-slate-900 dark:text-white font-medium">{speakerInfo?.name || 'Speaker'}</p>
-                      <p className="text-slate-600 dark:text-slate-400 text-sm">{speakerInfo?.email || 'Main Speaker'}</p>
+                  ) : allSpeakers.length > 0 ? (
+                    <ScrollArea className="h-96">
+                      <div className="space-y-3">
+                        {allSpeakers.map(({ speaker, session, invitation, hasJoined }, index) => (
+                          <div
+                            key={invitation?.id || `${speaker.id}-${session?.id || 'event-level'}-${index}`}
+                            className={`p-3 rounded-lg border ${
+                              hasJoined
+                                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/30'
+                                : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600'
+                            }`}
+                          >
+                            <div className="flex items-start space-x-3">
+                              <Avatar className="h-10 w-10">
+                                <AvatarFallback className="bg-gradient-to-br from-yellow-400 to-orange-500 text-white text-sm font-semibold">
+                                  {speaker.name.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <p className="text-slate-900 dark:text-white font-medium text-sm truncate">
+                                    {speaker.name}
+                                  </p>
+                                  {hasJoined && (
+                                    <Badge className="bg-green-600 text-white text-xs">
+                                      <CheckCircle className="h-2.5 w-2.5 mr-1" />
+                        Joined
+                      </Badge>
+                    )}
+                                  {!hasJoined && (
+                                    <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300 text-xs">
+                                      <XCircle className="h-2.5 w-2.5 mr-1" />
+                        Not Joined
+                      </Badge>
+                    )}
                     </div>
+                                <div className="space-y-1">
+                                  <p className="text-slate-600 dark:text-slate-400 text-xs flex items-center gap-1">
+                                    <Mail className="h-3 w-3" />
+                                    <span className="truncate">{speaker.email}</span>
+                                  </p>
+                                  {session && (
+                                    <div className="space-y-0.5">
+                                      <p className="text-slate-700 dark:text-slate-300 text-xs font-medium truncate">
+                                        {session.title}
+                                      </p>
+                                      <p className="text-slate-500 dark:text-slate-400 text-xs flex items-center gap-1">
+                                        <ClockIcon className="h-3 w-3" />
+                                        {new Date(session.startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - {new Date(session.endsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                      </p>
+                    </div>
+                                  )}
+                                  {invitation && invitation.status === 'ACCEPTED' && !hasJoined && (
+                                    <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                                      Accepted invitation
+                                    </p>
+                                  )}
                   </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Crown className="h-12 w-12 text-slate-400 dark:text-slate-500 mx-auto mb-4" />
+                      <p className="text-slate-600 dark:text-slate-400 text-sm mb-2">No speakers assigned</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-500">
+                        Speakers assigned to sessions will appear here
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
