@@ -210,6 +210,13 @@ describe('RabbitMQ Service', () => {
     });
 
     it('should handle closing when nothing is open', async () => {
+      // Ensure both channel and connection are undefined
+      (rabbitMQService as any).channel = undefined;
+      (rabbitMQService as any).connection = undefined;
+
+      // Clear any previous calls
+      jest.clearAllMocks();
+
       await rabbitMQService.close();
 
       expect(mockChannel.close).not.toHaveBeenCalled();

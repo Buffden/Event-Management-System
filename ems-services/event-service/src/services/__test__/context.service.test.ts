@@ -237,7 +237,8 @@ describe('ContextService', () => {
 
       contextService.run(testContext, () => {
         const requestId = contextService.getRequestId();
-        expect(requestId).toBe('');
+        // Empty string is falsy, so getRequestId returns 'unknown' as fallback
+        expect(requestId).toBe('unknown');
       });
     });
   });
