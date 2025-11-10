@@ -1,6 +1,6 @@
 /**
  * Comprehensive Test Suite for Auth Service
- * 
+ *
  * Tests all authentication features including:
  * - User registration (USER and SPEAKER roles)
  * - Email verification
@@ -135,9 +135,9 @@ describe('AuthService', () => {
     });
 
     it('should resend verification email for unverified user', async () => {
-      const mockUser = createMockUser({ 
-        isActive: false, 
-        emailVerified: null 
+      const mockUser = createMockUser({
+        isActive: false,
+        emailVerified: null
       });
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
@@ -149,7 +149,7 @@ describe('AuthService', () => {
           name: 'Unverified User',
         })
       ).rejects.toThrow('Verification email has been resent');
-      
+
       expect(mockRabbitMQService.sendMessage).toHaveBeenCalledWith(
         'notification.email',
         expect.objectContaining({
@@ -177,7 +177,7 @@ describe('AuthService', () => {
       mockPrisma.account.create.mockResolvedValue(createMockAccount());
       mockBcrypt.hash.mockResolvedValue('hashed_password');
       mockJWT.sign.mockReturnValue('token');
-      
+
       // Mock RabbitMQ failure
       setupRabbitMQError();
       mockPrisma.user.delete.mockResolvedValue(mockUser);
@@ -189,7 +189,7 @@ describe('AuthService', () => {
           name: 'Test User',
         })
       ).rejects.toThrow('Could not send verification email');
-      
+
       expect(mockPrisma.user.delete).toHaveBeenCalledWith({
         where: { id: mockUser.id },
       });
@@ -207,6 +207,39 @@ describe('AuthService', () => {
 
       expect(result.user).toBeDefined();
       expect(result.user?.role).toBe('USER');
+    });
+
+    it('should handle undefined role in isValidRegistrationRole (returns true)', async () => {
+      // Covers line 48: if (!role) return true;
+      // This tests the branch where role is undefined, which should return true
+      // and allow registration to proceed with default USER role
+      const { mockUser, mockToken } = setupSuccessfulRegistration();
+
+      const result = await authService.register({
+        email: 'test@example.com',
+        password: 'password123',
+        name: 'Test User',
+        role: undefined, // Explicitly undefined
+      });
+
+      expect(result.user).toBeDefined();
+      expect(result.user?.role).toBe('USER'); // Should default to USER
+    });
+
+    it('should handle null role in isValidRegistrationRole (returns true)', async () => {
+      // Covers line 48: if (!role) return true;
+      // This tests the branch where role is null, which should return true
+      const { mockUser, mockToken } = setupSuccessfulRegistration();
+
+      const result = await authService.register({
+        email: 'test@example.com',
+        password: 'password123',
+        name: 'Test User',
+        role: null as any, // Explicitly null
+      });
+
+      expect(result.user).toBeDefined();
+      expect(result.user?.role).toBe('USER'); // Should default to USER
     });
   });
 
@@ -365,20 +398,21 @@ describe('AuthService', () => {
       const mockUser = createMockUser({
         isActive: true,
         emailVerified: new Date(),
-        accounts: [], // No account
+        accounts: [], // No account - this triggers the branch
       });
       const mockAccount = createMockAccount();
-      
+
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       mockBcrypt.compare.mockResolvedValue(true);
       mockJWT.sign.mockReturnValue('token');
       mockPrisma.account.create.mockResolvedValue(mockAccount);
 
-      await authService.login({
+      const result = await authService.login({
         email: 'test@example.com',
         password: 'password123',
       });
 
+      // Verify Account was created
       expect(mockPrisma.account.create).toHaveBeenCalledWith({
         data: {
           userId: mockUser.id,
@@ -387,6 +421,36 @@ describe('AuthService', () => {
           providerAccountId: mockUser.email,
         },
       });
+
+      // Verify login still succeeds
+      expect(result.token).toBe('token');
+      expect(result.user).toBeDefined();
+    });
+
+    it('should not create Account record when user already has accounts', async () => {
+      // Covers the else branch: when accounts.length > 0, skip Account creation
+      const mockAccount = createMockAccount();
+      const mockUser = createMockUser({
+        isActive: true,
+        emailVerified: new Date(),
+        accounts: [mockAccount], // User already has an account
+      });
+
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockBcrypt.compare.mockResolvedValue(true);
+      mockJWT.sign.mockReturnValue('token');
+
+      const result = await authService.login({
+        email: 'test@example.com',
+        password: 'password123',
+      });
+
+      // Verify Account was NOT created
+      expect(mockPrisma.account.create).not.toHaveBeenCalled();
+
+      // Verify login still succeeds
+      expect(result.token).toBe('token');
+      expect(result.user).toBeDefined();
     });
 
     it('should require email and password', async () => {
@@ -441,7 +505,7 @@ describe('AuthService', () => {
       await expect(
         authService.forgotPassword({ email: 'nonexistent@example.com' })
       ).resolves.not.toThrow();
-      
+
       expect(mockRabbitMQService.sendMessage).not.toHaveBeenCalled();
     });
 
@@ -647,7 +711,7 @@ describe('AuthService', () => {
     it('should update user name and image', async () => {
       const mockUser = createMockUser();
       const updatedUser = { ...mockUser, name: 'Updated Name', image: 'new-image.jpg' };
-      
+
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       mockPrisma.user.update.mockResolvedValue(updatedUser);
 
@@ -754,7 +818,7 @@ describe('AuthService', () => {
         provider: 'google',
         providerAccountId: 'google-123',
       });
-      
+
       mockPrisma.account.findUnique.mockResolvedValue({
         user: mockUser,
       });
@@ -786,7 +850,7 @@ describe('AuthService', () => {
         provider: 'google',
         providerAccountId: 'google-123',
       });
-      
+
       mockPrisma.account.findUnique.mockResolvedValue(null);
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       mockPrisma.account.create.mockResolvedValue(mockAccount);
@@ -818,7 +882,7 @@ describe('AuthService', () => {
         isActive: true,
         emailVerified: expect.any(Date),
       });
-      
+
       mockPrisma.account.findUnique.mockResolvedValue(null);
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue(mockUser);
@@ -905,6 +969,46 @@ describe('AuthService', () => {
       await expect(
         authService.createSpeakerProfile(speakerUser)
       ).resolves.not.toThrow();
+    });
+
+    it('should handle catch block when RabbitMQ sendMessage throws error', async () => {
+      // Covers lines 148-152: catch block that logs error but doesn't throw
+      const speakerUser = createMockUser({ role: Role.SPEAKER });
+
+      // Mock RabbitMQ to throw an error (not just reject)
+      const rabbitMQError = new Error('RabbitMQ connection failed');
+      mockRabbitMQService.sendMessage.mockRejectedValue(rabbitMQError);
+
+      // Should not throw error - catch block should handle it gracefully
+      await expect(
+        authService.createSpeakerProfile(speakerUser)
+      ).resolves.not.toThrow();
+
+      // Verify that the error was logged (via mockLogger)
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'createSpeakerProfile(): Failed to send speaker profile creation message',
+        rabbitMQError,
+        expect.objectContaining({
+          userId: speakerUser.id,
+        })
+      );
+    });
+
+    it('should use default name when user.name is undefined in createSpeakerProfile', async () => {
+      // Covers line 131: user.name || 'Speaker'
+      const speakerUser = createMockUser({ role: Role.SPEAKER, name: null });
+      mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
+
+      await authService.createSpeakerProfile(speakerUser);
+
+      expect(mockRabbitMQService.sendMessage).toHaveBeenCalledWith(
+        'speaker.profile.create',
+        expect.objectContaining({
+          data: expect.objectContaining({
+            name: 'Speaker', // Should default to 'Speaker'
+          }),
+        })
+      );
     });
   });
 
