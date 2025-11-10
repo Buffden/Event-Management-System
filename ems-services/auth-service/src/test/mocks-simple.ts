@@ -1,6 +1,6 @@
 /**
  * Simplified Mock Definitions for Auth Service Tests
- * 
+ *
  * This file contains simplified mocks that work better with TypeScript.
  */
 
@@ -96,10 +96,17 @@ export const mockRabbitMQService = {
 // JWT MOCKS
 // ============================================================================
 
+// Import actual JWT for error classes
+const actualJWT = jest.requireActual('jsonwebtoken');
+
 export const mockJWT = {
   sign: jest.fn() as jest.MockedFunction<any>,
   verify: jest.fn() as jest.MockedFunction<any>,
   decode: jest.fn() as jest.MockedFunction<any>,
+  // Include error classes from actual JWT module
+  JsonWebTokenError: actualJWT.JsonWebTokenError,
+  TokenExpiredError: actualJWT.TokenExpiredError,
+  NotBeforeError: actualJWT.NotBeforeError,
 };
 
 // ============================================================================
@@ -143,14 +150,14 @@ export const setupSuccessfulRegistration = () => {
   });
   const mockAccount = createMockAccount();
   const mockToken = 'mock.jwt.token';
-  
+
   mockPrisma.user.findUnique.mockResolvedValue(null); // No existing user
   mockPrisma.user.create.mockResolvedValue(mockUser);
   mockPrisma.account.create.mockResolvedValue(mockAccount);
   mockBcrypt.hash.mockResolvedValue('hashed_password_123');
   mockJWT.sign.mockReturnValue(mockToken);
   mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
-  
+
   return { mockUser, mockAccount, mockToken };
 };
 
@@ -158,11 +165,11 @@ export const setupSuccessfulRegistration = () => {
  * Setup existing user scenario
  */
 export const setupExistingUser = (isActive: boolean = true) => {
-  const mockUser = createMockUser({ 
+  const mockUser = createMockUser({
     isActive,
     emailVerified: isActive ? new Date('2024-01-02T00:00:00Z') : null
   });
-  
+
   mockPrisma.user.findUnique.mockResolvedValue(mockUser);
   return { mockUser };
 };
@@ -171,22 +178,22 @@ export const setupExistingUser = (isActive: boolean = true) => {
  * Setup successful login scenario
  */
 export const setupSuccessfulLogin = () => {
-  const mockUser = createMockUser({ 
+  const mockUser = createMockUser({
     isActive: true,
     emailVerified: new Date('2024-01-02T00:00:00Z')
   });
   const mockAccount = createMockAccount();
   const mockToken = 'mock.jwt.token';
-  
+
   const userWithPassword = {
     ...mockUser,
     accounts: [mockAccount],
   };
-  
+
   mockPrisma.user.findUnique.mockResolvedValue(userWithPassword);
   mockBcrypt.compare.mockResolvedValue(true);
   mockJWT.sign.mockReturnValue(mockToken);
-  
+
   return { mockUser, mockAccount, mockToken };
 };
 
@@ -196,23 +203,23 @@ export const setupSuccessfulLogin = () => {
 export const setupEmailVerification = () => {
   const mockUser = createMockUser();
   const mockToken = 'mock.verification.token';
-  const mockJWTData = createMockJWT({ 
-    userId: mockUser.id, 
-    type: 'email-verification' 
+  const mockJWTData = createMockJWT({
+    userId: mockUser.id,
+    type: 'email-verification'
   });
-  
+
   mockJWT.verify.mockReturnValue(mockJWTData);
   mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-  
+
   const verifiedUser = {
     ...mockUser,
     isActive: true,
     emailVerified: new Date('2024-01-02T00:00:00Z'),
   };
-  
+
   mockPrisma.user.update.mockResolvedValue(verifiedUser);
   mockJWT.sign.mockReturnValue('mock.access.token');
-  
+
   return { mockUser, verifiedUser, mockToken };
 };
 
@@ -254,11 +261,11 @@ export const setupRabbitMQError = () => {
 export const setupAllMocks = () => {
   // Reset all mocks
   jest.clearAllMocks();
-  
+
   // Setup default successful responses
   mockPrisma.$connect.mockResolvedValue(undefined);
   mockPrisma.$disconnect.mockResolvedValue(undefined);
-  
+
   // Setup transaction mock to return the result of the callback
   mockPrisma.$transaction.mockImplementation(async (callback: any) => {
     const mockTx = {
@@ -284,10 +291,10 @@ export const setupAllMocks = () => {
     };
     return await callback(mockTx);
   });
-  
+
   mockRabbitMQService.connect.mockResolvedValue(undefined);
   mockRabbitMQService.disconnect.mockResolvedValue(undefined);
-  
+
   // Setup default logger behavior
   mockLogger.info.mockImplementation(() => {});
   mockLogger.warn.mockImplementation(() => {});
@@ -321,8 +328,23 @@ jest.mock('../services/rabbitmq.service', () => ({
   EmailNotification: {},
 }));
 
-// Mock JWT
-jest.mock('jsonwebtoken', () => mockJWT);
+// Mock JWT - include error classes
+jest.mock('jsonwebtoken', () => {
+  const actualJWT = jest.requireActual('jsonwebtoken');
+  return {
+    ...mockJWT,
+    // Include error classes from actual JWT module so instanceof checks work
+    JsonWebTokenError: actualJWT.JsonWebTokenError,
+    TokenExpiredError: actualJWT.TokenExpiredError,
+    NotBeforeError: actualJWT.NotBeforeError,
+    default: {
+      ...mockJWT,
+      JsonWebTokenError: actualJWT.JsonWebTokenError,
+      TokenExpiredError: actualJWT.TokenExpiredError,
+      NotBeforeError: actualJWT.NotBeforeError,
+    },
+  };
+});
 
 // Mock bcrypt
 jest.mock('bcryptjs', () => mockBcrypt);
