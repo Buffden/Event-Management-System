@@ -1,5 +1,6 @@
 import { prisma } from '../database';
 import { logger } from '../utils/logger';
+import { getUserInfo } from '../utils/auth-helpers';
 import {
   IFeedbackService,
   FeedbackForm,
@@ -384,10 +385,27 @@ export class FeedbackService implements IFeedbackService {
         })
       ]);
 
+      // Fetch user info for all unique user IDs
+      const uniqueUserIds = [...new Set(submissions.map(s => s.userId))];
+      const userInfoMap = new Map<string, string | null>();
+
+      await Promise.all(
+        uniqueUserIds.map(async (userId) => {
+          try {
+            const userInfo = await getUserInfo(userId);
+            userInfoMap.set(userId, userInfo?.name || null);
+          } catch (error) {
+            logger.warn('Failed to fetch user info', { userId, error: (error as Error).message });
+            userInfoMap.set(userId, null);
+          }
+        })
+      );
+
       return {
         submissions: submissions.map(submission => ({
           ...submission,
-          comment: submission.comment || undefined
+          comment: submission.comment || undefined,
+          username: userInfoMap.get(submission.userId) || undefined
         })),
         total,
         page,

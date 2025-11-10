@@ -45,6 +45,7 @@ export interface FeedbackSubmissionResponse {
   id: string;
   formId: string;
   userId: string;
+  username?: string; // User's name from auth service
   eventId: string;
   bookingId: string;
   rating: number;
@@ -279,6 +280,68 @@ class FeedbackApiClient extends BaseApiClient {
       throw error;
     }
   }
+
+  async getSpeakerEventFeedbackSubmissions(eventId: string, page: number = 1, limit: number = 100): Promise<{
+    submissions: FeedbackSubmissionResponse[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Getting event feedback submissions (speaker)', { eventId, page, limit });
+
+      const response = await fetch(`${this.baseURL}/feedback/speaker/events/${eventId}/submissions?page=${page}&limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      logger.info(LOGGER_COMPONENT_NAME, 'Event feedback submissions retrieved (speaker)', { count: result.data.submissions.length });
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to get event feedback submissions (speaker)', error as Error);
+      throw error;
+    }
+  }
+
+  async getMyFeedbackSubmissions(page: number = 1, limit: number = 100): Promise<{
+    submissions: FeedbackSubmissionResponse[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Getting user feedback submissions', { page, limit });
+
+      const response = await fetch(`${this.baseURL}/feedback/my-submissions?page=${page}&limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      logger.info(LOGGER_COMPONENT_NAME, 'User feedback submissions retrieved', { count: result.data.submissions.length });
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to get user feedback submissions', error as Error);
+      throw error;
+    }
+  }
 }
 
 // Create and export the Feedback API client instance
@@ -294,5 +357,7 @@ export const feedbackAPI = {
   deleteFeedbackForm: (formId: string) => feedbackApiClient.deleteFeedbackForm(formId),
   submitFeedback: (data: SubmitFeedbackRequest) => feedbackApiClient.submitFeedback(data),
   getEventFeedbackSubmissions: (eventId: string, page?: number, limit?: number) => feedbackApiClient.getEventFeedbackSubmissions(eventId, page, limit),
+  getSpeakerEventFeedbackSubmissions: (eventId: string, page?: number, limit?: number) => feedbackApiClient.getSpeakerEventFeedbackSubmissions(eventId, page, limit),
+  getMyFeedbackSubmissions: (page?: number, limit?: number) => feedbackApiClient.getMyFeedbackSubmissions(page, limit),
 };
 

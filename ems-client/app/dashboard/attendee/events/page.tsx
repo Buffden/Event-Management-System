@@ -58,6 +58,7 @@ export default function AttendeeEventsPage() {
   const [bookingStatus, setBookingStatus] = useState<BookingStatus>({});
   const [userBookings, setUserBookings] = useState<{ [eventId: string]: boolean }>({});
   const [feedbackForms, setFeedbackForms] = useState<{ [eventId: string]: FeedbackFormResponse | null }>({});
+  const [userFeedbackSubmissions, setUserFeedbackSubmissions] = useState<{ [eventId: string]: boolean }>({});
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
@@ -84,6 +85,7 @@ export default function AttendeeEventsPage() {
   useEffect(() => {
     if (events.length > 0) {
       loadFeedbackForms();
+      loadUserFeedbackSubmissions();
     }
   }, [events]);
 
@@ -230,6 +232,29 @@ export default function AttendeeEventsPage() {
       });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load feedback forms', error as Error);
+    }
+  };
+
+  const loadUserFeedbackSubmissions = async () => {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading user feedback submissions');
+
+      const result = await feedbackAPI.getMyFeedbackSubmissions(1, 1000); // Get all submissions
+      const submissionsMap: { [eventId: string]: boolean } = {};
+
+      // Create a map of eventId -> true for events the user has submitted feedback for
+      result.submissions.forEach((submission) => {
+        submissionsMap[submission.eventId] = true;
+      });
+
+      setUserFeedbackSubmissions(submissionsMap);
+
+      logger.debug(LOGGER_COMPONENT_NAME, 'User feedback submissions loaded', {
+        totalSubmissions: result.submissions.length,
+        uniqueEvents: Object.keys(submissionsMap).length
+      });
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load user feedback submissions', error as Error);
     }
   };
 
@@ -699,21 +724,35 @@ export default function AttendeeEventsPage() {
                             Feedback Form Available
                           </span>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedEventForFeedback({
-                              eventId: event.id,
-                              eventName: event.name,
-                              form: feedbackForms[event.id]!
-                            });
-                            setFeedbackDialogOpen(true);
-                          }}
-                          className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                        >
-                          Provide Feedback
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {userFeedbackSubmissions[event.id] && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                router.push(`/dashboard/attendee/events/${event.id}/feedback`);
+                              }}
+                              className="text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40"
+                            >
+                              My Responses
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedEventForFeedback({
+                                eventId: event.id,
+                                eventName: event.name,
+                                form: feedbackForms[event.id]!
+                              });
+                              setFeedbackDialogOpen(true);
+                            }}
+                            className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                          >
+                            Provide Feedback
+                          </Button>
+                        </div>
                       </div>
                       {feedbackForms[event.id]?.description && (
                         <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
@@ -849,14 +888,35 @@ export default function AttendeeEventsPage() {
                                   Feedback Form Available
                                 </span>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
-                                className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                              >
-                                Provide Feedback
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                {userFeedbackSubmissions[event.id] && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      router.push(`/dashboard/attendee/events/${event.id}/feedback`);
+                                    }}
+                                    className="text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40"
+                                  >
+                                    My Responses
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedEventForFeedback({
+                                      eventId: event.id,
+                                      eventName: event.name,
+                                      form: feedbackForms[event.id]!
+                                    });
+                                    setFeedbackDialogOpen(true);
+                                  }}
+                                  className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                                >
+                                  Provide Feedback
+                                </Button>
+                              </div>
                             </div>
                             {feedbackForms[event.id]?.description && (
                               <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
@@ -905,7 +965,8 @@ export default function AttendeeEventsPage() {
           eventId={selectedEventForFeedback.eventId}
           eventName={selectedEventForFeedback.eventName}
           onSuccess={() => {
-            // Optionally reload feedback forms or show success message
+            // Reload user feedback submissions to show "My Responses" button
+            loadUserFeedbackSubmissions();
             setSuccessMessage('Feedback submitted successfully!');
             setTimeout(() => setSuccessMessage(''), 3000);
           }}

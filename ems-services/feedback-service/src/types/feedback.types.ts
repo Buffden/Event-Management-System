@@ -60,6 +60,7 @@ export interface FeedbackSubmissionResponse {
   id: string;
   formId: string;
   userId: string;
+  username?: string; // User's name from auth service
   eventId: string;
   bookingId: string;
   rating: number;
