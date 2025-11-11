@@ -7,6 +7,7 @@ import {Request, Response} from 'express';
 import {UpdateProfileRequest, ResetPasswordRequest, VerifyResetTokenRequest} from "../types/types";
 import {contextService} from '../services/context.service';
 import {logger} from '../utils/logger';
+import {registerSeederRoutes} from './seeder.routes';
 
 export function registerRoutes(app: Express, authService: AuthService) {
     // Apply context middleware to ALL routes for request correlation
@@ -647,6 +648,9 @@ export function registerRoutes(app: Express, authService: AuthService) {
             res.status(500).json({error: 'Failed to activate users'});
         }
     });
+
+    // Register seeder routes (for seeding script)
+    registerSeederRoutes(app, authService);
 
     /**
      * @route   GET /api/auth/admin/reports/user-growth

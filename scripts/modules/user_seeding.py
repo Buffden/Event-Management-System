@@ -3,6 +3,7 @@ User and Speaker Seeding Module
 """
 import time
 import requests
+from datetime import datetime
 from typing import Optional, Tuple, List, Dict
 from .utils import (
     AUTH_API_URL, ADMIN_EMAIL, ADMIN_PASSWORD,
@@ -179,6 +180,69 @@ def login_admin() -> Tuple[bool, Optional[str], Optional[str]]:
         return False, None, None
 
 
+def activate_user_via_api(email: str, admin_token: str) -> bool:
+    """
+    Activate a single user via protected API endpoint (requires admin authentication)
+    This is a seeding-specific endpoint for staggered activation
+
+    Args:
+        email: Email address to activate
+        admin_token: JWT token from admin login
+
+    Returns:
+        True if successful, False otherwise
+    """
+    if not email:
+        print_error("No email provided to activate")
+        return False
+
+    url = f"{AUTH_API_URL}/admin/seed/activate-user"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {admin_token}"
+    }
+    payload = {
+        "email": email
+    }
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        http_status = response.status_code
+
+        if http_status == 200:
+            data = response.json()
+            if data.get('activated'):
+                print_success(f"Activated user: {email}")
+                return True
+            else:
+                print_error(f"Failed to activate {email}: {data.get('error', 'Unknown error')}")
+                return False
+        elif http_status == 404:
+            print_info(f"User {email} not found (may already be activated)")
+            return False
+        elif http_status == 401:
+            print_error("Authentication failed - invalid admin token")
+            return False
+        elif http_status == 403:
+            print_error("Authorization failed - admin access required")
+            return False
+        else:
+            try:
+                error_data = response.json()
+                error_msg = error_data.get('error', response.text)
+                print_error(f"Activation failed for {email}: HTTP {http_status} - {error_msg}")
+            except:
+                print_error(f"Activation failed for {email}: HTTP {http_status}")
+            return False
+
+    except requests.exceptions.ConnectionError:
+        print_error(f"Connection error - cannot reach {url}")
+        return False
+    except Exception as e:
+        print_error(f"Error activating user {email}: {str(e)}")
+        return False
+
+
 def activate_users_via_api(user_emails: List[str], admin_token: str) -> bool:
     """
     Activate users via protected API endpoint (requires admin authentication)
@@ -241,13 +305,17 @@ def activate_users_via_api(user_emails: List[str], admin_token: str) -> bool:
         return False
 
 
-def seed_users_and_speakers(admin_token: Optional[str] = None) -> Tuple[List[Dict], List[Dict], List[str], bool]:
+def seed_users_and_speakers(admin_token: Optional[str] = None) -> Tuple[List[Dict], List[Dict], List[str], bool, List[datetime], List[datetime]]:
     """
-    Seed users and speakers
+    Seed users and speakers with different creation dates
 
     Returns:
-        Tuple of (speakers list, users list, all_emails list, got_502_errors bool)
+        Tuple of (speakers list, users list, all_emails list, got_502_errors bool, creation_dates list, activation_dates list)
     """
+    from datetime import datetime, timedelta
+    import random
+    from .date_management import generate_user_creation_dates, generate_activation_dates
+
     speakers = []
     users = []
     all_user_emails = []
@@ -292,5 +360,14 @@ def seed_users_and_speakers(admin_token: Optional[str] = None) -> Tuple[List[Dic
             users.append({"email": email, "user_id": user_id})
         time.sleep(0.2)
 
-    return speakers, users, all_user_emails, got_502_errors
+    # Generate creation and activation dates for all users
+    total_users = len(all_user_emails)
+    if total_users > 0:
+        creation_dates = generate_user_creation_dates(total_users, days_back=60)
+        activation_dates = generate_activation_dates(total_users, creation_dates)
+    else:
+        creation_dates = []
+        activation_dates = []
+
+    return speakers, users, all_user_emails, got_502_errors, creation_dates, activation_dates
 

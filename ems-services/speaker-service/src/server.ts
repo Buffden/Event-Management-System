@@ -8,6 +8,7 @@ import messageRoutes from './routes/message.routes';
 import materialRoutes from './routes/material.routes';
 import speakerAttendanceRoutes from './routes/speaker-attendance.routes';
 import internalRoutes from './routes/internal.routes';
+import seederRoutes from './routes/seeder.routes';
 import { errorMiddleware, notFoundHandler } from './middleware/error.middleware';
 import { RabbitMQService } from './services/rabbitmq.service';
 import { SpeakerService } from './services/speaker.service';
@@ -42,6 +43,7 @@ app.use('/api/speakers', speakerRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/materials', materialRoutes);
+app.use('/api/materials', seederRoutes); // Seeder routes for materials (admin only)
 app.use('/api/speaker-attendance', speakerAttendanceRoutes);
 
 // Error handling middleware

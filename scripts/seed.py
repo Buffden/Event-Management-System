@@ -18,6 +18,7 @@ Usage:
 import os
 import sys
 import time
+import random
 
 try:
     import requests
@@ -37,14 +38,16 @@ except ImportError:
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from modules import utils
 from modules.user_seeding import (
-    login_admin, activate_users_via_api, seed_users_and_speakers
+    login_admin, activate_users_via_api, activate_user_via_api, seed_users_and_speakers
 )
-from modules.event_seeding import seed_events
-from modules.booking_seeding import seed_bookings
+from modules.event_seeding import seed_events, seed_events_staggered
+from modules.booking_seeding import seed_bookings, seed_bookings_staggered
 from modules.speaker_seeding import (
     seed_speaker_data,
     invite_speakers_to_events,
-    speakers_accept_invitations
+    invite_speakers_to_events_staggered,
+    speakers_accept_invitations,
+    speakers_accept_invitations_staggered
 )
 
 
@@ -130,8 +133,18 @@ def main():
     utils.print_success("Admin credentials verified")
     print()
 
-    # Step 1-2: Seed Users and Speakers
-    speakers, users, all_user_emails, got_502_errors = seed_users_and_speakers(admin_token)
+    # Step 1-2: Seed Users and Speakers (with staggered creation)
+    utils.print_header("Step 1-2: Registering Users and Speakers (Staggered)")
+    print("-" * 60)
+    utils.print_info("Creating users and speakers at different times to simulate realistic timeline...")
+    speakers, users, all_user_emails, got_502_errors, user_creation_dates, user_activation_dates = seed_users_and_speakers(admin_token)
+
+    # Update user creation dates
+    if admin_token and all_user_emails and user_creation_dates:
+        utils.print_info("Updating user creation dates to reflect realistic timeline...")
+        from modules.date_management import update_user_dates
+        updated = update_user_dates(admin_token, all_user_emails, user_creation_dates)
+        utils.print_success(f"Updated creation dates for {updated} users")
 
     if got_502_errors:
         print()
@@ -146,40 +159,87 @@ def main():
     utils.print_info("Waiting 5 seconds for RabbitMQ to process speaker profile creation messages...")
     time.sleep(5)
 
-    # Step 4: Activate Users
-    utils.print_header("Step 4: Activating Users via API")
+    # Step 4: Activate Users (on same dates as creation, but later in day)
+    utils.print_header("Step 4: Activating Users (Same Day as Creation)")
     print("-" * 60)
-    if all_user_emails and admin_token:
-        activate_users_via_api(all_user_emails, admin_token)
+    utils.print_info("Activating users on the same day as creation (but later in the day)...")
+
+    if all_user_emails and admin_token and user_activation_dates:
+        # Activate users according to their activation dates
+        activated_count = 0
+        for i, (email, activation_date) in enumerate(zip(all_user_emails, user_activation_dates)):
+            # Calculate delay to match activation date (simulate waiting)
+            if i > 0:
+                prev_activation = user_activation_dates[i-1]
+                delay_seconds = (activation_date - prev_activation).total_seconds()
+                if delay_seconds > 0 and delay_seconds < 3600:  # Only wait if less than 1 hour
+                    time.sleep(min(delay_seconds, 2.0))  # Cap at 2 seconds for practical purposes
+
+            if activate_user_via_api(email, admin_token):
+                activated_count += 1
+
+        utils.print_success(f"Activated {activated_count} user(s) according to timeline")
     else:
         if not all_user_emails:
             utils.print_info("No users created, skipping activation")
         elif not admin_token:
             utils.print_error("Cannot activate users - admin token not available")
 
-    # Step 5: Create Events
+    # Step 5: Create Events (Staggered - create at different times)
+    utils.print_header("Step 5: Creating Events (Staggered Timeline)")
+    print("-" * 60)
+    utils.print_info("Creating events at different times to simulate realistic event creation timeline...")
+
     if admin_token and admin_user_id:
-        events = seed_events(admin_token, admin_user_id, num_events=8)
-        # Wait a moment for events to be fully processed
-        time.sleep(2)
+        events = seed_events_staggered(admin_token, admin_user_id, num_events=8)
     else:
         utils.print_error("Cannot create events - admin token or user ID not available")
         events = []
 
-    # Step 6: Create Bookings
+    # Step 6: Create Bookings (Staggered - register at different times, before event start)
+    utils.print_header("Step 6: Creating User Registrations (Before Event Start)")
+    print("-" * 60)
+    utils.print_info("Users registering for events at different times (all before event start)...")
+
     if events and users:
-        seed_bookings(events, users)
+        bookings_count, created_bookings = seed_bookings_staggered(events, users)
+
+        # Update booking dates to be before event start
+        if admin_token and created_bookings:
+            utils.print_info("Updating booking creation dates to be before event start dates...")
+            from modules.date_management import generate_booking_dates, update_booking_dates
+            from datetime import datetime
+
+            booking_dates_list = []
+            for booking in created_bookings:
+                event_start_str = booking.get('eventStartDate')
+                if event_start_str:
+                    if isinstance(event_start_str, str):
+                        event_start = datetime.fromisoformat(event_start_str.replace('Z', '+00:00').replace('+00:00', ''))
+                    else:
+                        event_start = event_start_str
+                    # Generate booking date before event start
+                    dates = generate_booking_dates(1, event_start)
+                    booking_dates_list.extend(dates)
+
+            if booking_dates_list:
+                updated = update_booking_dates(admin_token, created_bookings, booking_dates_list)
+                utils.print_success(f"Updated creation dates for {updated} bookings")
     else:
         if not events:
             utils.print_info("Skipping bookings - no events created")
         if not users:
             utils.print_info("Skipping bookings - no users available")
 
-    # Step 7a: Admin Invites Speakers to Events
+    # Step 7a: Admin Invites Speakers to Events (Staggered)
+    utils.print_header("Step 7a: Admin Inviting Speakers (Staggered Timeline)")
+    print("-" * 60)
+    utils.print_info("Admin sending invitations at different times to simulate realistic invitation timeline...")
+
     if admin_token and admin_user_id and speakers and events:
         speaker_emails = [s['email'] for s in speakers if s.get('email')]
         if speaker_emails:
-            invite_stats = invite_speakers_to_events(
+            invite_stats = invite_speakers_to_events_staggered(
                 admin_token=admin_token,
                 admin_user_id=admin_user_id,
                 speaker_emails=speaker_emails,
@@ -197,11 +257,15 @@ def main():
             utils.print_info("Skipping speaker invitations - no events created")
         invite_stats = {'invitations_created': 0}
 
-    # Step 7b: Speakers Accept Invitations
+    # Step 7b: Speakers Accept Invitations (Staggered)
+    utils.print_header("Step 7b: Speakers Accepting Invitations (Staggered Timeline)")
+    print("-" * 60)
+    utils.print_info("Speakers responding to invitations at different times...")
+
     if speakers:
         speaker_emails = [s['email'] for s in speakers if s.get('email')]
         if speaker_emails:
-            accept_stats = speakers_accept_invitations(
+            accept_stats = speakers_accept_invitations_staggered(
                 speaker_emails=speaker_emails
             )
         else:
@@ -211,7 +275,11 @@ def main():
         utils.print_info("Skipping invitation acceptance - no speakers created")
         accept_stats = {'invitations_accepted': 0}
 
-    # Step 7c: Seed Additional Speaker Data (Materials, Messages)
+    # Step 8: Seed Additional Speaker Data (Materials, Messages) with different upload dates
+    utils.print_header("Step 8: Uploading Materials (Staggered Timeline)")
+    print("-" * 60)
+    utils.print_info("Speakers uploading materials at different times...")
+
     if admin_token and admin_user_id and speakers and events:
         speaker_emails = [s['email'] for s in speakers if s.get('email')]
         if speaker_emails:
@@ -221,6 +289,44 @@ def main():
                 speaker_emails=speaker_emails,
                 events=events
             )
+
+            # Update material upload dates
+            if admin_token and speaker_stats.get('materials_list'):
+                utils.print_info("Updating material upload dates to reflect realistic timeline...")
+                from modules.date_management import generate_material_upload_dates, update_material_dates
+                from datetime import datetime
+
+                upload_dates_list = []
+                materials_list = speaker_stats.get('materials_list', [])
+
+                for material in materials_list:
+                    event_id = material.get('eventId')
+                    if event_id:
+                        # Find event start date
+                        event = next((e for e in events if e.get('id') == event_id), None)
+                        if event:
+                            event_start_str = event.get('bookingStartDate')
+                            if isinstance(event_start_str, str):
+                                event_start = datetime.fromisoformat(event_start_str.replace('Z', '+00:00').replace('+00:00', ''))
+                            else:
+                                event_start = event_start_str
+                            # Generate upload date before event
+                            dates = generate_material_upload_dates(1, event_start)
+                            upload_dates_list.extend(dates)
+                        else:
+                            # No event, use current date - 10 days
+                            from datetime import timedelta
+                            upload_date = datetime.now() - timedelta(days=random.randint(1, 10))
+                            upload_dates_list.append(upload_date)
+                    else:
+                        # No event, use current date - 10 days
+                        from datetime import timedelta
+                        upload_date = datetime.now() - timedelta(days=random.randint(1, 10))
+                        upload_dates_list.append(upload_date)
+
+                if upload_dates_list:
+                    updated = update_material_dates(admin_token, materials_list, upload_dates_list)
+                    utils.print_success(f"Updated upload dates for {updated} materials")
         else:
             utils.print_info("Skipping additional speaker data seeding - no speaker emails available")
             speaker_stats = {'materials': 0, 'messages': 0}

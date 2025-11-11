@@ -491,7 +491,7 @@ router.get('/attendance-stats',
     // Get all confirmed bookings
     const bookings = await prisma.booking.findMany({
       where: { status: 'CONFIRMED' },
-      select: { 
+      select: {
         id: true,
         userId: true,
         isAttended: true
@@ -517,7 +517,7 @@ router.get('/attendance-stats',
 
     const totalRegistrations = attendeeBookings.length;
     const totalAttended = attendeeBookings.filter(({ booking }) => booking.isAttended === true).length;
-    const attendancePercentage = totalRegistrations > 0 
+    const attendancePercentage = totalRegistrations > 0
       ? Number(((totalAttended / totalRegistrations) * 100).toFixed(2)) // Round to 2 decimal places
       : 0;
 
@@ -574,7 +574,7 @@ router.get('/reports/top-events',
     logger.info('Fetching top performing events (admin)', { adminId: req.user?.userId });
 
     const { getUserInfo } = await import('../utils/auth-helpers');
-    
+
     // Get all confirmed bookings with event info
     const bookings = await prisma.booking.findMany({
       where: { status: 'CONFIRMED' },
