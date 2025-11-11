@@ -25,7 +25,7 @@ export default function LandingPage() {
                         </div>
                         <div className="flex items-center space-x-4">
                             <Link href="/login">
-                                <Button variant="ghost" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
+                                <Button variant="ghost" data-testid="landing-sign-in-button" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
                                     Sign In
                                 </Button>
                             </Link>
@@ -73,7 +73,7 @@ export default function LandingPage() {
                             </Button>
                         </Link>
                         <Link href="/login">
-                            <Button size="lg" variant="outline" className="w-full sm:w-auto px-8 py-4 text-lg border-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200">
+                            <Button size="lg" variant="outline" data-testid="landing-sign-in-cta-button" className="w-full sm:w-auto px-8 py-4 text-lg border-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200">
                                 Sign In to Account
                             </Button>
                         </Link>
