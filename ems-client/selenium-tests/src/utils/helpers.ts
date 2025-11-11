@@ -259,3 +259,41 @@ export async function waitForUrl(
   }, timeout);
 }
 
+// New helpers for CSS/XPath based interactions
+export async function clickByCss(driver: WebDriver, cssSelector: string, timeout: number = 10000): Promise<void> {
+  const element = await waitForElement(driver, cssSelector, timeout);
+  await element.click();
+}
+
+export async function clickByXPath(driver: WebDriver, xpath: string, timeout: number = 10000): Promise<void> {
+  const element = await driver.wait(until.elementLocated(By.xpath(xpath)), timeout);
+  await driver.wait(until.elementIsVisible(element), timeout);
+  await element.click();
+}
+
+export async function typeByCss(driver: WebDriver, cssSelector: string, text: string, timeout: number = 10000): Promise<void> {
+  const element = await waitForElement(driver, cssSelector, timeout);
+  await driver.wait(until.elementIsEnabled(element), timeout);
+  await driver.executeScript('arguments[0].scrollIntoView({ behavior: "smooth", block: "center" });', element);
+  await element.click();
+  try {
+    await element.clear();
+  } catch (_) {}
+  for (const ch of text) {
+    await element.sendKeys(ch);
+    await driver.sleep(10);
+  }
+}
+
+export async function selectOptionByCssIndex(driver: WebDriver, selectCss: string, optionIndex: number, timeout: number = 10000): Promise<void> {
+  const selectEl = await waitForElement(driver, selectCss, timeout);
+  await driver.wait(until.elementIsEnabled(selectEl), timeout);
+  await selectEl.click();
+  const option = await driver.findElement(By.css(`${selectCss} option:nth-child(${optionIndex})`));
+  await option.click();
+}
+
+export async function waitForVisibleByCss(driver: WebDriver, cssSelector: string, timeout: number = 10000): Promise<WebElement> {
+  return await waitForElement(driver, cssSelector, timeout);
+}
+
