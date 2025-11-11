@@ -725,7 +725,7 @@ export default function AttendeeEventsPage() {
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {userFeedbackSubmissions[event.id] && (
+                          {userFeedbackSubmissions[event.id] ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -734,24 +734,25 @@ export default function AttendeeEventsPage() {
                               }}
                               className="text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40"
                             >
-                              My Responses
+                              View Response
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedEventForFeedback({
+                                  eventId: event.id,
+                                  eventName: event.name,
+                                  form: feedbackForms[event.id]!
+                                });
+                                setFeedbackDialogOpen(true);
+                              }}
+                              className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                            >
+                              Provide Feedback
                             </Button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedEventForFeedback({
-                                eventId: event.id,
-                                eventName: event.name,
-                                form: feedbackForms[event.id]!
-                              });
-                              setFeedbackDialogOpen(true);
-                            }}
-                            className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                          >
-                            Provide Feedback
-                          </Button>
                         </div>
                       </div>
                       {feedbackForms[event.id]?.description && (
@@ -889,7 +890,7 @@ export default function AttendeeEventsPage() {
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
-                                {userFeedbackSubmissions[event.id] && (
+                                {userFeedbackSubmissions[event.id] ? (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -898,24 +899,25 @@ export default function AttendeeEventsPage() {
                                     }}
                                     className="text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40"
                                   >
-                                    My Responses
+                                    View Response
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setSelectedEventForFeedback({
+                                        eventId: event.id,
+                                        eventName: event.name,
+                                        form: feedbackForms[event.id]!
+                                      });
+                                      setFeedbackDialogOpen(true);
+                                    }}
+                                    className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                                  >
+                                    Provide Feedback
                                   </Button>
                                 )}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setSelectedEventForFeedback({
-                                      eventId: event.id,
-                                      eventName: event.name,
-                                      form: feedbackForms[event.id]!
-                                    });
-                                    setFeedbackDialogOpen(true);
-                                  }}
-                                  className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                                >
-                                  Provide Feedback
-                                </Button>
                               </div>
                             </div>
                             {feedbackForms[event.id]?.description && (

@@ -44,6 +44,11 @@ export interface SubmitFeedbackRequest {
   comment?: string;
 }
 
+export interface UpdateFeedbackRequest {
+  rating: number;
+  comment?: string;
+}
+
 export interface FeedbackFormResponse {
   id: string;
   eventId: string;
@@ -111,6 +116,7 @@ export interface IFeedbackService {
   listFeedbackForms(page?: number, limit?: number): Promise<FeedbackListResponse>;
 
   submitFeedback(userId: string, data: SubmitFeedbackRequest): Promise<FeedbackSubmissionResponse>;
+  updateFeedbackSubmission(userId: string, submissionId: string, data: UpdateFeedbackRequest): Promise<FeedbackSubmissionResponse>;
   getFeedbackSubmission(submissionId: string): Promise<FeedbackSubmissionResponse | null>;
   getUserFeedbackSubmissions(userId: string, page?: number, limit?: number): Promise<FeedbackSubmissionsListResponse>;
   getEventFeedbackSubmissions(eventId: string, page?: number, limit?: number): Promise<FeedbackSubmissionsListResponse>;

@@ -8,6 +8,7 @@ import {
   CreateFeedbackFormRequest,
   UpdateFeedbackFormRequest,
   SubmitFeedbackRequest,
+  UpdateFeedbackRequest,
   FeedbackFormResponse,
   FeedbackSubmissionResponse,
   FeedbackAnalytics,
@@ -318,6 +319,61 @@ export class FeedbackService implements IFeedbackService {
       };
     } catch (error) {
       logger.error('Failed to submit feedback', error as Error);
+      throw error;
+    }
+  }
+
+  async updateFeedbackSubmission(userId: string, submissionId: string, data: UpdateFeedbackRequest): Promise<FeedbackSubmissionResponse> {
+    try {
+      logger.info('Updating feedback submission', { userId, submissionId, rating: data.rating });
+
+      // Validate rating
+      this.validateRating(data.rating);
+
+      // Check if submission exists
+      const existingSubmission = await prisma.feedbackResponse.findUnique({
+        where: { id: submissionId }
+      });
+
+      if (!existingSubmission) {
+        throw new FeedbackSubmissionNotFoundError(submissionId);
+      }
+
+      // Verify user owns this submission
+      if (existingSubmission.userId !== userId) {
+        throw new Error('You can only update your own feedback submissions');
+      }
+
+      // Check if form is still open for updates
+      const form = await prisma.feedbackForm.findUnique({
+        where: { id: existingSubmission.formId }
+      });
+
+      if (!form) {
+        throw new FeedbackFormNotFoundError(existingSubmission.formId);
+      }
+
+      // Only allow updates if form is PUBLISHED (not CLOSED)
+      if (form.status === 'CLOSED') {
+        throw new FeedbackFormClosedError(existingSubmission.formId);
+      }
+
+      // Update the submission
+      const updatedSubmission = await prisma.feedbackResponse.update({
+        where: { id: submissionId },
+        data: {
+          rating: data.rating,
+          comment: data.comment || null
+        }
+      });
+
+      logger.info('Feedback submission updated successfully', { submissionId });
+      return {
+        ...updatedSubmission,
+        comment: updatedSubmission.comment || undefined
+      };
+    } catch (error) {
+      logger.error('Failed to update feedback submission', error as Error);
       throw error;
     }
   }

@@ -5,6 +5,7 @@ import {
   validateCreateFeedbackForm,
   validateUpdateFeedbackForm,
   validateSubmitFeedback,
+  validateUpdateFeedback,
   validatePagination,
   validateIdParam
 } from '../middleware/validation.middleware';
@@ -206,6 +207,35 @@ router.post('/submit',
       success: true,
       data: submission,
       message: 'Feedback submitted successfully'
+    });
+  })
+);
+
+router.put('/submissions/:id',
+  authenticateToken,
+  requireAttendee,
+  validateIdParam('id'),
+  validateUpdateFeedback,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+    const userId = req.user!.id;
+
+    logger.info('Updating feedback submission', {
+      userId,
+      submissionId: id,
+      rating
+    });
+
+    const submission = await feedbackService.updateFeedbackSubmission(userId, id, {
+      rating,
+      comment
+    });
+
+    res.json({
+      success: true,
+      data: submission,
+      message: 'Feedback updated successfully'
     });
   })
 );

@@ -41,6 +41,11 @@ export interface SubmitFeedbackRequest {
   comment?: string;
 }
 
+export interface UpdateFeedbackRequest {
+  rating: number;
+  comment?: string;
+}
+
 export interface FeedbackSubmissionResponse {
   id: string;
   formId: string;
@@ -342,6 +347,33 @@ class FeedbackApiClient extends BaseApiClient {
       throw error;
     }
   }
+
+  async updateFeedback(submissionId: string, data: UpdateFeedbackRequest): Promise<FeedbackSubmissionResponse> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Updating feedback', { submissionId, rating: data.rating });
+
+      const response = await fetch(`${this.baseURL}/feedback/submissions/${submissionId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      logger.info(LOGGER_COMPONENT_NAME, 'Feedback updated successfully', { submissionId });
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to update feedback', error as Error);
+      throw error;
+    }
+  }
 }
 
 // Create and export the Feedback API client instance
@@ -359,5 +391,6 @@ export const feedbackAPI = {
   getEventFeedbackSubmissions: (eventId: string, page?: number, limit?: number) => feedbackApiClient.getEventFeedbackSubmissions(eventId, page, limit),
   getSpeakerEventFeedbackSubmissions: (eventId: string, page?: number, limit?: number) => feedbackApiClient.getSpeakerEventFeedbackSubmissions(eventId, page, limit),
   getMyFeedbackSubmissions: (page?: number, limit?: number) => feedbackApiClient.getMyFeedbackSubmissions(page, limit),
+  updateFeedback: (submissionId: string, data: UpdateFeedbackRequest) => feedbackApiClient.updateFeedback(submissionId, data),
 };
 

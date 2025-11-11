@@ -113,6 +113,35 @@ export const validateSubmitFeedback = (req: Request, res: Response, next: NextFu
   next();
 };
 
+export const validateUpdateFeedback = (req: Request, res: Response, next: NextFunction) => {
+  const { rating, comment } = req.body;
+  const errors: string[] = [];
+
+  if (rating === undefined || rating === null) {
+    errors.push('Rating is required');
+  } else if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    errors.push('Rating must be an integer between 1 and 5');
+  }
+
+  if (comment !== undefined) {
+    if (typeof comment !== 'string') {
+      errors.push('Comment must be a string');
+    } else if (comment.length > 1000) {
+      errors.push('Comment must be 1000 characters or less');
+    }
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      code: 'VALIDATION_ERROR',
+      details: errors
+    });
+  }
+
+  next();
+};
+
 export const validatePagination = (req: Request, res: Response, next: NextFunction) => {
   const { page, limit } = req.query;
   const errors: string[] = [];
