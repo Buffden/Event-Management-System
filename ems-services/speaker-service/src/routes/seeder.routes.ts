@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { logger } from '../utils/logger';
 
@@ -61,13 +61,13 @@ router.post('/seed/update-material-date', authMiddleware, async (req: any, res: 
 
       if (updateResult.count > 0) {
         logger.debug('Material date updated (seeding)', { materialId });
-        res.json({
+        return res.json({
           success: true,
           message: `Material ${materialId} upload date updated successfully`,
           timestamp: new Date().toISOString()
         });
       } else {
-        res.status(404).json({
+        return res.status(404).json({
           success: false,
           error: `Material with id ${materialId} not found`,
           timestamp: new Date().toISOString()
@@ -75,7 +75,7 @@ router.post('/seed/update-material-date', authMiddleware, async (req: any, res: 
       }
     } catch (error: any) {
       logger.error('Error updating material date (seeding)', error, { materialId });
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Failed to update material date',
         timestamp: new Date().toISOString()
@@ -83,7 +83,7 @@ router.post('/seed/update-material-date', authMiddleware, async (req: any, res: 
     }
   } catch (error: any) {
     logger.error('Error in update material date route (seeding)', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to update material date',
       timestamp: new Date().toISOString()

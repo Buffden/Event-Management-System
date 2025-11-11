@@ -13,8 +13,8 @@ export class InvitationService {
    */
   async createInvitation(data: CreateInvitationRequest): Promise<SpeakerInvitation> {
     try {
-      logger.info('Creating speaker invitation', { 
-        speakerId: data.speakerId, 
+      logger.info('Creating speaker invitation', {
+        speakerId: data.speakerId,
         eventId: data.eventId,
         sessionId: data.sessionId
       });
@@ -48,11 +48,11 @@ export class InvitationService {
               sessionId: data.sessionId,
               speakerId: data.speakerId,
             });
-            
+
             await prisma.speakerInvitation.delete({
               where: { id: existingSessionInvitation.id }
             });
-            
+
             logger.info('Deleted existing invitation, will create a new one', {
               sessionId: data.sessionId,
               speakerId: data.speakerId,
@@ -69,20 +69,42 @@ export class InvitationService {
         }
       } else {
         // For event-level invitations (backward compatibility), check event-level duplicates
-      const existingInvitation = await prisma.speakerInvitation.findFirst({
-        where: {
-          speakerId: data.speakerId,
-          eventId: data.eventId,
+        // If an invitation exists, we'll update it instead of creating a new one
+        const existingInvitation = await prisma.speakerInvitation.findFirst({
+          where: {
+            speakerId: data.speakerId,
+            eventId: data.eventId,
             sessionId: null, // Only check event-level invitations
-          status: {
-            in: [InvitationStatus.PENDING, InvitationStatus.ACCEPTED]
           }
-        }
-      });
+        });
 
-      if (existingInvitation) {
-        throw new Error('Invitation already exists for this speaker and event');
-      }
+        if (existingInvitation) {
+          // Update the existing invitation to reset it to PENDING and update the message
+          logger.info('Found existing event-level invitation, updating it', {
+            invitationId: existingInvitation.id,
+            speakerId: data.speakerId,
+            eventId: data.eventId,
+          });
+
+          const updatedInvitation = await prisma.speakerInvitation.update({
+            where: { id: existingInvitation.id },
+            data: {
+              message: data.message || null,
+              status: InvitationStatus.PENDING,
+              sentAt: new Date(),
+              respondedAt: null,
+              updatedAt: new Date(),
+            }
+          });
+
+          logger.info('Updated existing event-level invitation', {
+            invitationId: updatedInvitation.id,
+            speakerId: data.speakerId,
+            eventId: data.eventId,
+          });
+
+          return updatedInvitation;
+        }
       }
 
       // Try to create the invitation
@@ -105,7 +127,7 @@ export class InvitationService {
             sessionId: data.sessionId,
             speakerId: data.speakerId,
           });
-          
+
           // Try to find and update the existing invitation
           const existingInvitation = await prisma.speakerInvitation.findFirst({
             where: {
@@ -113,7 +135,7 @@ export class InvitationService {
               speakerId: data.speakerId,
             }
           });
-          
+
           if (existingInvitation) {
             // Update the existing invitation to reset it to PENDING
             invitation = await prisma.speakerInvitation.update({
@@ -126,7 +148,7 @@ export class InvitationService {
                 updatedAt: new Date(),
               }
             });
-            
+
             logger.info('Updated existing invitation', {
               invitationId: invitation.id,
               sessionId: data.sessionId,
@@ -142,7 +164,7 @@ export class InvitationService {
         }
       }
 
-      logger.info('Speaker invitation created/updated successfully', { 
+      logger.info('Speaker invitation created/updated successfully', {
         invitationId: invitation.id,
         speakerId: data.speakerId,
         eventId: data.eventId,
@@ -223,7 +245,7 @@ export class InvitationService {
       if (search) {
         const searchLower = search.toLowerCase();
         // Simple search on eventId - client will handle full event name search
-        allInvitations = allInvitations.filter((inv: SpeakerInvitation) => 
+        allInvitations = allInvitations.filter((inv: SpeakerInvitation) =>
           inv.eventId.toLowerCase().includes(searchLower)
         );
       }
@@ -233,7 +255,7 @@ export class InvitationService {
 
       // Apply pagination
       const paginatedInvitations = allInvitations.slice(skip, skip + limit);
-      
+
       // Return invitations without event data (event details are fetched separately by frontend)
       const invitations = paginatedInvitations;
 
@@ -275,13 +297,13 @@ export class InvitationService {
    * Respond to an invitation
    */
   async respondToInvitation(
-    invitationId: string, 
+    invitationId: string,
     data: RespondToInvitationRequest
   ): Promise<SpeakerInvitation> {
     try {
-      logger.info('Responding to invitation', { 
-        invitationId, 
-        status: data.status 
+      logger.info('Responding to invitation', {
+        invitationId,
+        status: data.status
       });
 
       // Check if invitation exists and is pending
@@ -306,7 +328,7 @@ export class InvitationService {
         }
       });
 
-      logger.info('Invitation response recorded successfully', { 
+      logger.info('Invitation response recorded successfully', {
         invitationId,
         status: data.status
       });
@@ -409,10 +431,10 @@ export class InvitationService {
         where: { id: invitation.id }
       });
 
-      logger.info('Invitation deleted successfully by session and speaker', { 
+      logger.info('Invitation deleted successfully by session and speaker', {
         invitationId: invitation.id,
-        sessionId, 
-        speakerId 
+        sessionId,
+        speakerId
       });
     } catch (error) {
       logger.error('Error deleting invitation by session and speaker', error as Error);
@@ -444,10 +466,10 @@ export class InvitationService {
         where: { id: invitation.id }
       });
 
-      logger.info('Invitation deleted successfully by event and speaker', { 
+      logger.info('Invitation deleted successfully by event and speaker', {
         invitationId: invitation.id,
-        eventId, 
-        speakerId 
+        eventId,
+        speakerId
       });
     } catch (error) {
       logger.error('Error deleting invitation by event and speaker', error as Error);
@@ -495,7 +517,7 @@ export class InvitationService {
         }
       });
 
-      logger.info('Deleted all invitations for event', { 
+      logger.info('Deleted all invitations for event', {
         eventId,
         deletedCount: result.count
       });
@@ -522,17 +544,17 @@ export class InvitationService {
 
       const [total, pending, accepted, declined, expired] = await Promise.all([
         prisma.speakerInvitation.count({ where: { speakerId } }),
-        prisma.speakerInvitation.count({ 
-          where: { speakerId, status: InvitationStatus.PENDING } 
+        prisma.speakerInvitation.count({
+          where: { speakerId, status: InvitationStatus.PENDING }
         }),
-        prisma.speakerInvitation.count({ 
-          where: { speakerId, status: InvitationStatus.ACCEPTED } 
+        prisma.speakerInvitation.count({
+          where: { speakerId, status: InvitationStatus.ACCEPTED }
         }),
-        prisma.speakerInvitation.count({ 
-          where: { speakerId, status: InvitationStatus.DECLINED } 
+        prisma.speakerInvitation.count({
+          where: { speakerId, status: InvitationStatus.DECLINED }
         }),
-        prisma.speakerInvitation.count({ 
-          where: { speakerId, status: InvitationStatus.EXPIRED } 
+        prisma.speakerInvitation.count({
+          where: { speakerId, status: InvitationStatus.EXPIRED }
         })
       ]);
 

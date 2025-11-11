@@ -156,12 +156,28 @@ export class AdminApiClient extends BaseApiClient {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get error message from response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // If we can't parse the error, use the default message
+        }
+
+        // Provide user-friendly error messages
+        if (response.status === 409) {
+          errorMessage = 'An invitation already exists for this speaker and event. The invitation has been updated.';
+        }
+
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
 
-      logger.info(LOGGER_COMPONENT_NAME, 'Invitation created successfully', {
+      logger.info(LOGGER_COMPONENT_NAME, 'Invitation created/updated successfully', {
         invitationId: result.data.id,
         speakerId: invitationData.speakerId,
         eventId: invitationData.eventId

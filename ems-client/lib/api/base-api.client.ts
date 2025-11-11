@@ -27,6 +27,7 @@ export abstract class BaseApiClient {
         // Add authorization header if token exists
         const token = this.getToken();
         if (token) {
+
             defaultHeaders['Authorization'] = `Bearer ${token}`;
         }
 

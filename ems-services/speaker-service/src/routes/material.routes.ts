@@ -3,7 +3,6 @@ import { Request, Response } from 'express';
 import multer from 'multer';
 import { MaterialService } from '../services/material.service';
 import { logger } from '../utils/logger';
-import { authMiddleware } from '../middleware/auth.middleware';
 
 const router = Router();
 const materialService = new MaterialService();
