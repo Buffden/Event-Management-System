@@ -84,12 +84,18 @@ describe('Auth Middleware', () => {
         authorization: 'InvalidFormat token',
       };
 
+      // Mock jwt.verify to throw error for invalid token
+      jest.spyOn(jwt, 'verify').mockImplementation(() => {
+        throw new jwt.JsonWebTokenError('Invalid token');
+      });
+
       authenticateToken(mockRequest as AuthenticatedRequest, mockResponse as Response, mockNext);
 
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
+      // When token format is invalid but token exists, jwt.verify will fail and return 403
+      expect(mockResponse.status).toHaveBeenCalledWith(403);
       expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Access token required',
-        code: 'MISSING_TOKEN',
+        error: 'Invalid or expired token',
+        code: 'INVALID_TOKEN',
       });
       expect(mockNext).not.toHaveBeenCalled();
     });

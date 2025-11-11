@@ -14,6 +14,7 @@ import { describe, it, beforeEach, afterEach, expect } from '@jest/globals';
 import {
   mockPrisma,
   mockLogger,
+  mockGetUserInfo,
   createMockFeedbackForm,
   createMockFeedbackResponse,
   setupSuccessfulFormCreation,
@@ -143,6 +144,23 @@ describe('FeedbackService', () => {
       ).rejects.toThrow(FeedbackFormNotFoundError);
     });
 
+    it('should handle non-P2025 database errors in updateFeedbackForm', async () => {
+      // This covers lines 85-87 - error handling for non-P2025 errors
+      const error: any = new Error('Database connection error');
+      error.code = 'P2000'; // Different Prisma error code
+      mockPrisma.feedbackForm.update.mockRejectedValue(error);
+
+      await expect(
+        feedbackService.updateFeedbackForm('form-123', {
+          title: 'Updated Title',
+        })
+      ).rejects.toThrow('Database connection error');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to update feedback form',
+        expect.any(Error)
+      );
+    });
+
     it('should handle partial updates', async () => {
       const mockForm = createMockFeedbackForm();
       const updatedForm = { ...mockForm, description: 'Updated description' };
@@ -182,6 +200,21 @@ describe('FeedbackService', () => {
         FeedbackFormNotFoundError
       );
     });
+
+    it('should handle non-P2025 database errors in closeFeedbackForm', async () => {
+      // This covers lines 108-110 - error handling for non-P2025 errors
+      const error: any = new Error('Database timeout');
+      error.code = 'P2001'; // Different Prisma error code
+      mockPrisma.feedbackForm.update.mockRejectedValue(error);
+
+      await expect(feedbackService.closeFeedbackForm('form-123')).rejects.toThrow(
+        'Database timeout'
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to close feedback form',
+        expect.any(Error)
+      );
+    });
   });
 
   describe('deleteFeedbackForm()', () => {
@@ -202,6 +235,21 @@ describe('FeedbackService', () => {
 
       await expect(feedbackService.deleteFeedbackForm('non-existent')).rejects.toThrow(
         FeedbackFormNotFoundError
+      );
+    });
+
+    it('should handle non-P2025 database errors in deleteFeedbackForm', async () => {
+      // This covers lines 126-128 - error handling for non-P2025 errors
+      const error: any = new Error('Database constraint violation');
+      error.code = 'P2002'; // Different Prisma error code
+      mockPrisma.feedbackForm.delete.mockRejectedValue(error);
+
+      await expect(feedbackService.deleteFeedbackForm('form-123')).rejects.toThrow(
+        'Database constraint violation'
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to delete feedback form',
+        expect.any(Error)
       );
     });
   });
@@ -344,7 +392,9 @@ describe('FeedbackService', () => {
     });
 
     it('should handle pagination correctly', async () => {
-      const mockForms = [createMockFeedbackForm({ id: 'form-2' })];
+      const mockForms = [
+        createMockFeedbackForm({ id: 'form-2', responses: [{ rating: 4 }] }),
+      ];
 
       mockPrisma.feedbackForm.findMany.mockResolvedValue(mockForms);
       mockPrisma.feedbackForm.count.mockResolvedValue(15);
@@ -607,6 +657,20 @@ describe('FeedbackService', () => {
       expect(result.submissions).toHaveLength(2);
       expect(result.total).toBe(2);
     });
+
+    it('should handle database errors in getUserFeedbackSubmissions', async () => {
+      // This covers lines 423-425 - error handling in getUserFeedbackSubmissions
+      const error = new Error('Database connection failed');
+      mockPrisma.feedbackResponse.findMany.mockRejectedValue(error);
+
+      await expect(
+        feedbackService.getUserFeedbackSubmissions('user-123', 1, 10)
+      ).rejects.toThrow('Database connection failed');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to get user feedback submissions',
+        expect.any(Error)
+      );
+    });
   });
 
   describe('getEventFeedbackSubmissions()', () => {
@@ -620,7 +684,6 @@ describe('FeedbackService', () => {
       mockPrisma.feedbackResponse.count.mockResolvedValue(2);
 
       // Mock getUserInfo
-      const { mockGetUserInfo } = require('./mocks-simple');
       mockGetUserInfo.mockResolvedValue({ name: 'Test User', email: 'test@example.com', role: 'USER' });
 
       const result = await feedbackService.getEventFeedbackSubmissions('event-123', 1, 10);
@@ -633,6 +696,48 @@ describe('FeedbackService', () => {
       });
       expect(result.submissions).toHaveLength(2);
       expect(result.total).toBe(2);
+    });
+
+    it('should handle errors when fetching user info gracefully', async () => {
+      // This covers lines 462-464 - error handling when getUserInfo fails
+      const mockSubmissions = [
+        createMockFeedbackResponse({ id: 'response-1', userId: 'user-1' }),
+        createMockFeedbackResponse({ id: 'response-2', userId: 'user-2' }),
+      ];
+
+      mockPrisma.feedbackResponse.findMany.mockResolvedValue(mockSubmissions);
+      mockPrisma.feedbackResponse.count.mockResolvedValue(2);
+
+      // Mock getUserInfo to fail for one user
+      mockGetUserInfo
+        .mockResolvedValueOnce({ name: 'Test User 1', email: 'test1@example.com', role: 'USER' })
+        .mockRejectedValueOnce(new Error('User service unavailable'));
+
+      const result = await feedbackService.getEventFeedbackSubmissions('event-123', 1, 10);
+
+      expect(result.submissions).toHaveLength(2);
+      // One submission should have username, the other should not
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to fetch user info',
+        expect.objectContaining({
+          userId: 'user-2',
+          error: 'User service unavailable',
+        })
+      );
+    });
+
+    it('should handle database errors in getEventFeedbackSubmissions', async () => {
+      // This covers lines 496-498 - error handling in getEventFeedbackSubmissions
+      const error = new Error('Database query failed');
+      mockPrisma.feedbackResponse.findMany.mockRejectedValue(error);
+
+      await expect(
+        feedbackService.getEventFeedbackSubmissions('event-123', 1, 10)
+      ).rejects.toThrow('Database query failed');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to get event feedback submissions',
+        expect.any(Error)
+      );
     });
   });
 

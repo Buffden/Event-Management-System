@@ -17,14 +17,14 @@ import {
   resetAllMocks,
 } from './mocks-simple';
 
-import { AuthValidationService } from '../services/auth-validation.service';
+import { authValidationService } from '../services/auth-validation.service';
 
 describe('AuthValidationService', () => {
-  let authValidationService: AuthValidationService;
+  let service: typeof authValidationService;
 
   beforeEach(() => {
     resetAllMocks();
-    authValidationService = new AuthValidationService();
+    service = authValidationService;
   });
 
   afterEach(() => {
@@ -35,7 +35,7 @@ describe('AuthValidationService', () => {
     it('should validate token successfully', async () => {
       const { mockAuthResponse } = setupSuccessfulAuthValidation();
 
-      const result = await authValidationService.validateToken('valid.token');
+      const result = await service.validateToken('valid.token');
 
       expect(mockAxios.post).toHaveBeenCalledWith(
         expect.stringContaining('/validate-user'),
@@ -64,7 +64,7 @@ describe('AuthValidationService', () => {
 
       mockAxios.post.mockResolvedValue(invalidResponse);
 
-      const result = await authValidationService.validateToken('invalid.token');
+      const result = await service.validateToken('invalid.token');
 
       expect(result).toBeNull();
     });
@@ -80,7 +80,7 @@ describe('AuthValidationService', () => {
 
       mockAxios.post.mockResolvedValue(errorResponse);
 
-      const result = await authValidationService.validateToken('expired.token');
+      const result = await service.validateToken('expired.token');
 
       expect(result).toBeNull();
     });
@@ -88,7 +88,7 @@ describe('AuthValidationService', () => {
     it('should handle network errors gracefully', async () => {
       setupAuthServiceError();
 
-      const result = await authValidationService.validateToken('some.token');
+      const result = await service.validateToken('some.token');
 
       expect(result).toBeNull();
       expect(mockLogger.error).toHaveBeenCalled();
@@ -107,7 +107,7 @@ describe('AuthValidationService', () => {
       mockAxios.isAxiosError.mockReturnValue(true);
       mockAxios.post.mockRejectedValue(axiosError);
 
-      const result = await authValidationService.validateToken('some.token');
+      const result = await service.validateToken('some.token');
 
       expect(result).toBeNull();
       expect(mockLogger.warn).toHaveBeenCalled();
@@ -122,7 +122,7 @@ describe('AuthValidationService', () => {
       mockAxios.isAxiosError.mockReturnValue(true);
       mockAxios.post.mockRejectedValue(axiosError);
 
-      const result = await authValidationService.validateToken('some.token');
+      const result = await service.validateToken('some.token');
 
       expect(result).toBeNull();
       expect(mockLogger.error).toHaveBeenCalled();
@@ -133,10 +133,58 @@ describe('AuthValidationService', () => {
       mockAxios.post.mockRejectedValue(unexpectedError);
       mockAxios.isAxiosError.mockReturnValue(false);
 
-      const result = await authValidationService.validateToken('some.token');
+      const result = await service.validateToken('some.token');
 
       expect(result).toBeNull();
       expect(mockLogger.error).toHaveBeenCalled();
+    });
+
+    it('should handle axios errors without response or request (other error)', async () => {
+      // This covers lines 121-123 - axios error that is neither response nor request error
+      const axiosError: any = {
+        isAxiosError: true,
+        message: 'Request setup error',
+        config: {},
+        // No response or request properties
+      };
+      // Make it an Error instance so it can be passed to logger.error
+      Object.setPrototypeOf(axiosError, Error.prototype);
+
+      mockAxios.isAxiosError.mockReturnValue(true);
+      mockAxios.post.mockRejectedValue(axiosError);
+
+      const result = await service.validateToken('some.token');
+
+      expect(result).toBeNull();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Auth validation request setup error',
+        expect.any(Error)
+      );
+    });
+
+    it('should handle axios errors with response but no error message', async () => {
+      // This covers line 111 - when error.response.data?.error is undefined
+      const axiosError = {
+        response: {
+          status: 500,
+          statusText: 'Internal Server Error',
+          data: {}, // No error property
+        },
+        isAxiosError: true,
+      };
+
+      mockAxios.isAxiosError.mockReturnValue(true);
+      mockAxios.post.mockRejectedValue(axiosError);
+
+      const result = await service.validateToken('some.token');
+
+      expect(result).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Auth service returned error response',
+        expect.objectContaining({
+          message: 'Unknown error', // Should use fallback
+        })
+      );
     });
   });
 
@@ -144,7 +192,7 @@ describe('AuthValidationService', () => {
     it('should validate token with matching role', async () => {
       setupSuccessfulAuthValidation();
 
-      const result = await authValidationService.validateTokenWithRole('valid.token', ['USER', 'ADMIN']);
+      const result = await service.validateTokenWithRole('valid.token', ['USER', 'ADMIN']);
 
       expect(result).not.toBeNull();
       expect(result?.role).toBe('USER');
@@ -153,7 +201,7 @@ describe('AuthValidationService', () => {
     it('should return null for non-matching role', async () => {
       setupSuccessfulAuthValidation();
 
-      const result = await authValidationService.validateTokenWithRole('valid.token', ['ADMIN']);
+      const result = await service.validateTokenWithRole('valid.token', ['ADMIN']);
 
       expect(result).toBeNull();
       expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -165,7 +213,7 @@ describe('AuthValidationService', () => {
     it('should accept empty roles array (any role allowed)', async () => {
       setupSuccessfulAuthValidation();
 
-      const result = await authValidationService.validateTokenWithRole('valid.token', []);
+      const result = await service.validateTokenWithRole('valid.token', []);
 
       expect(result).not.toBeNull();
       expect(result?.role).toBe('USER');
@@ -181,7 +229,7 @@ describe('AuthValidationService', () => {
 
       mockAxios.post.mockResolvedValue(invalidResponse);
 
-      const result = await authValidationService.validateTokenWithRole('invalid.token', ['USER']);
+      const result = await service.validateTokenWithRole('invalid.token', ['USER']);
 
       expect(result).toBeNull();
     });
