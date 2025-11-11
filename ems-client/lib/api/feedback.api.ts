@@ -106,6 +106,7 @@ class FeedbackApiClient extends BaseApiClient {
 
       if (response.status === 404) {
         // 404 is expected when no feedback form exists - not an error
+        // Return null silently without throwing
         logger.debug(LOGGER_COMPONENT_NAME, 'No feedback form found for event', { eventId });
         return null;
       }
@@ -118,10 +119,16 @@ class FeedbackApiClient extends BaseApiClient {
       const result = await response.json();
       return result.data;
     } catch (error) {
-      // Only log as error if it's not a 404 (which is handled above)
+      // Handle 404 gracefully - don't throw, just return null
+      if (error instanceof Error && error.message.includes('404')) {
+        logger.debug(LOGGER_COMPONENT_NAME, 'No feedback form found for event (404)', { eventId });
+        return null;
+      }
+      // Only log as error for non-404 errors
       if (error instanceof Error && !error.message.includes('404')) {
         logger.error(LOGGER_COMPONENT_NAME, 'Failed to get feedback form by event ID', error as Error);
       }
+      // Re-throw non-404 errors
       throw error;
     }
   }

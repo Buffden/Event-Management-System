@@ -725,7 +725,7 @@ export default function AttendeeEventsPage() {
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {userFeedbackSubmissions[event.id] ? (
+                          {userFeedbackSubmissions[event.id] === true ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -890,7 +890,7 @@ export default function AttendeeEventsPage() {
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
-                                {userFeedbackSubmissions[event.id] ? (
+                                {userFeedbackSubmissions[event.id] === true ? (
                                   <Button
                                     size="sm"
                                     variant="outline"

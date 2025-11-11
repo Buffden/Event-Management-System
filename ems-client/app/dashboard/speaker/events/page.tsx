@@ -128,15 +128,38 @@ function SpeakerEventManagementPage() {
                 }));
                 logger.debug(LOGGER_COMPONENT_NAME, 'All events loaded successfully', { count: response.data.events.length });
 
-                // Fetch registration counts for all events
+                // Load speaker's invitations FIRST to check which events they're invited to
+                const invitationMap = new Map<string, SpeakerInvitation>();
+                if (user?.id) {
+                    try {
+                        const speakerProfile = await speakerApiClient.getSpeakerProfile(user.id);
+                        const invitationResult = await speakerApiClient.getSpeakerInvitations(speakerProfile.id, {
+                            page: 1,
+                            limit: 1000 // Get all invitations to map them
+                        });
+
+                        invitationResult.invitations.forEach(invitation => {
+                            invitationMap.set(invitation.eventId, invitation);
+                        });
+                        setEventInvitationMap(invitationMap);
+                        logger.debug(LOGGER_COMPONENT_NAME, 'Invitations loaded', { count: invitationMap.size });
+                    } catch (err) {
+                        logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load invitations for event mapping', err instanceof Error ? err : new Error(String(err)));
+                    }
+                }
+
+                // Fetch registration counts ONLY for events where speaker is invited
                 const countsMap = new Map<string, number>();
+                const invitedEvents = response.data.events.filter(event => invitationMap.has(event.id));
                 await Promise.all(
-                    response.data.events.map(async (event) => {
+                    invitedEvents.map(async (event) => {
                         try {
                             const registrationData = await speakerBookingAPI.getEventRegistrationCount(event.id);
                             countsMap.set(event.id, registrationData.totalUsers);
                         } catch (err) {
-                            logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load registration count for event', {
+                            // Silently handle errors - token issues or missing permissions
+                            // Don't log as error since this is expected for some scenarios
+                            logger.debug(LOGGER_COMPONENT_NAME, 'Failed to load registration count for event', {
                                 eventId: event.id,
                                 error: err instanceof Error ? err.message : String(err)
                             });
@@ -146,41 +169,39 @@ function SpeakerEventManagementPage() {
                 );
                 setEventRegistrationCounts(countsMap);
 
-                // Fetch feedback forms for all events
+                // Fetch feedback forms ONLY for events where speaker is invited
                 const feedbackFormsMap = new Map<string, FeedbackFormResponse>();
+                logger.debug(LOGGER_COMPONENT_NAME, 'Fetching feedback forms for invited events only', {
+                    totalEvents: response.data.events.length,
+                    invitedEventsCount: invitedEvents.length,
+                    invitedEventIds: invitedEvents.map(e => e.id)
+                });
                 await Promise.all(
-                    response.data.events.map(async (event) => {
+                    invitedEvents.map(async (event) => {
                         try {
+                            logger.debug(LOGGER_COMPONENT_NAME, 'Fetching feedback form for invited event', { eventId: event.id });
                             const feedbackForm = await feedbackAPI.getFeedbackFormByEventId(event.id);
                             if (feedbackForm && feedbackForm.status === 'PUBLISHED') {
                                 feedbackFormsMap.set(event.id, feedbackForm);
+                                logger.debug(LOGGER_COMPONENT_NAME, 'Found published feedback form', { eventId: event.id });
+                            } else {
+                                logger.debug(LOGGER_COMPONENT_NAME, 'No published feedback form for event', { eventId: event.id });
                             }
                         } catch (err) {
                             // Silently fail - not all events have feedback forms
-                            logger.debug(LOGGER_COMPONENT_NAME, 'No feedback form found for event', { eventId: event.id });
+                            // 404 is expected when no feedback form exists
+                            logger.debug(LOGGER_COMPONENT_NAME, 'No feedback form found for event (expected if form does not exist)', {
+                                eventId: event.id,
+                                error: err instanceof Error ? err.message : String(err)
+                            });
                         }
                     })
                 );
                 setEventFeedbackForms(feedbackFormsMap);
-
-                // Load speaker's invitations to check which events they've accepted
-                if (user?.id) {
-                    try {
-                        const speakerProfile = await speakerApiClient.getSpeakerProfile(user.id);
-                        const invitationResult = await speakerApiClient.getSpeakerInvitations(speakerProfile.id, {
-                            page: 1,
-                            limit: 1000 // Get all invitations to map them
-                        });
-
-                        const invitationMap = new Map<string, SpeakerInvitation>();
-                        invitationResult.invitations.forEach(invitation => {
-                            invitationMap.set(invitation.eventId, invitation);
-                        });
-                        setEventInvitationMap(invitationMap);
-                    } catch (err) {
-                        logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load invitations for event mapping', err instanceof Error ? err : new Error(String(err)));
-                    }
-                }
+                logger.debug(LOGGER_COMPONENT_NAME, 'Feedback forms fetch complete', {
+                    foundForms: feedbackFormsMap.size,
+                    checkedEvents: invitedEvents.length
+                });
             } else {
                 throw new Error('Failed to load events');
             }
