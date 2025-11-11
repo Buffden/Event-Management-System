@@ -127,8 +127,8 @@ export function EventCard({
           </div>
         </div>
 
-        {/* Feedback Form Section */}
-        {feedbackForm && feedbackForm.status === 'PUBLISHED' && (
+        {/* Feedback Form Section - Only show if user has booked the event */}
+        {feedbackForm && feedbackForm.status === 'PUBLISHED' && isBooked && (
           <EventFeedbackSection
             feedbackForm={feedbackForm}
             hasUserSubmission={hasUserFeedbackSubmission}
