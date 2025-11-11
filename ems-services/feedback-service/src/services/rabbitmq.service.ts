@@ -77,4 +77,4 @@ class RabbitMQService {
 }
 
 const rabbitMQService = new RabbitMQService(process.env.RABBITMQ_URL!);
-export { rabbitMQService };
+export { rabbitMQService, RabbitMQService };
