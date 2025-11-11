@@ -445,11 +445,19 @@ export class FeedbackService implements IFeedbackService {
       const uniqueUserIds = [...new Set(submissions.map(s => s.userId))];
       const userInfoMap = new Map<string, string | null>();
 
+      logger.debug('Fetching user info for feedback submissions', {
+        eventId,
+        uniqueUserIds: uniqueUserIds.length,
+        userIds: uniqueUserIds
+      });
+
       await Promise.all(
         uniqueUserIds.map(async (userId) => {
           try {
             const userInfo = await getUserInfo(userId);
-            userInfoMap.set(userId, userInfo?.name || null);
+            const username = userInfo?.name || null;
+            userInfoMap.set(userId, username);
+            logger.debug('Fetched user info', { userId, username: username || 'null' });
           } catch (error) {
             logger.warn('Failed to fetch user info', { userId, error: (error as Error).message });
             userInfoMap.set(userId, null);
@@ -457,12 +465,29 @@ export class FeedbackService implements IFeedbackService {
         })
       );
 
-      return {
-        submissions: submissions.map(submission => ({
-          ...submission,
+      const mappedSubmissions = submissions.map(submission => {
+        const username = userInfoMap.get(submission.userId) || undefined;
+        return {
+          id: submission.id,
+          formId: submission.formId,
+          userId: submission.userId,
+          username: username,
+          eventId: submission.eventId,
+          bookingId: submission.bookingId,
+          rating: submission.rating,
           comment: submission.comment || undefined,
-          username: userInfoMap.get(submission.userId) || undefined
-        })),
+          createdAt: submission.createdAt
+        };
+      });
+
+      logger.debug('Mapped feedback submissions with usernames', {
+        eventId,
+        submissionCount: mappedSubmissions.length,
+        submissionsWithUsername: mappedSubmissions.filter(s => s.username).length
+      });
+
+      return {
+        submissions: mappedSubmissions,
         total,
         page,
         limit

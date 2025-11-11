@@ -57,7 +57,13 @@ function SpeakerEventFeedbackPage() {
 
         logger.info(LOGGER_COMPONENT_NAME, 'Feedback submissions loaded', {
           eventId,
-          count: result.submissions.length
+          count: result.submissions.length,
+          submissions: result.submissions.map(s => ({
+            id: s.id,
+            userId: s.userId,
+            username: s.username,
+            hasUsername: !!s.username
+          }))
         });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load feedback submissions';
@@ -198,7 +204,7 @@ function SpeakerEventFeedbackPage() {
                       </div>
                       <div>
                         <CardTitle className="text-lg">
-                          {submission.username || `User ${submission.userId.substring(0, 8)}...`}
+                          {submission.username || 'Anonymous User'}
                         </CardTitle>
                         <CardDescription className="flex items-center gap-2 mt-1">
                           <Calendar className="h-3 w-3" />
