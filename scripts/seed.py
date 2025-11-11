@@ -275,10 +275,10 @@ def main():
         utils.print_info("Skipping invitation acceptance - no speakers created")
         accept_stats = {'invitations_accepted': 0}
 
-    # Step 8: Seed Additional Speaker Data (Materials, Messages) with different upload dates
-    utils.print_header("Step 8: Uploading Materials (Staggered Timeline)")
+    # Step 8: Seed Additional Speaker Data (Materials, Messages)
+    utils.print_header("Step 8: Uploading Materials")
     print("-" * 60)
-    utils.print_info("Speakers uploading materials at different times...")
+    utils.print_info("Speakers uploading materials...")
 
     if admin_token and admin_user_id and speakers and events:
         speaker_emails = [s['email'] for s in speakers if s.get('email')]
@@ -289,44 +289,6 @@ def main():
                 speaker_emails=speaker_emails,
                 events=events
             )
-
-            # Update material upload dates
-            if admin_token and speaker_stats.get('materials_list'):
-                utils.print_info("Updating material upload dates to reflect realistic timeline...")
-                from modules.date_management import generate_material_upload_dates, update_material_dates
-                from datetime import datetime
-
-                upload_dates_list = []
-                materials_list = speaker_stats.get('materials_list', [])
-
-                for material in materials_list:
-                    event_id = material.get('eventId')
-                    if event_id:
-                        # Find event start date
-                        event = next((e for e in events if e.get('id') == event_id), None)
-                        if event:
-                            event_start_str = event.get('bookingStartDate')
-                            if isinstance(event_start_str, str):
-                                event_start = datetime.fromisoformat(event_start_str.replace('Z', '+00:00').replace('+00:00', ''))
-                            else:
-                                event_start = event_start_str
-                            # Generate upload date before event
-                            dates = generate_material_upload_dates(1, event_start)
-                            upload_dates_list.extend(dates)
-                        else:
-                            # No event, use current date - 10 days
-                            from datetime import timedelta
-                            upload_date = datetime.now() - timedelta(days=random.randint(1, 10))
-                            upload_dates_list.append(upload_date)
-                    else:
-                        # No event, use current date - 10 days
-                        from datetime import timedelta
-                        upload_date = datetime.now() - timedelta(days=random.randint(1, 10))
-                        upload_dates_list.append(upload_date)
-
-                if upload_dates_list:
-                    updated = update_material_dates(admin_token, materials_list, upload_dates_list)
-                    utils.print_success(f"Updated upload dates for {updated} materials")
         else:
             utils.print_info("Skipping additional speaker data seeding - no speaker emails available")
             speaker_stats = {'materials': 0, 'messages': 0}
