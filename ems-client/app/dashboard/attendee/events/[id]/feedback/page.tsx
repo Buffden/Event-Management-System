@@ -59,7 +59,7 @@ function AttendeeEventFeedbackPage() {
         }
 
         // Load user's feedback submissions for this event
-        const result = await feedbackAPI.getMyFeedbackSubmissions(1, 1000);
+        const result = await feedbackAPI.getMyFeedbackSubmissions(1, 100); // Max 100 per page
         const eventSubmissions = result.submissions.filter(
           (submission) => submission.eventId === eventId
         );
@@ -153,7 +153,7 @@ function AttendeeEventFeedbackPage() {
       await feedbackAPI.updateFeedback(submissionId, updateData);
 
       // Reload submissions
-      const result = await feedbackAPI.getMyFeedbackSubmissions(1, 1000);
+      const result = await feedbackAPI.getMyFeedbackSubmissions(1, 100); // Max 100 per page
       const eventSubmissions = result.submissions.filter(
         (submission) => submission.eventId === eventId
       );

@@ -11,6 +11,7 @@ import {
 } from '../middleware/validation.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { authValidationService } from '../services/auth-validation.service';
 
 const router = Router();
 
@@ -279,11 +280,85 @@ router.get('/my-submissions',
   requireAttendee,
   validatePagination,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const userId = req.user!.id;
+    logger.info('=== BACKEND: /my-submissions route hit ===', {
+      method: req.method,
+      url: req.url,
+      query: req.query,
+      headers: {
+        authorization: req.headers.authorization ? 'Bearer ***' : 'missing',
+        'content-type': req.headers['content-type']
+      },
+      timestamp: new Date().toISOString()
+    });
+
+    // Extract token from Authorization header
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+    logger.info('Token extraction', {
+      hasAuthHeader: !!authHeader,
+      hasToken: !!token,
+      tokenLength: token?.length || 0
+    });
+
+    if (!token) {
+      logger.warn('No token provided in request');
+      return res.status(401).json({
+        success: false,
+        error: 'Access token required',
+        code: 'MISSING_TOKEN'
+      });
+    }
+
+    // Validate token with auth-service and ensure user exists
+    logger.info('Validating token and checking user existence with auth-service', {
+      hasToken: !!token,
+      tokenPrefix: token.substring(0, 20) + '...'
+    });
+
+    const authUser = await authValidationService.validateTokenWithRole(token, ['USER', 'ADMIN']);
+
+    if (!authUser) {
+      logger.warn('Token validation failed or user does not exist', {
+        hasToken: !!token
+      });
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired token, or user does not exist',
+        code: 'INVALID_TOKEN_OR_USER'
+      });
+    }
+
+    logger.info('Token validation successful', {
+      userId: authUser.userId,
+      userRole: authUser.role,
+      userEmail: authUser.email
+    });
+
+    // Use the validated user ID from auth-service
+    const userId = authUser.userId;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
 
+    logger.info('=== BACKEND: Getting user feedback submissions ===', {
+      userId,
+      page,
+      limit,
+      userRole: authUser.role,
+      timestamp: new Date().toISOString()
+    });
+
     const result = await feedbackService.getUserFeedbackSubmissions(userId, page, limit);
+
+    logger.info('=== BACKEND: User feedback submissions retrieved ===', {
+      userId,
+      totalSubmissions: result.submissions.length,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      submissionIds: result.submissions.map(s => s.id),
+      eventIds: result.submissions.map(s => s.eventId)
+    });
 
     res.json({
       success: true,

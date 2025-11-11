@@ -1,34 +1,21 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { bookingAPI, ticketAPI } from '@/lib/api/booking.api';
 import { eventAPI } from '@/lib/api/event.api';
 import { feedbackAPI, FeedbackFormResponse } from '@/lib/api/feedback.api';
 import { FeedbackDialog } from '@/components/feedback/FeedbackDialog';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useLogger } from '@/lib/logger/LoggerProvider';
-import {
-  Search,
-  Filter,
-  Calendar,
-  MapPin,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Eye,
-  Ticket,
-  Play,
-  ArrowLeft,
-  MessageSquare
-} from 'lucide-react';
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { EventsPageHeader } from '@/components/attendee/EventsPageHeader';
+import { EventsPageSubHeader } from '@/components/attendee/EventsPageSubHeader';
+import { EventMessages } from '@/components/attendee/EventMessages';
+import { EventFiltersComponent } from '@/components/attendee/EventFilters';
+import { EventsList } from '@/components/attendee/EventsList';
+import { EmptyEventsState } from '@/components/attendee/EmptyEventsState';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 const LOGGER_COMPONENT_NAME = 'AttendeeEventsPage';
 
@@ -48,7 +35,7 @@ interface EventFilters {
 }
 
 export default function AttendeeEventsPage() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const logger = useLogger();
 
@@ -72,29 +59,34 @@ export default function AttendeeEventsPage() {
   });
 
   useEffect(() => {
+    // Wait for auth check to complete before redirecting
+    if (authLoading) {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Auth still loading, waiting...');
+      return;
+    }
+
+    // Only redirect if auth check is complete and user is not authenticated
     if (!isAuthenticated) {
+      logger.debug(LOGGER_COMPONENT_NAME, 'User not authenticated, redirecting to login');
       router.push('/login');
       return;
     }
 
+    logger.info(LOGGER_COMPONENT_NAME, 'User authenticated, loading initial data', {
+      userId: user?.id,
+      isAuthenticated,
+      authLoading
+    });
     loadEvents();
     loadUserBookings();
-  }, [isAuthenticated, router]);
-
-  // Load feedback forms when events change
-  useEffect(() => {
-    if (events.length > 0) {
-      loadFeedbackForms();
-      loadUserFeedbackSubmissions();
-    }
-  }, [events]);
+  }, [isAuthenticated, authLoading, router, logger, user?.id]);
 
   // Update current time every minute to show/hide Join Event button based on 10-minute window
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000); // Update every minute
-
+    loadUserFeedbackSubmissions();
     return () => clearInterval(interval);
   }, []);
 
@@ -150,12 +142,20 @@ export default function AttendeeEventsPage() {
   const loadEvents = async () => {
     try {
       setLoading(true);
-      logger.info(LOGGER_COMPONENT_NAME, 'Loading published events');
+      logger.info(LOGGER_COMPONENT_NAME, 'Loading published events', {
+        isAuthenticated,
+        authLoading,
+        userId: user?.id
+      });
 
       const response = await eventAPI.getPublishedEvents();
-      setEvents(response.data?.events || []);
+      const loadedEvents = response.data?.events || [];
+      setEvents(loadedEvents);
 
-      logger.info(LOGGER_COMPONENT_NAME, 'Events loaded successfully');
+      logger.info(LOGGER_COMPONENT_NAME, 'Events loaded successfully', {
+        eventsCount: loadedEvents.length,
+        eventIds: loadedEvents.map(e => e.id)
+      });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load events', error as Error);
     } finally {
@@ -202,24 +202,53 @@ export default function AttendeeEventsPage() {
     }
   };
 
-  const loadFeedbackForms = async () => {
+  const loadFeedbackForms = useCallback(async () => {
     try {
-      logger.debug(LOGGER_COMPONENT_NAME, 'Loading feedback forms for events');
+      logger.info(LOGGER_COMPONENT_NAME, '=== START: Loading feedback forms for events ===', {
+        eventsCount: events.length,
+        eventIds: events.map(e => e.id),
+        isAuthenticated,
+        userId: user?.id
+      });
+
+      if (events.length === 0) {
+        logger.warn(LOGGER_COMPONENT_NAME, 'No events to load feedback forms for');
+        return;
+      }
 
       const forms: { [eventId: string]: FeedbackFormResponse | null } = {};
 
       // Load feedback forms for all events in parallel
+      logger.info(LOGGER_COMPONENT_NAME, 'Starting parallel feedback form requests', {
+        eventCount: events.length
+      });
+
       const formPromises = events.map(async (event) => {
         try {
+          logger.debug(LOGGER_COMPONENT_NAME, `Fetching feedback form for event ${event.id}`, {
+            eventId: event.id,
+            eventName: event.name
+          });
           const form = await feedbackAPI.getFeedbackFormByEventId(event.id);
           // Only store if form exists and is published
           if (form && form.status === 'PUBLISHED') {
             forms[event.id] = form;
+            logger.debug(LOGGER_COMPONENT_NAME, `Found published feedback form for event ${event.id}`, {
+              formId: form.id,
+              eventId: event.id
+            });
           } else {
             forms[event.id] = null;
+            logger.debug(LOGGER_COMPONENT_NAME, `No published feedback form for event ${event.id}`, {
+              hasForm: !!form,
+              formStatus: form?.status
+            });
           }
         } catch (error) {
-          logger.debug(LOGGER_COMPONENT_NAME, `No feedback form for event ${event.id}`);
+          logger.debug(LOGGER_COMPONENT_NAME, `No feedback form for event ${event.id}`, {
+            eventId: event.id,
+            error: error instanceof Error ? error.message : String(error)
+          });
           forms[event.id] = null;
         }
       });
@@ -227,36 +256,160 @@ export default function AttendeeEventsPage() {
       await Promise.all(formPromises);
       setFeedbackForms(forms);
 
-      logger.debug(LOGGER_COMPONENT_NAME, 'Feedback forms loaded', {
-        totalForms: Object.values(forms).filter(f => f !== null).length
+      const publishedFormsCount = Object.values(forms).filter(f => f !== null).length;
+      logger.info(LOGGER_COMPONENT_NAME, '=== END: Feedback forms loaded successfully ===', {
+        totalForms: publishedFormsCount,
+        totalEvents: events.length,
+        formsByEventId: Object.keys(forms).reduce((acc, eventId) => {
+          acc[eventId] = forms[eventId] ? 'published' : 'none';
+          return acc;
+        }, {} as Record<string, string>)
       });
     } catch (error) {
-      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load feedback forms', error as Error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorData: any = {
+        eventsCount: events.length,
+        errorMessage
+      };
+      if (error instanceof Error) {
+        errorData.error = {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        };
+      } else {
+        errorData.error = String(error);
+      }
+      logger.error(LOGGER_COMPONENT_NAME, `=== ERROR: Failed to load feedback forms === ${errorMessage}`, errorData);
     }
-  };
+  }, [events, logger, isAuthenticated, user?.id]);
 
-  const loadUserFeedbackSubmissions = async () => {
+  const loadUserFeedbackSubmissions = useCallback(async () => {
     try {
-      logger.debug(LOGGER_COMPONENT_NAME, 'Loading user feedback submissions');
+      logger.info(LOGGER_COMPONENT_NAME, '=== START: Loading user feedback submissions ===', {
+        isAuthenticated,
+        userId: user?.id,
+        userEmail: user?.email,
+        timestamp: new Date().toISOString()
+      });
 
-      const result = await feedbackAPI.getMyFeedbackSubmissions(1, 1000); // Get all submissions
+      if (!isAuthenticated || !user) {
+        logger.warn(LOGGER_COMPONENT_NAME, 'Cannot load feedback submissions - user not authenticated', {
+          isAuthenticated,
+          hasUser: !!user,
+          userId: user?.id
+        });
+        return;
+      }
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Making API call to getMyFeedbackSubmissions', {
+        userId: user.id,
+        page: 1,
+        limit: 100
+      });
+
+      const result = await feedbackAPI.getMyFeedbackSubmissions(1, 100); // Get submissions (max 100 per page)
       const submissionsMap: { [eventId: string]: boolean } = {};
+
+      logger.info(LOGGER_COMPONENT_NAME, 'API response received - Total feedback submissions retrieved', {
+        submissionsLength: result.submissions.length,
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        submissions: result.submissions.map(s => ({
+          id: s.id,
+          eventId: s.eventId,
+          formId: s.formId,
+          rating: s.rating
+        }))
+      });
 
       // Create a map of eventId -> true for events the user has submitted feedback for
       result.submissions.forEach((submission) => {
         submissionsMap[submission.eventId] = true;
+        logger.debug(LOGGER_COMPONENT_NAME, `Mapping submission to event`, {
+          submissionId: submission.id,
+          eventId: submission.eventId
+        });
       });
 
       setUserFeedbackSubmissions(submissionsMap);
 
-      logger.debug(LOGGER_COMPONENT_NAME, 'User feedback submissions loaded', {
+      logger.info(LOGGER_COMPONENT_NAME, '=== END: User feedback submissions loaded successfully ===', {
         totalSubmissions: result.submissions.length,
-        uniqueEvents: Object.keys(submissionsMap).length
+        uniqueEvents: Object.keys(submissionsMap).length,
+        eventIds: Object.keys(submissionsMap),
+        submissionsMap
       });
     } catch (error) {
-      logger.error(LOGGER_COMPONENT_NAME, 'Failed to load user feedback submissions', error as Error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorData: any = {
+        isAuthenticated,
+        userId: user?.id,
+        errorMessage,
+        timestamp: new Date().toISOString()
+      };
+      if (error instanceof Error) {
+        errorData.error = {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        };
+        errorData.errorStack = error.stack;
+      } else {
+        errorData.error = String(error);
+      }
+      logger.error(LOGGER_COMPONENT_NAME, `=== ERROR: Failed to load user feedback submissions === ${errorMessage}`, errorData);
+      // Set empty map on error to prevent UI issues
+      setUserFeedbackSubmissions({});
     }
-  };
+  }, [isAuthenticated, user, logger]);
+
+  // Load feedback forms and user submissions when events change
+  useEffect(() => {
+    logger.info(LOGGER_COMPONENT_NAME, '=== useEffect: Feedback data loading triggered ===', {
+      eventsCount: events.length,
+      isAuthenticated,
+      authLoading,
+      hasLoadFeedbackForms: typeof loadFeedbackForms === 'function',
+      hasLoadUserFeedbackSubmissions: typeof loadUserFeedbackSubmissions === 'function',
+      timestamp: new Date().toISOString()
+    });
+
+    // Only load if authenticated and events are available
+    if (!isAuthenticated || authLoading || events.length === 0) {
+      logger.warn(LOGGER_COMPONENT_NAME, 'Skipping feedback data load - conditions not met', {
+        isAuthenticated,
+        authLoading,
+        eventsCount: events.length
+      });
+      return;
+    }
+
+    // WORKAROUND: Use a small delay to ensure state is fully updated
+    const timeoutId = setTimeout(() => {
+      // Wrap async calls in an IIFE to handle them properly
+      (async () => {
+        try {
+          logger.info(LOGGER_COMPONENT_NAME, '=== useEffect: Starting feedback data load (delayed) ===', {
+            eventsCount: events.length,
+            isAuthenticated,
+            authLoading,
+            timestamp: new Date().toISOString()
+          });
+          await Promise.all([
+            loadFeedbackForms(),
+            loadUserFeedbackSubmissions()
+          ]);
+          logger.info(LOGGER_COMPONENT_NAME, '=== useEffect: Feedback data load completed ===');
+        } catch (error) {
+          logger.error(LOGGER_COMPONENT_NAME, '=== useEffect: Error loading feedback data ===', error as Error);
+        }
+      })();
+    }, 200); // Small delay to ensure events state is updated
+
+    return () => clearTimeout(timeoutId);
+  }, [events, isAuthenticated, authLoading, loadFeedbackForms, loadUserFeedbackSubmissions, logger]);
 
   const handleBookEvent = async (eventId: string) => {
     if (!user) return;
@@ -432,6 +585,25 @@ export default function AttendeeEventsPage() {
   };
 
 
+  // Show loading state while auth is being checked
+  if (authLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <p className="text-slate-700 dark:text-slate-300">Verifying authentication...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render content if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -454,508 +626,71 @@ export default function AttendeeEventsPage() {
     );
   }
 
+  const availableEvents = filteredEvents.filter(event => !isEventExpired(event));
+  const pastEvents = filteredEvents.filter(event => isEventExpired(event));
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      {/* Header */}
-      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push('/dashboard/attendee')}
-                className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-              </Button>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Discover Events
-              </h1>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage
-                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`}
-                    alt={user?.name || user?.email}
-                  />
-                  <AvatarFallback className="text-xs">
-                    {user?.name ? user.name.split(' ').map(n => n[0]).join('') : user?.email?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {user?.name || user?.email}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <EventsPageHeader
+        userName={user?.name}
+        userEmail={user?.email}
+        userImage={user?.image}
+      />
 
       <div className="container mx-auto p-6">
-        {/* Sub Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div>
-            <p className="text-slate-600 dark:text-slate-400 mt-1">Find and book amazing events happening around you</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => router.push('/dashboard/attendee/tickets')}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <Ticket className="h-4 w-4" />
-              My Tickets
-            </Button>
-          </div>
+        <EventsPageSubHeader />
+
+        <EventMessages
+          errorMessage={errorMessage}
+          successMessage={successMessage}
+        />
+
+        <EventFiltersComponent
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClearFilters={clearFilters}
+          categories={getUniqueCategories()}
+          venues={getUniqueVenues()}
+        />
+
+        {/* Results Summary */}
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-gray-600">
+            Showing {filteredEvents.length} of {events.length} events
+            {(filters.searchTerm || filters.category || filters.venue || filters.dateRange) && ' (filtered)'}
+          </p>
         </div>
 
-      {/* Messages */}
-      {errorMessage && (
-        <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg">
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
-            <p className="text-red-700 font-medium">{errorMessage}</p>
-          </div>
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="mb-4 p-4 bg-green-50 border-l-4 border-green-400 rounded-r-lg">
-          <div className="flex items-center">
-            <CheckCircle className="h-5 w-5 text-green-400 mr-2" />
-            <p className="text-green-700 font-medium">{successMessage}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filter Events
-          </CardTitle>
-          <CardDescription>
-            Narrow down your search to find the perfect event
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Search */}
-            <div>
-              <Label htmlFor="search">Search</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="search"
-                  placeholder="Search events..."
-                  value={filters.searchTerm}
-                  onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            {/* Category */}
-            <div>
-              <Label htmlFor="category">Category</Label>
-              <select
-                id="category"
-                value={filters.category}
-                onChange={(e) => handleFilterChange('category', e.target.value)}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="">All Categories</option>
-                {getUniqueCategories().map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Venue */}
-            <div>
-              <Label htmlFor="venue">Venue</Label>
-              <select
-                id="venue"
-                value={filters.venue}
-                onChange={(e) => handleFilterChange('venue', e.target.value)}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="">All Venues</option>
-                {getUniqueVenues().map(venue => (
-                  <option key={venue} value={venue}>{venue}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Date Range */}
-            <div>
-              <Label htmlFor="dateRange">When</Label>
-              <select
-                id="dateRange"
-                value={filters.dateRange}
-                onChange={(e) => handleFilterChange('dateRange', e.target.value)}
-                className="w-full p-2 border rounded-md"
-              >
-                <option value="">Any Time</option>
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-              </select>
-            </div>
-
-            {/* Clear Filters */}
-            <div className="flex items-end">
-              <Button onClick={clearFilters} variant="outline" className="w-full">
-                Clear Filters
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Results Summary */}
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-gray-600">
-          Showing {filteredEvents.length} of {events.length} events
-          {(filters.searchTerm || filters.category || filters.venue || filters.dateRange) && ' (filtered)'}
-        </p>
-      </div>
-
-      {/* Events Grid */}
-      {filteredEvents.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <div className="flex flex-col items-center">
-              <Calendar className="h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                {events.length === 0 ? 'No Events Available' : 'No Events Match Your Filters'}
-              </h3>
-              <p className="text-gray-500 mb-4">
-                {events.length === 0
-                  ? 'Check back later for new events!'
-                  : 'Try adjusting your filters to see more events.'
-                }
-              </p>
-              {events.length > 0 && (
-                <Button onClick={clearFilters} variant="outline">
-                  Clear All Filters
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-8">
-          {/* Upcoming and Running Events */}
-          {filteredEvents.filter(event => !isEventExpired(event)).length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                Available Events ({filteredEvents.filter(event => !isEventExpired(event)).length})
-              </h2>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredEvents.filter(event => !isEventExpired(event)).map((event) => {
-            const eventTime = formatEventTime(event.bookingStartDate, event.bookingEndDate);
-            const isBooked = userBookings[event.id];
-            const isBooking = bookingStatus[event.id] === 'loading';
-            const isBookedSuccess = bookingStatus[event.id] === 'success';
-
-            return (
-              <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                        {event.name}
-                      </CardTitle>
-                      <div className="flex flex-wrap gap-2">
-                        {isBooked && (
-                          <Badge className="bg-green-600 text-white">
-                            BOOKED
-                          </Badge>
-                        )}
-                        {isEventExpired(event) ? (
-                          <Badge variant="secondary" className="bg-gray-500 text-white">
-                            ENDED
-                          </Badge>
-                        ) : isEventRunning(event) ? (
-                          <Badge className="bg-orange-600 text-white">
-                            LIVE
-                          </Badge>
-                        ) : isEventUpcoming(event) ? (
-                          <Badge className="bg-blue-600 text-white">
-                            UPCOMING
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent>
-                  <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2">
-                    {event.description}
-                  </p>
-
-                  {/* Event Details */}
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
-                      <MapPin className="h-4 w-4 mr-2"/>
-                      <span>{event.venue.name}</span>
-                    </div>
-                    <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
-                      <Clock className="h-4 w-4 mr-2"/>
-                      <span>{eventTime.time}</span>
-                    </div>
-                  </div>
-
-                  {/* Feedback Form Section - Only show if published */}
-                  {feedbackForms[event.id] && feedbackForms[event.id]?.status === 'PUBLISHED' && (
-                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                            Feedback Form Available
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {userFeedbackSubmissions[event.id] === true ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                router.push(`/dashboard/attendee/events/${event.id}/feedback`);
-                              }}
-                              className="text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40"
-                            >
-                              View Response
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedEventForFeedback({
-                                  eventId: event.id,
-                                  eventName: event.name,
-                                  form: feedbackForms[event.id]!
-                                });
-                                setFeedbackDialogOpen(true);
-                              }}
-                              className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                            >
-                              Provide Feedback
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      {feedbackForms[event.id]?.description && (
-                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-                          {feedbackForms[event.id]?.description}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
-                    >
-                      <Eye className="h-4 w-4 mr-1"/>
-                      View Details
-                    </Button>
-
-                    {isEventExpired(event) ? (
-                      <Button
-                        size="sm"
-                        disabled={true}
-                        variant="secondary"
-                      >
-                        <AlertCircle className="h-4 w-4 mr-1" />
-                        Event Ended
-                      </Button>
-                    ) : isBooked && isWithin10MinutesOfStart(event) ? (
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => router.push(`/dashboard/attendee/events/${event.id}/live`)}
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                      >
-                        <Play className="h-4 w-4 mr-1"/>
-                        Join Event
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => handleBookEvent(event.id)}
-                        disabled={isButtonDisabled(event.id, event)}
-                        variant={getBookingButtonVariant(event.id, event)}
-                      >
-                        {isBooking ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            Booking...
-                          </>
-                        ) : isBookedSuccess ? (
-                          <>
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Booked! ✓
-                          </>
-                        ) : (
-                          <>
-                            <Ticket className="h-4 w-4 mr-1" />
-                            Book Event
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-              </div>
-            </div>
-          )}
-
-          {/* Expired Events */}
-          {filteredEvents.filter(event => isEventExpired(event)).length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-gray-500" />
-                Past Events ({filteredEvents.filter(event => isEventExpired(event)).length})
-              </h2>
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {filteredEvents.filter(event => isEventExpired(event)).map((event) => {
-                  const eventTime = formatEventTime(event.bookingStartDate, event.bookingEndDate);
-                  const isBooked = userBookings[event.id];
-
-                  return (
-
-<Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow opacity-75">
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                              {event.name}
-                            </CardTitle>
-                            <div className="flex flex-wrap gap-2">
-                              {isBooked && (
-                                <Badge className="bg-green-600 text-white">
-                                  ATTENDED
-                                </Badge>
-                              )}
-                              <Badge variant="secondary" className="bg-gray-500 text-white">
-                                ENDED
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      </CardHeader>
-
-                      <CardContent>
-                        <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 line-clamp-2">
-                          {event.description}
-                        </p>
-
-                        {/* Event Details */}
-                        <div className="space-y-3 mb-4">
-                          <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
-                            <MapPin className="h-4 w-4 mr-2"/>
-                            <span>{event.venue.name}</span>
-                          </div>
-                          <div className="flex items-center text-sm text-slate-600 dark:text-slate-400">
-                            <Clock className="h-4 w-4 mr-2"/>
-                            <span>{eventTime.time}</span>
-                          </div>
-                        </div>
-
-                        {/* Feedback Form Section - Only show if published (for past events) */}
-                        {feedbackForms[event.id] && feedbackForms[event.id]?.status === 'PUBLISHED' && (
-                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                                  Feedback Form Available
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {userFeedbackSubmissions[event.id] === true ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      router.push(`/dashboard/attendee/events/${event.id}/feedback`);
-                                    }}
-                                    className="text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40"
-                                  >
-                                    View Response
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setSelectedEventForFeedback({
-                                        eventId: event.id,
-                                        eventName: event.name,
-                                        form: feedbackForms[event.id]!
-                                      });
-                                      setFeedbackDialogOpen(true);
-                                    }}
-                                    className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                                  >
-                                    Provide Feedback
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                            {feedbackForms[event.id]?.description && (
-                              <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-                                {feedbackForms[event.id]?.description}
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => router.push(`/dashboard/attendee/events/${event.id}`)}
-                          >
-                            <Eye className="h-4 w-4 mr-1"/>
-                            View Details
-                          </Button>
-                          <Button
-                            disabled={true}
-                            variant="secondary"
-                            size="sm"
-                          >
-                            <AlertCircle className="h-4 w-4 mr-1" />
-                            Event Ended
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        {/* Events Grid */}
+        {filteredEvents.length === 0 ? (
+          <EmptyEventsState
+            totalEvents={events.length}
+            onClearFilters={clearFilters}
+          />
+        ) : (
+          <EventsList
+            availableEvents={availableEvents}
+            pastEvents={pastEvents}
+            userBookings={userBookings}
+            bookingStatus={bookingStatus}
+            feedbackForms={feedbackForms}
+            userFeedbackSubmissions={userFeedbackSubmissions}
+            isEventExpired={isEventExpired}
+            isEventUpcoming={isEventUpcoming}
+            isEventRunning={isEventRunning}
+            isWithin10MinutesOfStart={isWithin10MinutesOfStart}
+            formatEventTime={formatEventTime}
+            onBookEvent={handleBookEvent}
+            onProvideFeedback={(eventId, eventName, form) => {
+              setSelectedEventForFeedback({
+                eventId,
+                eventName,
+                form
+              });
+              setFeedbackDialogOpen(true);
+            }}
+          />
+        )}
       </div>
 
       {/* Feedback Dialog */}

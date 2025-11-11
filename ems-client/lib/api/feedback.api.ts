@@ -331,26 +331,77 @@ class FeedbackApiClient extends BaseApiClient {
     limit: number;
   }> {
     try {
-      logger.debug(LOGGER_COMPONENT_NAME, 'Getting user feedback submissions', { page, limit });
+      const token = this.getToken();
+      const url = `${this.baseURL}/feedback/my-submissions?page=${page}&limit=${limit}`;
 
-      const response = await fetch(`${this.baseURL}/feedback/my-submissions?page=${page}&limit=${limit}`, {
+      logger.info(LOGGER_COMPONENT_NAME, '=== API CLIENT: Getting user feedback submissions ===', {
+        page,
+        limit,
+        url,
+        hasToken: !!token,
+        tokenLength: token?.length || 0,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug(LOGGER_COMPONENT_NAME, 'Making fetch request', {
+        method: 'GET',
+        url,
+        headers: {
+          'Authorization': token ? `Bearer ${token.substring(0, 20)}...` : 'NO TOKEN',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.getToken()}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
 
+      logger.info(LOGGER_COMPONENT_NAME, 'API response received', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        logger.error(LOGGER_COMPONENT_NAME, 'API request failed', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
-      logger.info(LOGGER_COMPONENT_NAME, 'User feedback submissions retrieved', { count: result.data.submissions.length });
+      logger.info(LOGGER_COMPONENT_NAME, '=== API CLIENT: User feedback submissions retrieved successfully ===', {
+        count: result.data?.submissions?.length || 0,
+        total: result.data?.total || 0,
+        page: result.data?.page || 0,
+        limit: result.data?.limit || 0,
+        submissions: result.data?.submissions?.map((s: any) => ({
+          id: s.id,
+          eventId: s.eventId,
+          formId: s.formId
+        })) || []
+      });
       return result.data;
     } catch (error) {
-      logger.error(LOGGER_COMPONENT_NAME, 'Failed to get user feedback submissions', error as Error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(LOGGER_COMPONENT_NAME, `=== API CLIENT: Failed to get user feedback submissions === ${errorMessage}`, {
+        error: error instanceof Error ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        } : String(error),
+        errorMessage,
+        errorStack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       throw error;
     }
   }
