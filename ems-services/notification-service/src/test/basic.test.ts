@@ -1,4 +1,4 @@
-import '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, jest } from '@jest/globals';
 import {
   mockTransporter,
   mockRabbitMQService,
@@ -53,7 +53,8 @@ describe('Basic Test Setup', () => {
   });
 
   it('should have custom Jest matchers available', () => {
-    expect('test@example.com').toBeValidEmail();
-    expect('<h1>Test</h1>').toContainHTML('<h1>');
+    // Type assertion needed for custom matchers during build
+    (expect('test@example.com') as any).toBeValidEmail();
+    (expect('<h1>Test</h1>') as any).toContainHTML('<h1>');
   });
 });

@@ -224,7 +224,7 @@ describe('Routes Integration Tests with Supertest', () => {
     app.use('/api', bookingRoutes);
     app.use('/api/tickets', ticketRoutes);
     app.use('/api', adminRoutes);
-    app.use('/api', speakerRoutes);
+    app.use('/api/speaker', speakerRoutes);
   });
 
   afterEach(() => {

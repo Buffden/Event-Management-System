@@ -15,6 +15,7 @@ export const createMockEmailPayload = (overrides: Partial<any> = {}) => ({
 export const createMockEmailNotification = (overrides: Partial<any> = {}) => ({
   type: MESSAGE_TYPE.ACCOUNT_VERIFICATION_EMAIL,
   message: {
+    to: 'test@example.com',
     userName: 'Test User',
     subject: 'Verify Your Email',
     link: 'https://example.com/verify?token=123',
@@ -39,11 +40,28 @@ export const createMockEventApprovedNotification = (overrides: Partial<any> = {}
 export const createMockBookingConfirmedNotification = (overrides: Partial<any> = {}) => ({
   type: MESSAGE_TYPE.BOOKING_CONFIRMED_NOTIFICATION,
   message: {
+    to: 'attendee@example.com',
+    subject: 'Booking Confirmed',
     attendeeName: 'Test Attendee',
     eventName: 'Test Conference',
     eventDate: '2024-12-15T10:00:00Z',
     venueName: 'Test Venue',
     bookingId: 'booking-123',
+  },
+  ...overrides,
+});
+
+export const createMockBookingCancelledNotification = (overrides: Partial<any> = {}) => ({
+  type: MESSAGE_TYPE.BOOKING_CANCELLED_NOTIFICATION,
+  message: {
+    to: 'attendee@example.com',
+    subject: 'Booking Cancelled',
+    attendeeName: 'Test Attendee',
+    eventName: 'Test Conference',
+    eventDate: '2024-12-15T10:00:00Z',
+    venueName: 'Test Venue',
+    bookingId: 'booking-123',
+    cancellationReason: 'User requested cancellation',
   },
   ...overrides,
 });

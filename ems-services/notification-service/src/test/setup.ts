@@ -5,7 +5,7 @@
  * that are shared across all Notification Service tests.
  */
 
-import '@jest/globals';
+import { beforeAll, afterAll, beforeEach, afterEach, jest } from '@jest/globals';
 import { setupAllMocks, resetAllMocks } from './mocks-simple';
 
 // Setup all common mocks before any tests run
@@ -66,7 +66,7 @@ expect.extend({
       };
     }
   },
-  
+
   toContainHTML(received: string, expectedHTML: string) {
     const pass = received.includes(expectedHTML);
     if (pass) {

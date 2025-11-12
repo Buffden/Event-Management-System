@@ -158,6 +158,24 @@ describe('AuthService', () => {
       );
     });
 
+    it('should reject registration for suspended user (verified but not active)', async () => {
+      // This covers line 214: else if (existingUser && existingUser.emailVerified)
+      // User is verified but not active (suspended account)
+      const suspendedUser = createMockUser({
+        isActive: false,
+        emailVerified: new Date(), // Verified but suspended
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(suspendedUser);
+
+      await expect(
+        authService.register({
+          email: 'suspended@example.com',
+          password: 'password123',
+          name: 'Suspended User',
+        })
+      ).rejects.toThrow('Your account has been suspended. Please contact support.');
+    });
+
     it('should handle registration with database error', async () => {
       setupDatabaseError();
 
@@ -193,6 +211,49 @@ describe('AuthService', () => {
       expect(mockPrisma.user.delete).toHaveBeenCalledWith({
         where: { id: mockUser.id },
       });
+    });
+
+    it('should use default APP_NAME when process.env.APP_NAME is not set in sendVerificationEmail', async () => {
+      // This covers lines 169-172: process.env.APP_NAME || 'EVENTO' and user.name || 'User'
+      const originalAppName = process.env.APP_NAME;
+      delete process.env.APP_NAME;
+
+      const mockUser = createMockUser({ name: null });
+      mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
+
+      await authService.sendVerificationEmail(mockUser);
+
+      expect(mockRabbitMQService.sendMessage).toHaveBeenCalledWith(
+        'notification.email',
+        expect.objectContaining({
+          message: expect.objectContaining({
+            subject: 'EVENTO Verify Your Email Address', // Should use default 'EVENTO'
+            userName: 'User', // Should use default 'User' when name is null
+          }),
+        })
+      );
+
+      // Restore original value
+      if (originalAppName) {
+        process.env.APP_NAME = originalAppName;
+      }
+    });
+
+    it('should use default userName when user.name is null in sendVerificationEmail', async () => {
+      // This covers line 172: user.name || 'User'
+      const mockUser = createMockUser({ name: null });
+      mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
+
+      await authService.sendVerificationEmail(mockUser);
+
+      expect(mockRabbitMQService.sendMessage).toHaveBeenCalledWith(
+        'notification.email',
+        expect.objectContaining({
+          message: expect.objectContaining({
+            userName: 'User', // Should use default 'User'
+          }),
+        })
+      );
     });
 
     it('should default to USER role when no role provided', async () => {
@@ -527,6 +588,53 @@ describe('AuthService', () => {
         authService.forgotPassword({ email: 'test@example.com' })
       ).rejects.toThrow('Could not send password reset email');
     });
+
+    it('should use default APP_NAME when process.env.APP_NAME is not set in forgotPassword', async () => {
+      // This covers lines 363-366: process.env.APP_NAME || 'EVENTO' and user.name || 'User'
+      const originalAppName = process.env.APP_NAME;
+      delete process.env.APP_NAME;
+
+      const mockUser = createMockUser({ isActive: true, name: null });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockJWT.sign.mockReturnValue('reset.token');
+      mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
+
+      await authService.forgotPassword({ email: 'test@example.com' });
+
+      expect(mockRabbitMQService.sendMessage).toHaveBeenCalledWith(
+        'notification.email',
+        expect.objectContaining({
+          message: expect.objectContaining({
+            subject: 'EVENTO Password Reset Request', // Should use default 'EVENTO'
+            userName: 'User', // Should use default 'User' when name is null
+          }),
+        })
+      );
+
+      // Restore original value
+      if (originalAppName) {
+        process.env.APP_NAME = originalAppName;
+      }
+    });
+
+    it('should use default userName when user.name is null in forgotPassword', async () => {
+      // This covers line 366: user.name || 'User'
+      const mockUser = createMockUser({ isActive: true, name: null });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockJWT.sign.mockReturnValue('reset.token');
+      mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
+
+      await authService.forgotPassword({ email: 'test@example.com' });
+
+      expect(mockRabbitMQService.sendMessage).toHaveBeenCalledWith(
+        'notification.email',
+        expect.objectContaining({
+          message: expect.objectContaining({
+            userName: 'User', // Should use default 'User'
+          }),
+        })
+      );
+    });
   });
 
   describe('verifyResetToken()', () => {
@@ -619,6 +727,54 @@ describe('AuthService', () => {
           newPassword: 'newpassword123',
         })
       ).rejects.toThrow();
+    });
+
+    it('should reject reset with invalid token type', async () => {
+      // This covers lines 428-430: when decoded.type !== 'password-reset'
+      mockJWT.verify.mockReturnValue({
+        userId: 'user-123',
+        type: 'email-verification', // Wrong type
+      });
+
+      await expect(
+        authService.resetPassword({
+          token: 'wrong-type.token',
+          newPassword: 'newpassword123',
+        })
+      ).rejects.toThrow('Invalid reset token.');
+    });
+
+    it('should reject reset for non-existent user', async () => {
+      // This covers lines 439-441: when !user (user is null)
+      mockJWT.verify.mockReturnValue({
+        userId: 'non-existent',
+        type: 'password-reset',
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        authService.resetPassword({
+          token: 'valid.token',
+          newPassword: 'newpassword123',
+        })
+      ).rejects.toThrow('Invalid or expired reset token.');
+    });
+
+    it('should reject reset for inactive user', async () => {
+      // This covers lines 439-441: when !user.isActive (user exists but inactive)
+      const inactiveUser = createMockUser({ isActive: false });
+      mockJWT.verify.mockReturnValue({
+        userId: inactiveUser.id,
+        type: 'password-reset',
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(inactiveUser);
+
+      await expect(
+        authService.resetPassword({
+          token: 'valid.token',
+          newPassword: 'newpassword123',
+        })
+      ).rejects.toThrow('Invalid or expired reset token.');
     });
   });
 
@@ -804,6 +960,198 @@ describe('AuthService', () => {
           name: 'New Name',
         })
       ).rejects.toThrow('User not found');
+    });
+
+    it('should not update password when newPassword is not provided', async () => {
+      // This covers line 668: if (data.newPassword) - when newPassword is undefined/falsy
+      const mockUser = createMockUser();
+      const updatedUser = { ...mockUser, name: 'Updated Name' };
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.user.update.mockResolvedValue(updatedUser);
+
+      const result = await authService.updateProfile('user-123', {
+        name: 'Updated Name',
+        // newPassword is not provided
+      });
+
+      expect(mockBcrypt.compare).not.toHaveBeenCalled();
+      expect(mockBcrypt.hash).not.toHaveBeenCalled();
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: {
+          name: 'Updated Name',
+          // password should not be in updateData
+        },
+        select: expect.any(Object),
+      });
+      expect(result.name).toBe('Updated Name');
+    });
+
+    it('should not update password when newPassword is empty string', async () => {
+      // This covers line 668: if (data.newPassword) - when newPassword is empty string (falsy)
+      const mockUser = createMockUser();
+      const updatedUser = { ...mockUser, name: 'Updated Name' };
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.user.update.mockResolvedValue(updatedUser);
+
+      const result = await authService.updateProfile('user-123', {
+        name: 'Updated Name',
+        newPassword: '', // Empty string should be falsy
+      });
+
+      expect(mockBcrypt.compare).not.toHaveBeenCalled();
+      expect(mockBcrypt.hash).not.toHaveBeenCalled();
+      expect(result.name).toBe('Updated Name');
+    });
+
+    it('should not update password when newPassword is null', async () => {
+      // This covers line 668: if (data.newPassword) - when newPassword is null (falsy)
+      const mockUser = createMockUser();
+      const updatedUser = { ...mockUser, name: 'Updated Name' };
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.user.update.mockResolvedValue(updatedUser);
+
+      const result = await authService.updateProfile('user-123', {
+        name: 'Updated Name',
+        newPassword: null as any, // null should be falsy
+      });
+
+      expect(mockBcrypt.compare).not.toHaveBeenCalled();
+      expect(mockBcrypt.hash).not.toHaveBeenCalled();
+      expect(result.name).toBe('Updated Name');
+    });
+
+    it('should handle database error during profile update', async () => {
+      // This covers lines 690-692: catch block error handling
+      const mockUser = createMockUser();
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      const dbError = new Error('Database connection failed');
+      mockPrisma.user.update.mockRejectedValue(dbError);
+
+      await expect(
+        authService.updateProfile('user-123', {
+          name: 'Updated Name',
+        })
+      ).rejects.toThrow('Profile update failed: Database connection failed');
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'updateProfile(): Profile update failed',
+        dbError,
+        expect.objectContaining({
+          userId: 'user-123',
+        })
+      );
+    });
+
+    it('should handle database error during password update', async () => {
+      // This covers lines 690-692: catch block when password update fails
+      const mockUser = createMockUser();
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockBcrypt.compare.mockResolvedValue(true);
+      mockBcrypt.hash.mockResolvedValue('new_hashed_password');
+      const dbError = new Error('Database update failed');
+      mockPrisma.user.update.mockRejectedValue(dbError);
+
+      await expect(
+        authService.updateProfile('user-123', {
+          currentPassword: 'oldpassword',
+          newPassword: 'newpassword',
+        })
+      ).rejects.toThrow('Profile update failed: Database update failed');
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'updateProfile(): Profile update failed',
+        dbError,
+        expect.objectContaining({
+          userId: 'user-123',
+        })
+      );
+    });
+
+    it('should update only name when name is provided', async () => {
+      // This covers line 660: if (typeof data.name !== 'undefined')
+      const mockUser = createMockUser();
+      const updatedUser = { ...mockUser, name: 'New Name' };
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.user.update.mockResolvedValue(updatedUser);
+
+      const result = await authService.updateProfile('user-123', {
+        name: 'New Name',
+      });
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: {
+          name: 'New Name',
+        },
+        select: expect.any(Object),
+      });
+      expect(result.name).toBe('New Name');
+    });
+
+    it('should update only image when image is provided', async () => {
+      // This covers line 663: if (typeof data.image !== 'undefined')
+      const mockUser = createMockUser();
+      const updatedUser = { ...mockUser, image: 'new-image.jpg' };
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.user.update.mockResolvedValue(updatedUser);
+
+      const result = await authService.updateProfile('user-123', {
+        image: 'new-image.jpg',
+      });
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: {
+          image: 'new-image.jpg',
+        },
+        select: expect.any(Object),
+      });
+      expect(result.image).toBe('new-image.jpg');
+    });
+
+    it('should not update name when name is undefined', async () => {
+      // This covers line 660: when name is undefined, it should not be in updateData
+      const mockUser = createMockUser();
+      const updatedUser = { ...mockUser, image: 'new-image.jpg' };
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.user.update.mockResolvedValue(updatedUser);
+
+      await authService.updateProfile('user-123', {
+        name: undefined,
+        image: 'new-image.jpg',
+      });
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: {
+          image: 'new-image.jpg',
+          // name should not be in updateData when undefined
+        },
+        select: expect.any(Object),
+      });
+    });
+
+    it('should not update image when image is undefined', async () => {
+      // This covers line 663: when image is undefined, it should not be in updateData
+      const mockUser = createMockUser();
+      const updatedUser = { ...mockUser, name: 'New Name' };
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockPrisma.user.update.mockResolvedValue(updatedUser);
+
+      await authService.updateProfile('user-123', {
+        name: 'New Name',
+        image: undefined,
+      });
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-123' },
+        data: {
+          name: 'New Name',
+          // image should not be in updateData when undefined
+        },
+        select: expect.any(Object),
+      });
     });
   });
 
