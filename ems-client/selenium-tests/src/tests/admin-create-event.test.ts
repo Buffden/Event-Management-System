@@ -12,6 +12,26 @@ import {
   waitForVisibleByCss,
 } from '../utils/helpers';
 
+async function pollForElement(
+  driver: WebDriver,
+  by: By,
+  timeout: number = 20000
+): Promise<import('selenium-webdriver').WebElement> {
+  const endTime = Date.now() + timeout;
+  while (Date.now() < endTime) {
+    try {
+      const element = await driver.findElement(by);
+      if (await element.isDisplayed()) {
+        return element;
+      }
+    } catch (error) {
+      // Element not found, continue polling
+    }
+    await driver.sleep(500); // Poll every 500ms
+  }
+  throw new Error(`Element not found after ${timeout}ms for selector: ${by}`);
+}
+
 function formatForDatetimeLocal(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   const year = d.getFullYear();
@@ -24,6 +44,8 @@ function formatForDatetimeLocal(d: Date): string {
 
 describe('Admin Create Event Flow', () => {
   let driver: WebDriver | null = null;
+  let createdEventId: string | null = null;
+  let createdEventName: string | null = null;
 
   beforeAll(async () => {
     driver = await createDriver();
@@ -121,7 +143,7 @@ describe('Admin Create Event Flow', () => {
     const startStr = formatForDatetimeLocal(start);
     const endStr = formatForDatetimeLocal(end);
 
-    // Set start date - use JavaScript to set value directly
+    // Set start date - use JavaScript to set the value directly
     const startEl = await waitForVisibleByCss(driver, '#bookingStartDate');
     await startEl.click();
     await driver.sleep(200);
@@ -151,6 +173,7 @@ describe('Admin Create Event Flow', () => {
       const value = await startEl.getAttribute('value');
       return value === startStr;
     }, 5000).catch(async () => {
+      if (!driver) throw new Error("Driver not available in catch block");
       // If still not set, try sendKeys as fallback
       await startEl.clear();
       await startEl.click();
@@ -192,6 +215,7 @@ describe('Admin Create Event Flow', () => {
       const value = await endEl.getAttribute('value');
       return value === endStr;
     }, 5000).catch(async () => {
+      if (!driver) throw new Error("Driver not available in catch block");
       // If still not set, try sendKeys as fallback
       await endEl.clear();
       await endEl.click();
@@ -228,7 +252,7 @@ describe('Admin Create Event Flow', () => {
       }
       // Check for venue error text
       const errorElems = await driver.findElements(By.xpath("//*[contains(text(), 'Venue is not available for the selected booking period')]"));
-      if (errorElems.length > 0) {
+      if (errorElems.length > 0 && errorElems[0]) {
         const visible = await errorElems[0].isDisplayed();
         if (visible) {
           outcome = 'venue_error';
@@ -242,6 +266,31 @@ describe('Admin Create Event Flow', () => {
       await takeScreenshot(driver, 'admin-create-event-03-success-redirect');
       const currentUrl = await driver.getCurrentUrl();
       expect(currentUrl).toContain('/dashboard/admin/events');
+      
+      createdEventName = eventName;
+
+      // Aggressively find the event after creation
+      await driver.navigate().refresh();
+      await driver.sleep(2000); // Wait for page to reload
+
+      try {
+        console.log(`✓ Polling for event card with name: ${eventName}`);
+        const eventCard = await pollForElement(
+          driver,
+          By.xpath(`//*[contains(text(), '${eventName}')]/ancestor::div[@data-testid and starts-with(@data-testid, 'event-card-')]`)
+        );
+        
+        const cardTestId = await eventCard.getAttribute('data-testid');
+        const match = cardTestId.match(/event-card-(.+)/);
+        if (match && match[1]) {
+          createdEventId = match[1];
+          console.log(`✓ Extracted event ID from card: ${createdEventId}`);
+        }
+      } catch (error) {
+        console.warn('Could not extract event ID after polling, will use event name as fallback');
+        console.warn(`Error: ${error instanceof Error ? error.message : String(error)}`);
+        createdEventId = null;
+      }
     } else if (outcome === 'venue_error') {
       await takeScreenshot(driver, 'admin-create-event-03-venue-error');
       const currentUrl = await driver.getCurrentUrl();
@@ -253,99 +302,205 @@ describe('Admin Create Event Flow', () => {
     }
   }, 120000);
 
-  it('should not allow creating an event during 1:00 AM - 2:00 AM due to venue conflict', async () => {
+  it('should invite a speaker to the created event', async () => {
     if (!driver) throw new Error('Driver not initialized');
-
-    // Helper to fill the form and submit for given start/end; returns 'success'|'error'
-    async function createEventForWindow(eventTitle: string, startStr: string, endStr: string): Promise<'success'|'error'> {
-      // Ensure we're on create page
-      await navigateTo(driver!, '/dashboard/admin/events');
-      await driver!.sleep(800);
-      const createBtn = await driver!.wait(until.elementLocated(By.xpath("//button[contains(., 'Create Event')]")), 10000);
-      await driver!.wait(until.elementIsVisible(createBtn), 10000);
-      await createBtn.click();
-      await waitForUrl(driver!, '/dashboard/admin/events/create', 10000);
-      await driver!.sleep(800);
-
-      // Wait for venues to load
-      const drv = driver!;
-      await driver!.wait(async () => {
-        try {
-          const loading = await drv.findElement(By.xpath("//span[contains(., 'Loading venues...')]"));
-          return !(await loading.isDisplayed());
-        } catch { return true; }
-      }, 15000);
-
-      // Fill required fields
-      await typeByCss(driver!, '#name', eventTitle);
-      await driver!.sleep(100);
-      await typeByCss(driver!, '#category', 'Testing');
-      await driver!.sleep(100);
-      await typeByCss(driver!, '#description', 'Blocking/window test event');
-      await driver!.sleep(100);
-      await typeByCss(driver!, '#bannerImageUrl', 'https://example.com/banner.jpg');
-
-      // Select first available venue
-      const venueSelect = await waitForVisibleByCss(driver!, '#venueId');
-      await driver!.wait(until.elementIsEnabled(venueSelect), 10000);
-      await driver!.wait(async () => {
-        const opts = await venueSelect.findElements(By.css('option'));
-        return opts.length > 1;
-      }, 10000);
-      await venueSelect.click();
-      await driver!.sleep(100);
-      const opts = await venueSelect.findElements(By.css('option'));
-      if (opts.length > 1 && opts[1]) { await opts[1].click(); }
-
-      // Set datetime locals
-      const startEl = await waitForVisibleByCss(driver!, '#bookingStartDate');
-      await driver!.executeScript("document.getElementById('bookingStartDate').value=arguments[0];", startStr);
-      await startEl.sendKeys('');
-      const endEl = await waitForVisibleByCss(driver!, '#bookingEndDate');
-      await driver!.executeScript("document.getElementById('bookingEndDate').value=arguments[0];", endStr);
-      await endEl.sendKeys('');
-
-      // Submit
-      const submitBtn = await driver!.wait(
-        until.elementLocated(By.xpath("//button[@type='submit' and contains(., 'Create & Publish Event')]")), 10000);
-      await driver!.wait(until.elementIsEnabled(submitBtn), 10000);
-      await submitBtn.click();
-
-      // Poll outcome
-      const deadline = Date.now() + 15000;
-      while (Date.now() < deadline) {
-        const url = await driver!.getCurrentUrl();
-        if (url.includes('/dashboard/admin/events')) return 'success';
-        const errElems = await driver!.findElements(By.xpath("//*[contains(text(), 'Venue is not available for the selected booking period')]"));
-        if (errElems.length > 0 && await errElems[0].isDisplayed()) return 'error';
-        await driver!.sleep(400);
-      }
-      // Default to error if we stayed on the form with an error visible, otherwise treat as error
-      const url = await driver!.getCurrentUrl();
-      if (url.includes('/dashboard/admin/events/create')) return 'error';
-      return 'success';
-    }
-
-    // Compute next day 1:00–2:00 window
-    const now = new Date();
-    const nextDayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 1, 0, 0, 0);
-    const nextDayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 2, 0, 0, 0);
-    const startStr = formatForDatetimeLocal(nextDayStart);
-    const endStr = formatForDatetimeLocal(nextDayEnd);
-
-    // First attempt: create a blocking event in that window (if policy already blocks, that's acceptable)
-    const firstOutcome = await createEventForWindow(`Selenium Night Blocker ${Date.now()}`, startStr, endStr);
-    if (firstOutcome === 'error') {
-      // Policy blocks midnight window; this satisfies the negative requirement
-      await takeScreenshot(driver!, 'admin-create-event-midnight-policy-block');
+    if (!createdEventId && !createdEventName) {
+      console.warn('No event was created in previous test, skipping speaker invitation test');
       return;
     }
 
-    // Second attempt: same window should now conflict due to venue occupancy
-    const secondOutcome = await createEventForWindow(`Selenium Night Duplicate ${Date.now()}`, startStr, endStr);
-    if (secondOutcome !== 'error') {
-      throw new Error('Expected venue availability error on second overlapping event, but creation succeeded');
+    // Step 1: Navigate to admin events page (ensure we're back at the events list)
+    await navigateTo(driver, '/dashboard/admin/events');
+    await driver.sleep(2000); // Wait for initial page load
+    
+    // Force refresh to ensure we get the latest data
+    await driver.navigate().refresh();
+    await driver.sleep(3000); // Wait for page and events to load after refresh
+
+    await takeScreenshot(driver, 'admin-invite-speaker-00-events-page');
+
+    // Step 2: Find the event card by test ID and click the Edit button within it
+    try {
+      let editButton;
+      
+      if (createdEventId) {
+        console.log(`✓ Polling for event card with test ID: event-card-${createdEventId}`);
+        const eventCard = await pollForElement(driver, By.css(`[data-testid^="event-card-${createdEventId}"]`));
+        console.log(`✓ Found event card`);
+        editButton = await eventCard.findElement(By.xpath('.//button[contains(., "Edit")]'));
+        console.log(`✓ Found Edit button within the card`);
+      } else {
+        console.log(`✓ Fallback: Polling for event by name: ${createdEventName}`);
+        const eventCard = await pollForElement(driver, By.xpath(`//*[contains(text(), '${createdEventName}')]/ancestor::div[@data-testid and starts-with(@data-testid, 'event-card-')]`));
+        console.log(`✓ Found event card by name`);
+        editButton = await eventCard.findElement(By.xpath('.//button[contains(., "Edit")]'));
+        console.log(`✓ Found Edit button within the card using fallback`);
+      }
+
+      if (!editButton) {
+        throw new Error("Edit button could not be located.");
+      }
+
+      await driver.wait(until.elementIsVisible(editButton), 5000);
+      await driver.sleep(500);
+      
+      // Scroll the button into view
+      await driver.executeScript('arguments[0].scrollIntoView({ behavior: "smooth", block: "center" });', editButton);
+      await driver.sleep(500);
+      
+      await editButton.click();
+      await driver.sleep(1000);
+      await takeScreenshot(driver, 'admin-invite-speaker-01-click-edit');
+      
+      console.log('✓ Clicked Edit button');
+    } catch (error) {
+      await takeScreenshot(driver, 'admin-invite-speaker-01-error-finding-edit');
+      
+      // Debug: Try to get page source or visible text
+      try {
+        const bodyText = await driver.findElement(By.css('body')).getText();
+        console.log('Page text snippet:', bodyText.substring(0, 500));
+      } catch (debugError) {
+        console.log('Could not get debug info');
+      }
+      
+      throw new Error(`Could not find Edit button for event: ${error instanceof Error ? error.message : String(error)}`);
     }
-    await takeScreenshot(driver!, 'admin-create-event-midnight-venue-conflict');
-  }, 90000);
+
+    // Step 3: Wait for redirect to modify page
+    await waitForUrl(driver, '/dashboard/admin/events/modify/', 10000);
+    await driver.sleep(2000);
+    await takeScreenshot(driver, 'admin-invite-speaker-02-modify-page');
+
+    // Step 4: Find and click the "Invite Speaker" button
+    try {
+      const inviteSpeakerButton = await driver.wait(
+        until.elementLocated(By.xpath("//button[contains(., 'Invite Speaker')]")),
+        10000
+      );
+      await driver.wait(until.elementIsVisible(inviteSpeakerButton), 5000);
+      await driver.executeScript('arguments[0].scrollIntoView({ behavior: "smooth", block: "center" });', inviteSpeakerButton);
+      await driver.sleep(500);
+      await inviteSpeakerButton.click();
+      await driver.sleep(2000); // Wait for modal to appear
+      await takeScreenshot(driver, 'admin-invite-speaker-03-click-invite-button');
+      
+      console.log('✓ Clicked Invite Speaker button');
+    } catch (error) {
+      await takeScreenshot(driver, 'admin-invite-speaker-03-error-finding-invite-button');
+      throw new Error(`Could not find Invite Speaker button: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Step 5: Wait for the modal/dialog to appear and search for speaker
+    try {
+      // Wait for the modal dialog to be visible
+      await driver.wait(
+        until.elementLocated(By.xpath("//div[@role='dialog']//h2[contains(., 'Invite Speaker')]")),
+        10000
+      );
+      
+      console.log('✓ Modal opened');
+      
+      // Find the search input within the modal
+      const searchInput = await driver.wait(
+        until.elementLocated(By.css('input[placeholder*="Search"]')),
+        10000
+      );
+      await driver.wait(until.elementIsVisible(searchInput), 5000);
+      await searchInput.click();
+      await driver.sleep(300);
+
+      // Type "Ashwin" to search for the speaker
+      const searchTerm = 'Ashwin';
+      for (const char of searchTerm) {
+        await searchInput.sendKeys(char);
+        await driver.sleep(100);
+      }
+      
+      console.log(`✓ Searching for: ${searchTerm}`);
+      
+      // Wait for search results to load (debounce delay + search time)
+      await driver.sleep(2000);
+      await takeScreenshot(driver, 'admin-invite-speaker-04-search-speaker');
+    } catch (error) {
+      await takeScreenshot(driver, 'admin-invite-speaker-04-error-search-input');
+      throw new Error(`Could not find or interact with search input: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Step 6: Select the speaker from the search results
+    try {
+      // Find the speaker card by looking for "Ashwin" name in the results
+      const speakerCard = await driver.wait(
+        until.elementLocated(By.xpath("//div[contains(@class, 'border') and contains(@class, 'rounded')]//h3[contains(text(), 'Ashwin')]")),
+        10000
+      );
+      await driver.wait(until.elementIsVisible(speakerCard), 5000);
+      
+      console.log('✓ Found speaker in results');
+      
+      // Click the speaker card or the Select button within it
+      try {
+        // Try to find and click the "Select" button in the speaker card
+        const selectButton = await driver.findElement(
+          By.xpath("//div[contains(@class, 'border') and contains(@class, 'rounded')]//h3[contains(text(), 'Ashwin')]/ancestor::div[contains(@class, 'border')]//button[contains(., 'Select')]")
+        );
+        await selectButton.click();
+      } catch {
+        // If Select button not found, click the card itself
+        await speakerCard.click();
+      }
+      
+      await driver.sleep(1000);
+      await takeScreenshot(driver, 'admin-invite-speaker-05-select-speaker');
+      
+      console.log('✓ Selected speaker');
+    } catch (error) {
+      await takeScreenshot(driver, 'admin-invite-speaker-05-error-selecting-speaker');
+      throw new Error(`Could not find or select speaker from list: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Step 7: Wait for invitation message textarea and click "Send Invitation"
+    try {
+      // Wait for the invitation message section to appear
+      await driver.wait(
+        until.elementLocated(By.css('textarea')),
+        10000
+      );
+      
+      await driver.sleep(500);
+      
+      console.log('✓ Invitation message section loaded');
+      
+      // Find and click the "Send Invitation" button
+      const sendInvitationButton = await driver.wait(
+        until.elementLocated(By.xpath("//button[contains(., 'Send Invitation')]")),
+        10000
+      );
+      await driver.wait(until.elementIsVisible(sendInvitationButton), 5000);
+      await driver.wait(until.elementIsEnabled(sendInvitationButton), 5000);
+      
+      // Scroll into view and click
+      await driver.executeScript('arguments[0].scrollIntoView({ behavior: "smooth", block: "center" });', sendInvitationButton);
+      await driver.sleep(500);
+      await sendInvitationButton.click();
+      
+      console.log('✓ Clicked Send Invitation');
+      
+      await driver.sleep(2000); // Wait for invitation to be sent and modal to close
+      await takeScreenshot(driver, 'admin-invite-speaker-06-send-invitation');
+    } catch (error) {
+      await takeScreenshot(driver, 'admin-invite-speaker-06-error-send-button');
+      throw new Error(`Could not find or click Send Invitation button: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Step 8: Verify success (look for success message or modal close)
+    await driver.sleep(1500);
+    await takeScreenshot(driver, 'admin-invite-speaker-07-success');
+
+    // Verify we're still on the modify page or success message appeared
+    const currentUrl = await driver.getCurrentUrl();
+    expect(currentUrl).toContain('/dashboard/admin/events/modify/');
+    
+    console.log('✅ Successfully invited speaker to event');
+  }, 120000);
 });

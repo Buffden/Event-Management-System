@@ -514,7 +514,7 @@ function EventManagementPage() {
                   const eventEndDate = new Date(event.bookingEndDate);
                   return eventEndDate >= now && event.status !== EventStatus.CANCELLED && event.status !== EventStatus.COMPLETED;
                 }).map((event) => (
-            <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+            <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow" data-testid={`event-card-${event.id}`}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -581,6 +581,7 @@ function EventManagementPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => router.push(`/dashboard/admin/events/modify/${event.id}`)}
+                    data-testid={`edit-event-${event.id}`}
                   >
                     <Edit className="h-4 w-4 mr-1" />
                     Edit
@@ -700,7 +701,7 @@ function EventManagementPage() {
                   const eventEndDate = new Date(event.bookingEndDate);
                   return eventEndDate < now || event.status === EventStatus.CANCELLED || event.status === EventStatus.COMPLETED;
                 }).map((event) => (
-                  <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow opacity-75">
+                  <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow opacity-75" data-testid={`event-card-${event.id}`}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -767,6 +768,7 @@ function EventManagementPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => router.push(`/dashboard/admin/events/modify/${event.id}`)}
+                          data-testid={`edit-event-${event.id}`}
                         >
                           <Edit className="h-4 w-4 mr-1" />
                           Edit
