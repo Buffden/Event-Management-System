@@ -1,5 +1,6 @@
 import { prisma } from '../database';
 import { logger } from '../utils/logger';
+import { getUserInfo } from '../utils/auth-helpers';
 import {
   IFeedbackService,
   FeedbackForm,
@@ -7,6 +8,7 @@ import {
   CreateFeedbackFormRequest,
   UpdateFeedbackFormRequest,
   SubmitFeedbackRequest,
+  UpdateFeedbackRequest,
   FeedbackFormResponse,
   FeedbackSubmissionResponse,
   FeedbackAnalytics,
@@ -17,6 +19,7 @@ import {
   FeedbackSubmissionNotFoundError,
   DuplicateFeedbackSubmissionError,
   InvalidRatingError,
+  FeedbackFormClosedError,
   FeedbackFormNotPublishedError
 } from '../types/feedback.types';
 
@@ -41,7 +44,7 @@ export class FeedbackService implements IFeedbackService {
           eventId: data.eventId,
           title: data.title,
           description: data.description,
-          isPublished: false // Start as unpublished
+          status: 'DRAFT' // Start as DRAFT
         }
       });
 
@@ -60,13 +63,14 @@ export class FeedbackService implements IFeedbackService {
     try {
       logger.info('Updating feedback form', { formId, updates: data });
 
+      const updateData: any = {};
+      if (data.title !== undefined) updateData.title = data.title;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.status !== undefined) updateData.status = data.status;
+
       const feedbackForm = await prisma.feedbackForm.update({
         where: { id: formId },
-        data: {
-          title: data.title,
-          description: data.description,
-          isPublished: data.isPublished
-        }
+        data: updateData
       });
 
       logger.info('Feedback form updated successfully', { formId });
@@ -79,6 +83,29 @@ export class FeedbackService implements IFeedbackService {
         throw new FeedbackFormNotFoundError(formId);
       }
       logger.error('Failed to update feedback form', error as Error);
+      throw error;
+    }
+  }
+
+  async closeFeedbackForm(formId: string): Promise<FeedbackForm> {
+    try {
+      logger.info('Closing feedback form', { formId });
+
+      const feedbackForm = await prisma.feedbackForm.update({
+        where: { id: formId },
+        data: { status: 'CLOSED' }
+      });
+
+      logger.info('Feedback form closed successfully', { formId });
+      return {
+        ...feedbackForm,
+        description: feedbackForm.description || undefined
+      };
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        throw new FeedbackFormNotFoundError(formId);
+      }
+      logger.error('Failed to close feedback form', error as Error);
       throw error;
     }
   }
@@ -128,7 +155,7 @@ export class FeedbackService implements IFeedbackService {
         eventId: form.eventId,
         title: form.title,
         description: form.description || undefined,
-        isPublished: form.isPublished,
+        status: form.status as 'DRAFT' | 'PUBLISHED' | 'CLOSED',
         responseCount,
         averageRating,
         createdAt: form.createdAt,
@@ -157,6 +184,11 @@ export class FeedbackService implements IFeedbackService {
         return null;
       }
 
+      // Users can see forms in DRAFT or PUBLISHED status, but not CLOSED
+      if (form.status === 'CLOSED') {
+        return null;
+      }
+
       const responseCount = form.responses.length;
       const averageRating = responseCount > 0
         ? form.responses.reduce((sum, response) => sum + response.rating, 0) / responseCount
@@ -167,7 +199,7 @@ export class FeedbackService implements IFeedbackService {
         eventId: form.eventId,
         title: form.title,
         description: form.description || undefined,
-        isPublished: form.isPublished,
+        status: form.status as 'DRAFT' | 'PUBLISHED' | 'CLOSED',
         responseCount,
         averageRating,
         createdAt: form.createdAt,
@@ -210,7 +242,7 @@ export class FeedbackService implements IFeedbackService {
           eventId: form.eventId,
           title: form.title,
           description: form.description || undefined,
-          isPublished: form.isPublished,
+          status: form.status as 'DRAFT' | 'PUBLISHED' | 'CLOSED',
           responseCount,
           averageRating,
           createdAt: form.createdAt,
@@ -238,7 +270,7 @@ export class FeedbackService implements IFeedbackService {
       // Validate rating
       this.validateRating(data.rating);
 
-      // Check if form exists and is published
+      // Check if form exists and is not closed
       const form = await prisma.feedbackForm.findUnique({
         where: { id: data.formId }
       });
@@ -247,7 +279,16 @@ export class FeedbackService implements IFeedbackService {
         throw new FeedbackFormNotFoundError(data.formId);
       }
 
-      if (!form.isPublished) {
+      // Only PUBLISHED forms can accept submissions
+      if (form.status === 'CLOSED') {
+        throw new FeedbackFormClosedError(data.formId);
+      }
+
+      if (form.status === 'DRAFT') {
+        throw new FeedbackFormNotPublishedError(data.formId);
+      }
+
+      if (form.status !== 'PUBLISHED') {
         throw new FeedbackFormNotPublishedError(data.formId);
       }
 
@@ -278,6 +319,61 @@ export class FeedbackService implements IFeedbackService {
       };
     } catch (error) {
       logger.error('Failed to submit feedback', error as Error);
+      throw error;
+    }
+  }
+
+  async updateFeedbackSubmission(userId: string, submissionId: string, data: UpdateFeedbackRequest): Promise<FeedbackSubmissionResponse> {
+    try {
+      logger.info('Updating feedback submission', { userId, submissionId, rating: data.rating });
+
+      // Validate rating
+      this.validateRating(data.rating);
+
+      // Check if submission exists
+      const existingSubmission = await prisma.feedbackResponse.findUnique({
+        where: { id: submissionId }
+      });
+
+      if (!existingSubmission) {
+        throw new FeedbackSubmissionNotFoundError(submissionId);
+      }
+
+      // Verify user owns this submission
+      if (existingSubmission.userId !== userId) {
+        throw new Error('You can only update your own feedback submissions');
+      }
+
+      // Check if form is still open for updates
+      const form = await prisma.feedbackForm.findUnique({
+        where: { id: existingSubmission.formId }
+      });
+
+      if (!form) {
+        throw new FeedbackFormNotFoundError(existingSubmission.formId);
+      }
+
+      // Only allow updates if form is PUBLISHED (not CLOSED)
+      if (form.status === 'CLOSED') {
+        throw new FeedbackFormClosedError(existingSubmission.formId);
+      }
+
+      // Update the submission
+      const updatedSubmission = await prisma.feedbackResponse.update({
+        where: { id: submissionId },
+        data: {
+          rating: data.rating,
+          comment: data.comment || null
+        }
+      });
+
+      logger.info('Feedback submission updated successfully', { submissionId });
+      return {
+        ...updatedSubmission,
+        comment: updatedSubmission.comment || undefined
+      };
+    } catch (error) {
+      logger.error('Failed to update feedback submission', error as Error);
       throw error;
     }
   }
@@ -345,11 +441,53 @@ export class FeedbackService implements IFeedbackService {
         })
       ]);
 
+      // Fetch user info for all unique user IDs
+      const uniqueUserIds = [...new Set(submissions.map(s => s.userId))];
+      const userInfoMap = new Map<string, string | null>();
+
+      logger.debug('Fetching user info for feedback submissions', {
+        eventId,
+        uniqueUserIds: uniqueUserIds.length,
+        userIds: uniqueUserIds
+      });
+
+      await Promise.all(
+        uniqueUserIds.map(async (userId) => {
+          try {
+            const userInfo = await getUserInfo(userId);
+            const username = userInfo?.name || null;
+            userInfoMap.set(userId, username);
+            logger.debug('Fetched user info', { userId, username: username || 'null' });
+          } catch (error) {
+            logger.warn('Failed to fetch user info', { userId, error: (error as Error).message });
+            userInfoMap.set(userId, null);
+          }
+        })
+      );
+
+      const mappedSubmissions = submissions.map(submission => {
+        const username = userInfoMap.get(submission.userId) || undefined;
+        return {
+          id: submission.id,
+          formId: submission.formId,
+          userId: submission.userId,
+          username: username,
+          eventId: submission.eventId,
+          bookingId: submission.bookingId,
+          rating: submission.rating,
+          comment: submission.comment || undefined,
+          createdAt: submission.createdAt
+        };
+      });
+
+      logger.debug('Mapped feedback submissions with usernames', {
+        eventId,
+        submissionCount: mappedSubmissions.length,
+        submissionsWithUsername: mappedSubmissions.filter(s => s.username).length
+      });
+
       return {
-        submissions: submissions.map(submission => ({
-          ...submission,
-          comment: submission.comment || undefined
-        })),
+        submissions: mappedSubmissions,
         total,
         page,
         limit

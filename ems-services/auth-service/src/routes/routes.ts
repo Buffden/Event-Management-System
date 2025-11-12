@@ -7,6 +7,7 @@ import {Request, Response} from 'express';
 import {UpdateProfileRequest, ResetPasswordRequest, VerifyResetTokenRequest} from "../types/types";
 import {contextService} from '../services/context.service';
 import {logger} from '../utils/logger';
+import {registerSeederRoutes} from './seeder.routes';
 
 export function registerRoutes(app: Express, authService: AuthService) {
     // Apply context middleware to ALL routes for request correlation
@@ -326,7 +327,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
 
             // Check for internal service header
             const serviceHeader = req.headers['x-internal-service'];
-            if (serviceHeader !== 'event-service' && serviceHeader !== 'notification-service' && serviceHeader !== 'booking-service') {
+            if (serviceHeader !== 'event-service' && serviceHeader !== 'notification-service' && serviceHeader !== 'booking-service' && serviceHeader !== 'feedback-service') {
                 return res.status(403).json({error: 'Access denied: Internal service only'});
             }
 
@@ -509,6 +510,57 @@ export function registerRoutes(app: Express, authService: AuthService) {
     });
 
     /**
+     * @route   GET /api/auth/admins
+     * @desc    Get list of admin users (accessible by authenticated users for messaging purposes)
+     * @access  Protected - Any authenticated user (SPEAKER, ADMIN, USER)
+     * @query   limit: number (optional) - Items per page (default: 100, max: 100)
+     */
+    app.get('/admins', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 100));
+
+            logger.info("/admins - Fetching admin users", {
+                requestedBy: userId,
+                limit
+            });
+
+            const { prisma } = await import('../database');
+
+            // Get active admin users only
+            const admins = await prisma.user.findMany({
+                where: {
+                    role: 'ADMIN',
+                    isActive: true
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true
+                },
+                orderBy: {
+                    name: 'asc'
+                },
+                take: limit
+            });
+
+            res.json({
+                success: true,
+                data: admins.map(admin => ({
+                    id: admin.id,
+                    name: admin.name || admin.email,
+                    email: admin.email,
+                    role: admin.role
+                }))
+            });
+        } catch (error: any) {
+            logger.error("/admins - Failed to fetch admin users", error);
+            res.status(500).json({error: 'Failed to fetch admin users'});
+        }
+    });
+
+    /**
      * @route   POST /api/auth/admin/activate-users
      * @desc    Activate multiple users by setting isActive=true and emailVerified=now()
      * @access  Protected - Admin only
@@ -596,6 +648,9 @@ export function registerRoutes(app: Express, authService: AuthService) {
             res.status(500).json({error: 'Failed to activate users'});
         }
     });
+
+    // Register seeder routes (for seeding script)
+    registerSeederRoutes(app, authService);
 
     /**
      * @route   GET /api/auth/admin/reports/user-growth

@@ -5,6 +5,7 @@
  */
 
 import { jest } from '@jest/globals';
+import { SessionSpeakerMaterialsStatus } from '../../generated/prisma';
 
 // ============================================================================
 // MOCK DATA FACTORIES
@@ -15,15 +16,50 @@ import { jest } from '@jest/globals';
  */
 export const createMockEvent = (overrides: any = {}) => ({
   id: 'event-123',
-  title: 'Test Event',
+  name: 'Test Event',
   description: 'A test event description',
-  startDate: new Date('2024-12-01T10:00:00Z'),
-  endDate: new Date('2024-12-01T18:00:00Z'),
-  venueId: 'venue-123',
-  maxAttendees: 100,
-  currentAttendees: 0,
-  isActive: true,
-  isPublished: false,
+  category: 'Tech',
+  bannerImageUrl: null,
+  status: 'DRAFT',
+  rejectionReason: null,
+  speakerId: 'speaker-123',
+  venueId: 1,
+  bookingStartDate: new Date('2024-12-01T08:00:00Z'),
+  bookingEndDate: new Date('2024-12-01T18:00:00Z'),
+  createdAt: new Date('2024-01-01T00:00:00Z'),
+  updatedAt: new Date('2024-01-01T00:00:00Z'),
+  sessions: [],
+  ...overrides,
+});
+
+/**
+ * Factory for creating mock session objects
+ */
+export const createMockSession = (overrides: any = {}) => ({
+  id: 'session-123',
+  eventId: 'event-123',
+  title: 'Test Session',
+  description: 'A test session',
+  startsAt: new Date('2024-12-01T09:00:00Z'),
+  endsAt: new Date('2024-12-01T10:00:00Z'),
+  stage: 'Stage A',
+  createdAt: new Date('2024-01-01T00:00:00Z'),
+  updatedAt: new Date('2024-01-01T00:00:00Z'),
+  speakers: [],
+  ...overrides,
+});
+
+/**
+ * Factory for creating mock session speaker objects
+ */
+export const createMockSessionSpeaker = (overrides: any = {}) => ({
+  id: 'session-speaker-123',
+  sessionId: 'session-123',
+  speakerId: 'speaker-123',
+  materialsAssetId: null,
+  materialsStatus: SessionSpeakerMaterialsStatus.REQUESTED,
+  speakerCheckinConfirmed: false,
+  specialNotes: null,
   createdAt: new Date('2024-01-01T00:00:00Z'),
   updatedAt: new Date('2024-01-01T00:00:00Z'),
   ...overrides,
@@ -83,6 +119,24 @@ export const mockPrisma = {
     delete: jest.fn() as jest.MockedFunction<any>,
     count: jest.fn() as jest.MockedFunction<any>,
   },
+  session: {
+    findMany: jest.fn() as jest.MockedFunction<any>,
+    findUnique: jest.fn() as jest.MockedFunction<any>,
+    findFirst: jest.fn() as jest.MockedFunction<any>,
+    create: jest.fn() as jest.MockedFunction<any>,
+    update: jest.fn() as jest.MockedFunction<any>,
+    delete: jest.fn() as jest.MockedFunction<any>,
+    count: jest.fn() as jest.MockedFunction<any>,
+  },
+  sessionSpeaker: {
+    findMany: jest.fn() as jest.MockedFunction<any>,
+    findUnique: jest.fn() as jest.MockedFunction<any>,
+    findFirst: jest.fn() as jest.MockedFunction<any>,
+    create: jest.fn() as jest.MockedFunction<any>,
+    update: jest.fn() as jest.MockedFunction<any>,
+    delete: jest.fn() as jest.MockedFunction<any>,
+    count: jest.fn() as jest.MockedFunction<any>,
+  },
   user: {
     findUnique: jest.fn() as jest.MockedFunction<any>,
     findMany: jest.fn() as jest.MockedFunction<any>,
@@ -105,10 +159,12 @@ export const mockRabbitMQService = {
   sendMessage: jest.fn() as jest.MockedFunction<any>,
   consumeMessage: jest.fn() as jest.MockedFunction<any>,
   publishEvent: jest.fn() as jest.MockedFunction<any>,
+  getChannel: jest.fn() as jest.MockedFunction<any>,
 };
 
 export const mockAuthValidationService = {
   validateToken: jest.fn() as jest.MockedFunction<any>,
+  validateTokenWithRole: jest.fn() as jest.MockedFunction<any>,
   validateUserRole: jest.fn() as jest.MockedFunction<any>,
   getUserFromToken: jest.fn() as jest.MockedFunction<any>,
 };
@@ -118,6 +174,7 @@ export const mockEventPublisherService = {
   publishEventUpdated: jest.fn() as jest.MockedFunction<any>,
   publishEventDeleted: jest.fn() as jest.MockedFunction<any>,
   publishEventPublished: jest.fn() as jest.MockedFunction<any>,
+  publishEventCancelled: jest.fn() as jest.MockedFunction<any>,
 };
 
 // ============================================================================
@@ -285,6 +342,7 @@ export const prisma = mockPrisma;
 // Mock external services
 jest.mock('../services/rabbitmq.service', () => ({
   RabbitMQService: jest.fn(() => mockRabbitMQService),
+  rabbitMQService: mockRabbitMQService,
 }));
 
 jest.mock('../services/auth-validation.service', () => ({
@@ -292,6 +350,7 @@ jest.mock('../services/auth-validation.service', () => ({
 }));
 
 jest.mock('../services/event-publisher.service', () => ({
+  eventPublisherService: mockEventPublisherService,
   EventPublisherService: jest.fn(() => mockEventPublisherService),
 }));
 

@@ -59,6 +59,45 @@ router.post('/join', authMiddleware, asyncHandler(async (req: AuthRequest, res: 
 }));
 
 /**
+ * Speaker leaves an event
+ * POST /leave (mounted at /api/speaker-attendance, so full path is /api/speaker-attendance/leave)
+ */
+router.post('/leave', authMiddleware, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { eventId } = req.body;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Speaker not authenticated' });
+  }
+
+  if (!eventId) {
+    return res.status(400).json({ error: 'Event ID is required' });
+  }
+
+  try {
+    // Get speaker profile ID from userId
+    const speakerProfile = await speakerService.getSpeakerByUserId(userId);
+    if (!speakerProfile) {
+      return res.status(404).json({ error: 'Speaker profile not found' });
+    }
+
+    const result = await speakerAttendanceService.speakerLeaveEvent({
+      speakerId: speakerProfile.id, // Use speaker profile ID, not userId
+      eventId
+    });
+
+    if (result.success) {
+      return res.status(200).json(result);
+    } else {
+      return res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('Error speaker leaving event:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}));
+
+/**
  * Update materials selected for an event
  * PUT /materials/:invitationId (mounted at /api/speaker-attendance, so full path is /api/speaker-attendance/materials/:invitationId)
  */
@@ -115,7 +154,7 @@ router.get('/materials/:invitationId', authMiddleware, asyncHandler(async (req: 
 
   try {
     const materialsData = await speakerAttendanceService.getAvailableMaterials(invitationId);
-    
+
     // Verify that the invitation belongs to the authenticated speaker
     if (materialsData.speakerId !== speakerId) {
       return res.status(403).json({ error: 'Access denied. Invitation does not belong to this speaker.' });

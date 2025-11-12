@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { eventService } from '../services/event.service';
 import { venueService } from '../services/venue.service';
+import { sessionService } from '../services/session.service';
 import { logger } from '../utils/logger';
 import { asyncHandler } from '../middleware/error.middleware';
 import { validateQuery, validatePagination, validateDateRange } from '../middleware/validation.middleware';
@@ -71,6 +72,43 @@ router.get('/events/:id',
     res.json({
       success: true,
       data: event
+    });
+  })
+);
+
+/**
+ * GET /events/:eventId/sessions - List sessions for a PUBLISHED event
+ * Accessible to all users (including unauthenticated) for published events
+ * This allows attendees to see sessions and speakers
+ */
+router.get('/events/:eventId/sessions',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { eventId } = req.params;
+
+    logger.info('Listing sessions for published event (public route)', { eventId });
+
+    // Verify that the event exists and is published
+    const event = await eventService.getEventById(eventId, false);
+    
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        error: 'Event not found or not published'
+      });
+    }
+
+    if (event.status !== EventStatus.PUBLISHED) {
+      return res.status(403).json({
+        success: false,
+        error: 'Event is not published'
+      });
+    }
+
+    const sessions = await sessionService.listSessions(eventId);
+
+    res.json({
+      success: true,
+      data: sessions,
     });
   })
 );

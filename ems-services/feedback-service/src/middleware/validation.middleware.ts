@@ -38,7 +38,7 @@ export const validateCreateFeedbackForm = (req: Request, res: Response, next: Ne
 };
 
 export const validateUpdateFeedbackForm = (req: Request, res: Response, next: NextFunction) => {
-  const { title, description, isPublished } = req.body;
+  const { title, description, status } = req.body;
   const errors: string[] = [];
 
   if (title !== undefined) {
@@ -57,8 +57,12 @@ export const validateUpdateFeedbackForm = (req: Request, res: Response, next: Ne
     }
   }
 
-  if (isPublished !== undefined && typeof isPublished !== 'boolean') {
-    errors.push('isPublished must be a boolean');
+  if (status !== undefined) {
+    if (typeof status !== 'string') {
+      errors.push('Status must be a string');
+    } else if (!['DRAFT', 'PUBLISHED', 'CLOSED'].includes(status)) {
+      errors.push('Status must be one of: DRAFT, PUBLISHED, CLOSED');
+    }
   }
 
   if (errors.length > 0) {
@@ -83,6 +87,35 @@ export const validateSubmitFeedback = (req: Request, res: Response, next: NextFu
   if (!bookingId || typeof bookingId !== 'string' || bookingId.trim() === '') {
     errors.push('Booking ID is required and must be a non-empty string');
   }
+
+  if (rating === undefined || rating === null) {
+    errors.push('Rating is required');
+  } else if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    errors.push('Rating must be an integer between 1 and 5');
+  }
+
+  if (comment !== undefined) {
+    if (typeof comment !== 'string') {
+      errors.push('Comment must be a string');
+    } else if (comment.length > 1000) {
+      errors.push('Comment must be 1000 characters or less');
+    }
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      code: 'VALIDATION_ERROR',
+      details: errors
+    });
+  }
+
+  next();
+};
+
+export const validateUpdateFeedback = (req: Request, res: Response, next: NextFunction) => {
+  const { rating, comment } = req.body;
+  const errors: string[] = [];
 
   if (rating === undefined || rating === null) {
     errors.push('Rating is required');

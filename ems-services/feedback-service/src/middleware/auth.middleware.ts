@@ -33,7 +33,7 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
 
     const decoded = jwt.verify(token, jwtSecret) as any;
     req.user = {
-      id: decoded.id,
+      id: decoded.userId, // Auth-service uses 'userId' in token payload, not 'id'
       email: decoded.email,
       role: decoded.role
     };
@@ -75,4 +75,4 @@ export const requireRole = (roles: string[]) => {
 
 export const requireAdmin = requireRole(['ADMIN']);
 export const requireSpeaker = requireRole(['SPEAKER', 'ADMIN']);
-export const requireAttendee = requireRole(['ATTENDEE', 'SPEAKER', 'ADMIN']);
+export const requireAttendee = requireRole(['USER', 'SPEAKER', 'ADMIN']);

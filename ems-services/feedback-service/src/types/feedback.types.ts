@@ -1,11 +1,13 @@
 // Feedback Service Types
 
+export type FeedbackFormStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED';
+
 export interface FeedbackForm {
   id: string;
   eventId: string;
   title: string;
   description?: string;
-  isPublished: boolean;
+  status: FeedbackFormStatus;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,7 +34,7 @@ export interface CreateFeedbackFormRequest {
 export interface UpdateFeedbackFormRequest {
   title?: string;
   description?: string;
-  isPublished?: boolean;
+  status?: FeedbackFormStatus;
 }
 
 export interface SubmitFeedbackRequest {
@@ -42,12 +44,17 @@ export interface SubmitFeedbackRequest {
   comment?: string;
 }
 
+export interface UpdateFeedbackRequest {
+  rating: number;
+  comment?: string;
+}
+
 export interface FeedbackFormResponse {
   id: string;
   eventId: string;
   title: string;
   description?: string;
-  isPublished: boolean;
+  status: FeedbackFormStatus;
   responseCount: number;
   averageRating?: number;
   createdAt: Date;
@@ -58,6 +65,7 @@ export interface FeedbackSubmissionResponse {
   id: string;
   formId: string;
   userId: string;
+  username?: string; // User's name from auth service
   eventId: string;
   bookingId: string;
   rating: number;
@@ -101,12 +109,14 @@ export interface FeedbackValidationResult {
 export interface IFeedbackService {
   createFeedbackForm(data: CreateFeedbackFormRequest): Promise<FeedbackForm>;
   updateFeedbackForm(formId: string, data: UpdateFeedbackFormRequest): Promise<FeedbackForm>;
+  closeFeedbackForm(formId: string): Promise<FeedbackForm>;
   deleteFeedbackForm(formId: string): Promise<void>;
   getFeedbackForm(formId: string): Promise<FeedbackFormResponse | null>;
   getFeedbackFormByEventId(eventId: string): Promise<FeedbackFormResponse | null>;
   listFeedbackForms(page?: number, limit?: number): Promise<FeedbackListResponse>;
 
   submitFeedback(userId: string, data: SubmitFeedbackRequest): Promise<FeedbackSubmissionResponse>;
+  updateFeedbackSubmission(userId: string, submissionId: string, data: UpdateFeedbackRequest): Promise<FeedbackSubmissionResponse>;
   getFeedbackSubmission(submissionId: string): Promise<FeedbackSubmissionResponse | null>;
   getUserFeedbackSubmissions(userId: string, page?: number, limit?: number): Promise<FeedbackSubmissionsListResponse>;
   getEventFeedbackSubmissions(eventId: string, page?: number, limit?: number): Promise<FeedbackSubmissionsListResponse>;
@@ -154,5 +164,11 @@ export class InvalidRatingError extends FeedbackError {
 export class FeedbackFormNotPublishedError extends FeedbackError {
   constructor(formId: string) {
     super(`Feedback form ${formId} is not published`, 'FEEDBACK_FORM_NOT_PUBLISHED', 400);
+  }
+}
+
+export class FeedbackFormClosedError extends FeedbackError {
+  constructor(formId: string) {
+    super(`Feedback form ${formId} is closed and no longer accepting submissions`, 'FEEDBACK_FORM_CLOSED', 400);
   }
 }

@@ -12,6 +12,12 @@ import {
     CreateVenueRequest,
     UpdateVenueRequest,
     VenueFilters,
+    SessionResponse,
+    CreateSessionRequest,
+    UpdateSessionRequest,
+    SessionSpeakerAssignRequest,
+    SessionSpeakerResponse,
+    SessionSpeakerUpdateRequest,
 } from './types/event.types';
 import { ApiError } from './types/common.types';
 import { BaseApiClient } from './base-api.client';
@@ -90,13 +96,6 @@ class EventApiClient extends BaseApiClient {
     return this.request<{ success: boolean; data: EventListResponse }>(endpoint);
   }
 
-  async createEvent(eventData: CreateEventRequest): Promise<{ success: boolean; data: EventResponse }> {
-    return this.request<{ success: boolean; data: EventResponse }>('/speaker/events', {
-      method: 'POST',
-      body: JSON.stringify(eventData),
-    });
-  }
-
   async updateEvent(eventId: string, updateData: UpdateEventRequest): Promise<{ success: boolean; data: EventResponse }> {
     return this.request<{ success: boolean; data: EventResponse }>(`/speaker/events/${eventId}`, {
       method: 'PUT',
@@ -107,12 +106,6 @@ class EventApiClient extends BaseApiClient {
   async submitEvent(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
     return this.request<{ success: boolean; data: EventResponse }>(`/speaker/events/${eventId}/submit`, {
       method: 'PATCH',
-    });
-  }
-
-  async deleteEvent(eventId: string): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/speaker/events/${eventId}`, {
-      method: 'DELETE',
     });
   }
 
@@ -162,6 +155,72 @@ class EventApiClient extends BaseApiClient {
   async cancelEvent(eventId: string): Promise<{ success: boolean; data: EventResponse }> {
     return this.request<{ success: boolean; data: EventResponse }>(`/admin/admin/events/${eventId}/cancel`, {
       method: 'PATCH',
+    });
+  }
+
+  async updateEventAsAdmin(eventId: string, updateData: UpdateEventRequest): Promise<{ success: boolean; data: EventResponse }> {
+    return this.request<{ success: boolean; data: EventResponse }>(`/admin/admin/events/${eventId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  async createEventAsAdmin(eventData: Omit<CreateEventRequest, 'userId'>): Promise<{ success: boolean; data: EventResponse }> {
+    return this.request<{ success: boolean; data: EventResponse }>('/admin/admin/events', {
+      method: 'POST',
+      body: JSON.stringify(eventData),
+    });
+  }
+
+  async deleteEventAsAdmin(eventId: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/admin/admin/events/${eventId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listSessions(eventId: string): Promise<{ success: boolean; data: SessionResponse[] }> {
+    // Use public endpoint which allows all users (including attendees) to view sessions
+    // for published events. This endpoint checks that the event is published.
+    return this.request<{ success: boolean; data: SessionResponse[] }>(`/events/${eventId}/sessions`);
+  }
+
+  async createSession(eventId: string, payload: CreateSessionRequest): Promise<{ success: boolean; data: SessionResponse }> {
+    return this.request<{ success: boolean; data: SessionResponse }>(`/admin/admin/events/${eventId}/sessions`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateSession(eventId: string, sessionId: string, payload: UpdateSessionRequest): Promise<{ success: boolean; data: SessionResponse }> {
+    return this.request<{ success: boolean; data: SessionResponse }>(`/admin/admin/events/${eventId}/sessions/${sessionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteSession(eventId: string, sessionId: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/admin/admin/events/${eventId}/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async assignSessionSpeaker(eventId: string, sessionId: string, payload: SessionSpeakerAssignRequest): Promise<{ success: boolean; data: SessionSpeakerResponse }> {
+    return this.request<{ success: boolean; data: SessionSpeakerResponse }>(`/admin/admin/events/${eventId}/sessions/${sessionId}/speakers`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateSessionSpeaker(eventId: string, sessionId: string, speakerId: string, payload: SessionSpeakerUpdateRequest): Promise<{ success: boolean; data: SessionSpeakerResponse }> {
+    return this.request<{ success: boolean; data: SessionSpeakerResponse }>(`/admin/admin/events/${eventId}/sessions/${sessionId}/speakers/${speakerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async removeSessionSpeaker(eventId: string, sessionId: string, speakerId: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/admin/admin/events/${eventId}/sessions/${sessionId}/speakers/${speakerId}`, {
+      method: 'DELETE',
     });
   }
 
@@ -221,10 +280,8 @@ export const eventAPI = {
 
   // Speaker endpoints
   getMyEvents: (speakerId: string, filters?: EventFilters) => eventApiClient.getMyEvents(speakerId, filters),
-  createEvent: (eventData: CreateEventRequest) => eventApiClient.createEvent(eventData),
   updateEvent: (eventId: string, updateData: UpdateEventRequest) => eventApiClient.updateEvent(eventId, updateData),
   submitEvent: (eventId: string) => eventApiClient.submitEvent(eventId),
-  deleteEvent: (eventId: string) => eventApiClient.deleteEvent(eventId),
   getMyEventById: (eventId: string) => eventApiClient.getMyEventById(eventId),
 
   // Admin endpoints
@@ -233,9 +290,19 @@ export const eventAPI = {
   approveEvent: (eventId: string) => eventApiClient.approveEvent(eventId),
   rejectEvent: (eventId: string, rejectionData: RejectEventRequest) => eventApiClient.rejectEvent(eventId, rejectionData),
   cancelEvent: (eventId: string) => eventApiClient.cancelEvent(eventId),
+  createEventAsAdmin: (eventData: Omit<CreateEventRequest, 'userId'>) => eventApiClient.createEventAsAdmin(eventData),
+  deleteEventAsAdmin: (eventId: string) => eventApiClient.deleteEventAsAdmin(eventId),
+  updateEventAsAdmin: (eventId: string, updateData: UpdateEventRequest) => eventApiClient.updateEventAsAdmin(eventId, updateData),
   createVenue: (venueData: CreateVenueRequest) => eventApiClient.createVenue(venueData),
   updateVenue: (venueId: number, updateData: UpdateVenueRequest) => eventApiClient.updateVenue(venueId, updateData),
   deleteVenue: (venueId: number) => eventApiClient.deleteVenue(venueId),
   getAdminVenues: (filters?: VenueFilters) => eventApiClient.getAdminVenues(filters),
   getVenueById: (venueId: number) => eventApiClient.getVenueById(venueId),
+  listSessions: (eventId: string) => eventApiClient.listSessions(eventId),
+  createSession: (eventId: string, payload: CreateSessionRequest) => eventApiClient.createSession(eventId, payload),
+  updateSession: (eventId: string, sessionId: string, payload: UpdateSessionRequest) => eventApiClient.updateSession(eventId, sessionId, payload),
+  deleteSession: (eventId: string, sessionId: string) => eventApiClient.deleteSession(eventId, sessionId),
+  assignSessionSpeaker: (eventId: string, sessionId: string, payload: SessionSpeakerAssignRequest) => eventApiClient.assignSessionSpeaker(eventId, sessionId, payload),
+  updateSessionSpeaker: (eventId: string, sessionId: string, speakerId: string, payload: SessionSpeakerUpdateRequest) => eventApiClient.updateSessionSpeaker(eventId, sessionId, speakerId, payload),
+  removeSessionSpeaker: (eventId: string, sessionId: string, speakerId: string) => eventApiClient.removeSessionSpeaker(eventId, sessionId, speakerId),
 };

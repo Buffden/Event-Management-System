@@ -27,7 +27,7 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
     }
 
     const { speakerId, eventId } = req.body;
-    
+
     if (!speakerId) {
       return res.status(400).json({
         success: false,
@@ -54,12 +54,12 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
       mimeType: req.file.mimetype
     });
 
-    logger.info('Material uploaded', { 
-      materialId: material.id, 
+    logger.info('Material uploaded', {
+      materialId: material.id,
       speakerId,
       fileName: material.fileName
     });
-    
+
     return res.status(201).json({
       success: true,
       data: material,
@@ -80,7 +80,7 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -88,9 +88,9 @@ router.get('/:id', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     const material = await materialService.getMaterialById(id);
-    
+
     if (!material) {
       return res.status(404).json({
         success: false,
@@ -100,7 +100,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     logger.info('Material retrieved', { materialId: id });
-    
+
     return res.json({
       success: true,
       data: material,
@@ -120,7 +120,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.get('/:id/download', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -132,12 +132,12 @@ router.get('/:id/download', async (req: Request, res: Response) => {
     const { material, fileBuffer } = await materialService.downloadMaterial(id);
 
     logger.info('Material downloaded', { materialId: id });
-    
+
     // Set appropriate headers for file download
     res.setHeader('Content-Type', material.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${material.fileName}"`);
     res.setHeader('Content-Length', material.fileSize);
-    
+
     return res.send(fileBuffer);
   } catch (error) {
     logger.error('Error downloading material', error as Error);
@@ -153,7 +153,7 @@ router.get('/:id/download', async (req: Request, res: Response) => {
 router.get('/speaker/:speakerId', async (req: Request, res: Response) => {
   try {
     const { speakerId } = req.params;
-    
+
     if (!speakerId) {
       return res.status(400).json({
         success: false,
@@ -164,11 +164,11 @@ router.get('/speaker/:speakerId', async (req: Request, res: Response) => {
 
     const materials = await materialService.getSpeakerMaterials(speakerId);
 
-    logger.info('Speaker materials retrieved', { 
-      speakerId, 
-      count: materials.length 
+    logger.info('Speaker materials retrieved', {
+      speakerId,
+      count: materials.length
     });
-    
+
     return res.json({
       success: true,
       data: materials,
@@ -188,7 +188,7 @@ router.get('/speaker/:speakerId', async (req: Request, res: Response) => {
 router.get('/event/:eventId', async (req: Request, res: Response) => {
   try {
     const { eventId } = req.params;
-    
+
     if (!eventId) {
       return res.status(400).json({
         success: false,
@@ -199,11 +199,11 @@ router.get('/event/:eventId', async (req: Request, res: Response) => {
 
     const materials = await materialService.getEventMaterials(eventId);
 
-    logger.info('Event materials retrieved', { 
-      eventId, 
-      count: materials.length 
+    logger.info('Event materials retrieved', {
+      eventId,
+      count: materials.length
     });
-    
+
     return res.json({
       success: true,
       data: materials,
@@ -223,7 +223,7 @@ router.get('/event/:eventId', async (req: Request, res: Response) => {
 router.get('/speaker/:speakerId/event/:eventId', async (req: Request, res: Response) => {
   try {
     const { speakerId, eventId } = req.params;
-    
+
     if (!speakerId || !eventId) {
       return res.status(400).json({
         success: false,
@@ -234,12 +234,12 @@ router.get('/speaker/:speakerId/event/:eventId', async (req: Request, res: Respo
 
     const materials = await materialService.getSpeakerEventMaterials(speakerId, eventId);
 
-    logger.info('Speaker event materials retrieved', { 
-      speakerId, 
+    logger.info('Speaker event materials retrieved', {
+      speakerId,
       eventId,
-      count: materials.length 
+      count: materials.length
     });
-    
+
     return res.json({
       success: true,
       data: materials,
@@ -260,7 +260,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { fileName, eventId } = req.body;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -275,7 +275,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     });
 
     logger.info('Material updated', { materialId: id });
-    
+
     return res.json({
       success: true,
       data: material,
@@ -296,7 +296,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.get('/speaker/:speakerId/stats', async (req: Request, res: Response) => {
   try {
     const { speakerId } = req.params;
-    
+
     if (!speakerId) {
       return res.status(400).json({
         success: false,
@@ -308,7 +308,7 @@ router.get('/speaker/:speakerId/stats', async (req: Request, res: Response) => {
     const stats = await materialService.getSpeakerMaterialStats(speakerId);
 
     logger.info('Speaker material stats retrieved', { speakerId });
-    
+
     return res.json({
       success: true,
       data: stats,
@@ -328,7 +328,7 @@ router.get('/speaker/:speakerId/stats', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -340,7 +340,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     await materialService.deleteMaterial(id);
 
     logger.info('Material deleted', { materialId: id });
-    
+
     return res.json({
       success: true,
       message: 'Material deleted successfully',

@@ -1,17 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Mail, 
-  Calendar, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Mail,
+  Calendar,
+  Clock,
+  CheckCircle,
+  XCircle,
   AlertCircle,
   MessageSquare,
   User,
@@ -47,14 +47,28 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
     try {
       setLoadingEventDetails(prev => new Set(prev).add(eventId));
       logger.debug(LOGGER_COMPONENT_NAME, 'Loading event details', { eventId });
-      
-      const response = await eventAPI.getPublishedEventById(eventId);
-      setEventDetails(prev => ({
-        ...prev,
-        [eventId]: response.data
-      }));
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Event details loaded', { eventId, eventName: response.data.name });
+
+      // Try to get event by ID (works for all event statuses)
+      try {
+        const response = await eventAPI.getEventById(eventId);
+        setEventDetails(prev => ({
+          ...prev,
+          [eventId]: response.data
+        }));
+        logger.info(LOGGER_COMPONENT_NAME, 'Event details loaded', { eventId, eventName: response.data.name });
+      } catch (error) {
+        // Fallback to published events if getEventById fails
+        try {
+          const response = await eventAPI.getPublishedEventById(eventId);
+          setEventDetails(prev => ({
+            ...prev,
+            [eventId]: response.data
+          }));
+          logger.info(LOGGER_COMPONENT_NAME, 'Event details loaded (published)', { eventId, eventName: response.data.name });
+        } catch (pubError) {
+          logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load event details (both methods)', { eventId });
+        }
+      }
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event details', error as Error, { eventId });
     } finally {
@@ -65,6 +79,20 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
       });
     }
   };
+
+  // Automatically load event details for all invitations on mount
+  useEffect(() => {
+    if (invitations.length > 0) {
+      const uniqueEventIds = [...new Set(invitations.map(inv => inv.eventId))];
+      uniqueEventIds.forEach(eventId => {
+        // Only load if not already loaded or loading
+        if (!eventDetails[eventId] && !loadingEventDetails.has(eventId)) {
+          loadEventDetails(eventId);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invitations]);
 
   // Calculate invitation statistics
   const stats = {
@@ -79,12 +107,12 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
     try {
       setRespondingTo(invitationId);
       logger.debug(LOGGER_COMPONENT_NAME, 'Responding to invitation', { invitationId, status });
-      
+
       await onRespond(invitationId, status, responseMessage || undefined);
-      
+
       setShowResponseForm(null);
       setResponseMessage('');
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Invitation response sent', { invitationId, status });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to respond to invitation', error as Error, { invitationId, status });
@@ -130,8 +158,8 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
 
     return (
       <Card className={`transition-all hover:shadow-md ${
-        invitation.status === 'ACCEPTED' 
-          ? 'border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800' 
+        invitation.status === 'ACCEPTED'
+          ? 'border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800'
           : invitation.status === 'DECLINED'
           ? 'border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800'
           : invitation.status === 'PENDING'
@@ -142,7 +170,7 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3 flex-1">
               <div className={`p-2 rounded-full ${
-                invitation.status === 'ACCEPTED' 
+                invitation.status === 'ACCEPTED'
                   ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300'
                   : invitation.status === 'DECLINED'
                   ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300'
@@ -159,7 +187,7 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
                   </h4>
                   {getStatusBadge(invitation.status)}
                 </div>
-                
+
                 {event ? (
                   <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center gap-2">
@@ -327,7 +355,7 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Response Rate:</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {stats.total > 0 
+                  {stats.total > 0
                     ? Math.round((stats.accepted + stats.declined) / stats.total * 100)
                     : 0}%
                 </span>
@@ -335,7 +363,7 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
               <div className="flex items-center justify-between text-sm mt-1">
                 <span className="text-gray-600 dark:text-gray-400">Acceptance Rate:</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {stats.accepted + stats.declined > 0 
+                  {stats.accepted + stats.declined > 0
                     ? Math.round(stats.accepted / (stats.accepted + stats.declined) * 100)
                     : 0}%
                 </span>
@@ -358,20 +386,39 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {pendingInvitations.map((invitation) => (
+            {pendingInvitations.map((invitation) => {
+              const event = eventDetails[invitation.eventId];
+              const isLoadingEvent = loadingEventDetails.has(invitation.eventId);
+
+              return (
               <div key={invitation.id} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <Calendar className="h-4 w-4 text-blue-500" />
                       <h3 className="font-medium text-gray-900 dark:text-gray-100">
-                        Event Invitation
+                        {event ? event.name : isLoadingEvent ? 'Loading event...' : `Event ${invitation.eventId.slice(-8)}`}
                       </h3>
                       {getStatusBadge(invitation.status)}
                     </div>
-                    
+
                     <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                      <p><strong>Event ID:</strong> {invitation.eventId}</p>
+                      {event ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-3 w-3" />
+                            <span>{event.venue.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              {new Date(event.bookingStartDate).toLocaleDateString()} - {new Date(event.bookingEndDate).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <p><strong>Event ID:</strong> {invitation.eventId}</p>
+                      )}
                       <p><strong>Sent:</strong> {formatDate(invitation.sentAt)}</p>
                       {invitation.message && (
                         <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded">
@@ -434,7 +481,8 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
                   </div>
                 )}
               </div>
-            ))}
+            );
+            })}
           </CardContent>
         </Card>
       )}
@@ -452,13 +500,17 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[...acceptedInvitations, ...declinedInvitations, ...expiredInvitations].map((invitation) => (
+            {[...acceptedInvitations, ...declinedInvitations, ...expiredInvitations].map((invitation) => {
+              const event = eventDetails[invitation.eventId];
+              const isLoadingEvent = loadingEventDetails.has(invitation.eventId);
+
+              return (
               <div key={invitation.id} className="flex items-center justify-between p-3 border rounded-lg">
                 <div className="flex items-center gap-3">
                   {getStatusIcon(invitation.status)}
                   <div>
                     <p className="font-medium text-gray-900 dark:text-gray-100">
-                      Event {invitation.eventId}
+                      {event ? event.name : isLoadingEvent ? 'Loading event...' : `Event ${invitation.eventId.slice(-8)}`}
                     </p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Sent: {formatDate(invitation.sentAt)}
@@ -470,7 +522,8 @@ export function InvitationManagement({ invitations, onRespond, loading = false }
                 </div>
                 {getStatusBadge(invitation.status)}
               </div>
-            ))}
+            );
+            })}
           </CardContent>
         </Card>
       )}

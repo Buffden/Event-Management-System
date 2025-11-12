@@ -47,7 +47,7 @@ function SpeakerDashboard() {
   const searchParams = useSearchParams();
   const logger = useLogger();
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
-  
+
   const {
     profile,
     stats,
@@ -99,9 +99,29 @@ function SpeakerDashboard() {
   };
 
   const handleSendMessage = async (message: { toUserId: string; subject: string; content: string }) => {
-    if (!user?.id) return;
-    // This would be implemented in the useSpeakerData hook
-    await refresh();
+    if (!user?.id) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Cannot send message: user not authenticated');
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Sending message', { toUserId: message.toUserId, subject: message.subject });
+
+      await speakerApiClient.sendMessage({
+        fromUserId: user.id,
+        toUserId: message.toUserId,
+        subject: message.subject,
+        content: message.content,
+      });
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Message sent successfully', { toUserId: message.toUserId });
+
+      // Refresh messages to show the new one
+      await refresh();
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to send message', error as Error, { toUserId: message.toUserId });
+      throw error;
+    }
   };
 
   // Loading and auth checks are handled by the HOC
@@ -148,7 +168,7 @@ function SpeakerDashboard() {
               </Button>
             </div>
           </div>
-          
+
           {/* Navigation Tabs */}
           <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg mb-4">
             <Button
@@ -223,8 +243,8 @@ function SpeakerDashboard() {
                 Let's set up your speaker profile to get started.
               </p>
             </div>
-            
-            <ProfileManagement 
+
+            <ProfileManagement
               profile={null}
               onUpdate={handleProfileSetup}
               loading={loading}
@@ -237,9 +257,9 @@ function SpeakerDashboard() {
         {error && !needsProfileSetup && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-red-800 dark:text-red-200">{error}</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={refresh}
               className="mt-2"
             >
@@ -415,7 +435,7 @@ function SpeakerDashboard() {
                         </Button>
                       </div>
                     )}
-                    
+
                     {recentMessages.length > 0 && (
                       <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
                         <div className="flex-1">
@@ -429,7 +449,7 @@ function SpeakerDashboard() {
                         </Button>
                       </div>
                     )}
-                    
+
                     {recentMaterials.length > 0 && (
                       <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950 rounded-lg">
                         <div className="flex-1">
@@ -452,7 +472,7 @@ function SpeakerDashboard() {
 
         {/* Profile Section */}
         {activeSection === 'profile' && (
-          <ProfileManagement 
+          <ProfileManagement
             profile={profile}
             onUpdate={handleProfileUpdate}
             loading={loading}
@@ -462,18 +482,18 @@ function SpeakerDashboard() {
         {/* Materials Section */}
         {activeSection === 'materials' && (
           <div className="space-y-6">
-            <MaterialUpload 
+            <MaterialUpload
               onUpload={async (file, eventId) => {
                 await uploadMaterial(file, eventId);
               }}
               disabled={loading}
             />
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>My Materials</CardTitle>
                 <CardDescription>
-                  {recentMaterials.length > 0 
+                  {recentMaterials.length > 0
                     ? `You have ${recentMaterials.length} uploaded material${recentMaterials.length > 1 ? 's' : ''}`
                     : 'No materials uploaded yet'
                   }
@@ -502,15 +522,15 @@ function SpeakerDashboard() {
                               <span>{new Date(material.uploadDate).toLocaleDateString()}</span>
                               <span>•</span>
                               <Badge variant="outline" className="text-xs">
-                                {material.mimeType === 'application/pdf' ? 'PDF' : 
+                                {material.mimeType === 'application/pdf' ? 'PDF' :
                                  material.mimeType?.includes('presentation') ? 'Presentation' : 'File'}
                               </Badge>
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => {
                               // Open material in new tab for preview
@@ -521,8 +541,8 @@ function SpeakerDashboard() {
                             <Eye className="h-4 w-4 mr-2" />
                             Preview
                           </Button>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={async () => {
                               try {
@@ -563,7 +583,7 @@ function SpeakerDashboard() {
 
         {/* Invitations Section */}
         {activeSection === 'invitations' && (
-          <InvitationManagement 
+          <InvitationManagement
             invitations={allInvitations}
             onRespond={respondToInvitation}
             loading={loading}
@@ -572,7 +592,7 @@ function SpeakerDashboard() {
 
         {/* Messages Section */}
         {activeSection === 'messages' && (
-          <MessageCenter 
+          <MessageCenter
             messages={recentMessages}
             threads={[]} // TODO: Implement threads
             unreadCount={stats?.unreadMessages || 0}

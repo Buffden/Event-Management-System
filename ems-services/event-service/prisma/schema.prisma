@@ -24,6 +24,12 @@ enum EventStatus {
   COMPLETED // Event date has passed.
 }
 
+enum SessionSpeakerMaterialsStatus {
+  REQUESTED
+  UPLOADED
+  ACKNOWLEDGED
+}
+
 // Model for physical venues where events can be held.
 model Venue {
   id          Int    @id @default(autoincrement())
@@ -66,8 +72,48 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  sessions Session[]
+
   @@index([speakerId])
   @@index([venueId])
   @@index([status]) // Add index on status for efficient querying of pending events.
   @@map("events")
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  eventId     String   @map("event_id")
+  title       String
+  description String?  @db.Text
+  startsAt    DateTime @map("starts_at")
+  endsAt      DateTime @map("ends_at")
+  stage       String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  event    Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  speakers SessionSpeaker[]
+
+  @@index([eventId, startsAt])
+  @@map("sessions")
+}
+
+model SessionSpeaker {
+  id                     String                         @id @default(cuid())
+  sessionId              String                         @map("session_id")
+  speakerId              String                         @map("speaker_id")
+  materialsAssetId       String?                        @map("materials_asset_id")
+  materialsStatus        SessionSpeakerMaterialsStatus  @default(REQUESTED) @map("materials_status")
+  speakerCheckinConfirmed Boolean                        @default(false) @map("speaker_checkin_confirmed")
+  specialNotes           String?                        @map("special_notes") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, speakerId])
+  @@index([speakerId])
+  @@map("session_speakers")
 }

@@ -1,5 +1,6 @@
 import {Router, Request, Response} from 'express';
 import {eventService} from '../services/event.service';
+import {sessionService} from '../services/session.service';
 import {logger} from '../utils/logger';
 import {requireAdminOrSpeaker} from '../middleware/auth.middleware';
 import {asyncHandler} from '../middleware/error.middleware';
@@ -9,7 +10,7 @@ import {
     validatePagination,
     validateDateRange
 } from '../middleware/validation.middleware';
-import {CreateEventRequest, UpdateEventRequest, EventFilters} from '../types';
+import {UpdateEventRequest, EventFilters} from '../types';
 import {EventStatus} from '../../generated/prisma';
 
 const router = Router();
@@ -42,62 +43,6 @@ router.get('/events/my-events',
         res.json({
             success: true,
             data: result
-        });
-    })
-);
-
-/**
- * POST /events - Create a new event (saved as DRAFT)
- */
-router.post('/events',
-    validateRequest((body: CreateEventRequest) => {
-        const errors = [];
-
-        if (!body.name || body.name.trim().length === 0) {
-            errors.push({field: 'name', message: 'Event name is required'});
-        }
-
-        if (!body.description || body.description.trim().length === 0) {
-            errors.push({field: 'description', message: 'Event description is required'});
-        }
-
-        if (!body.category || body.category.trim().length === 0) {
-            errors.push({field: 'category', message: 'Event category is required'});
-        }
-
-        if (!body.venueId || isNaN(Number(body.venueId))) {
-            errors.push({field: 'venueId', message: 'Valid venue ID is required'});
-        }
-
-        if (!body.bookingStartDate || isNaN(Date.parse(body.bookingStartDate))) {
-            errors.push({field: 'bookingStartDate', message: 'Valid booking start date is required'});
-        }
-
-        if (!body.bookingEndDate || isNaN(Date.parse(body.bookingEndDate))) {
-            errors.push({field: 'bookingEndDate', message: 'Valid booking end date is required'});
-        }
-
-        if (!body.userId || body.userId.trim().length === 0) {
-            errors.push({field: 'userId', message: 'User ID is required'});
-        }
-
-        if (body.bookingStartDate && body.bookingEndDate && new Date(body.bookingStartDate) >= new Date(body.bookingEndDate)) {
-            errors.push({field: 'bookingDates', message: 'Booking start date must be before end date'});
-        }
-
-        return errors.length > 0 ? errors : null;
-    }),
-    asyncHandler(async (req: Request, res: Response) => {
-        const eventData: CreateEventRequest = req.body;
-        const speakerId = eventData.userId;
-
-        logger.info('Creating new event', {speakerId, eventName: eventData.name});
-
-        const event = await eventService.createEvent(eventData, speakerId);
-
-        res.status(201).json({
-            success: true,
-            data: event
         });
     })
 );
@@ -175,25 +120,6 @@ router.patch('/events/:id/submit',
 );
 
 /**
- * DELETE /events/:id - Delete an event that is in DRAFT status
- */
-router.delete('/events/:id',
-    asyncHandler(async (req: Request, res: Response) => {
-        const {id} = req.params;
-        const speakerId = req.user!.userId;
-
-        logger.info('Deleting event', {eventId: id, speakerId});
-
-        await eventService.deleteEvent(id, speakerId);
-
-        res.json({
-            success: true,
-            message: 'Event deleted successfully'
-        });
-    })
-);
-
-/**
  * GET /events/:id - Get full details of speaker's own event
  */
 router.get('/events/:id',
@@ -223,6 +149,25 @@ router.get('/events/:id',
         res.json({
             success: true,
             data: event
+        });
+    })
+);
+
+/**
+ * GET /events/:eventId/sessions - List sessions for an event
+ * Accessible to authenticated speakers and admins (same as admin endpoint)
+ */
+router.get('/events/:eventId/sessions',
+    asyncHandler(async (req: Request, res: Response) => {
+        const {eventId} = req.params;
+
+        logger.info('Listing sessions for event (speaker route)', {eventId});
+
+        const sessions = await sessionService.listSessions(eventId);
+
+        res.json({
+            success: true,
+            data: sessions,
         });
     })
 );

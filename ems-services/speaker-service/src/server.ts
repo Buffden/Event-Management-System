@@ -7,15 +7,21 @@ import invitationRoutes from './routes/invitation.routes';
 import messageRoutes from './routes/message.routes';
 import materialRoutes from './routes/material.routes';
 import speakerAttendanceRoutes from './routes/speaker-attendance.routes';
+import internalRoutes from './routes/internal.routes';
+import seederRoutes from './routes/seeder.routes';
 import { errorMiddleware, notFoundHandler } from './middleware/error.middleware';
 import { RabbitMQService } from './services/rabbitmq.service';
 import { SpeakerService } from './services/speaker.service';
+import { MessageService } from './services/message.service';
+import { WebSocketService } from './services/websocket.service';
+import { createServer } from 'http';
 
 // Load environment variables based on NODE_ENV
 const envFile = process.env['NODE_ENV'] === 'production' ? '.env.production' : '.env.local';
 config({ path: envFile });
 
 const app = express();
+const httpServer = createServer(app);
 
 // --- Middleware ---
 app.use(express.json());
@@ -31,10 +37,13 @@ app.get('/health', (_req, res) => {
 });
 
 // API Routes
+// Internal routes must come first to ensure they're matched before public routes
+app.use('/api/internal', internalRoutes);
 app.use('/api/speakers', speakerRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/materials', materialRoutes);
+app.use('/api/materials', seederRoutes); // Seeder routes for materials (admin only)
 app.use('/api/speaker-attendance', speakerAttendanceRoutes);
 
 // Error handling middleware
@@ -57,7 +66,7 @@ const startServer = async () => {
         // Initialize RabbitMQ for speaker profile creation from Auth Service
         const speakerService = new SpeakerService();
         const rabbitMQService = new RabbitMQService(process.env['RABBITMQ_URL'] || 'amqp://localhost:5672', speakerService);
-        
+
         try {
             await rabbitMQService.connect();
             logger.info('RabbitMQ connected for speaker profile creation');
@@ -65,7 +74,12 @@ const startServer = async () => {
             logger.warn('RabbitMQ connection failed, speaker profile creation will be manual', { error: rabbitError });
         }
 
-        const server = app.listen(PORT, () => {
+        // Initialize WebSocket service for real-time messaging
+        const messageService = new MessageService();
+        const webSocketService = new WebSocketService(httpServer, messageService);
+        logger.info('WebSocket service initialized');
+
+        const server = httpServer.listen(PORT, () => {
             logger.info(`Speaker Service running on http://localhost:${PORT}`, { port: PORT });
         });
 
@@ -75,6 +89,7 @@ const startServer = async () => {
             server.close(async () => {
                 logger.info('HTTP server closed');
                 try {
+                    webSocketService.close();
                     await rabbitMQService.close();
                     await prisma.$disconnect();
                 } catch (error) {

@@ -9,8 +9,36 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {logger} from "@/lib/logger";
 import { adminApiClient } from "@/lib/api/admin.api";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { useTheme } from 'next-themes';
 
 const COMPONENT_NAME = 'ReportsPage';
+
+// Custom tooltip component that supports dark mode
+const CustomTooltip = ({ active, payload, label }: any) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
+  if (active && payload && payload.length) {
+    return (
+      <div
+        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-3"
+        style={{
+          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+          borderColor: isDark ? '#334155' : '#e2e8f0',
+        }}
+      >
+        <p className="font-semibold text-slate-900 dark:text-white mb-2">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} className="text-sm" style={{ color: entry.color }}>
+            {`${entry.name}: ${entry.value.toLocaleString()}`}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 interface ReportData {
   totalEvents: number;
@@ -38,9 +66,11 @@ interface ReportData {
 export default function ReportsPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const { theme } = useTheme();
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -110,8 +140,8 @@ export default function ReportsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => router.push('/dashboard/admin')}
                 className="text-slate-600 hover:text-slate-900"
@@ -202,26 +232,26 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="h-20 flex flex-col items-center justify-center space-y-2"
                 onClick={() => handleExportReport('events')}
               >
                 <Calendar className="h-6 w-6" />
                 <span>Event Report</span>
               </Button>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 className="h-20 flex flex-col items-center justify-center space-y-2"
                 onClick={() => handleExportReport('users')}
               >
                 <Users className="h-6 w-6" />
                 <span>User Report</span>
               </Button>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 className="h-20 flex flex-col items-center justify-center space-y-2"
                 onClick={() => handleExportReport('registrations')}
               >
@@ -294,8 +324,8 @@ export default function ReportsPage() {
                         <span className="text-sm text-slate-900 dark:text-white">{stat.count} events</span>
                       </div>
                       <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full" 
+                        <div
+                          className="bg-blue-600 h-2 rounded-full"
                           style={{ width: `${stat.percentage.toFixed(1)}%` }}
                         ></div>
                       </div>
@@ -310,65 +340,220 @@ export default function ReportsPage() {
           </Card>
         </div>
 
-        {/* User Growth Chart Placeholder */}
-        <Card className="border-slate-200 dark:border-slate-700 mt-8">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
-              User Growth Trend
-            </CardTitle>
-            <CardDescription className="text-slate-600 dark:text-slate-400">
-              Monthly user registration growth over time
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12">
-              <BarChart3 className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                Interactive Charts Coming Soon
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-6">
-                Advanced analytics and interactive charts will be implemented in Phase 3.
-              </p>
-              
-              {/* Mock Data Table */}
+        {/* User Growth Charts */}
+        <div className="mt-8 space-y-8">
+          {/* Monthly New User Signups - Bar Chart */}
+          <Card className="border-slate-200 dark:border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
+                Monthly New User Signups
+              </CardTitle>
+              <CardDescription className="text-slate-600 dark:text-slate-400">
+                Number of new users registered each month
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {reportData.userGrowth.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-600 dark:text-slate-400">No user growth data available</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={reportData.userGrowth} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-slate-300 dark:stroke-slate-700" />
+                    <XAxis
+                      dataKey="month"
+                      className="text-xs fill-slate-600 dark:fill-slate-400"
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis className="text-xs fill-slate-600 dark:fill-slate-400" />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Bar
+                      dataKey="newUsers"
+                      fill="#3b82f6"
+                      name="New Users"
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Total Users Over Time - Line Chart */}
+          <Card className="border-slate-200 dark:border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
+                Total Users Over Time
+              </CardTitle>
+              <CardDescription className="text-slate-600 dark:text-slate-400">
+                Cumulative total of registered users by month
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {reportData.userGrowth.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-600 dark:text-slate-400">No user growth data available</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={reportData.userGrowth} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-slate-300 dark:stroke-slate-700" />
+                    <XAxis
+                      dataKey="month"
+                      className="text-xs fill-slate-600 dark:fill-slate-400"
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis className="text-xs fill-slate-600 dark:fill-slate-400" />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="users"
+                      stroke="#10b981"
+                      strokeWidth={3}
+                      name="Total Users"
+                      dot={{ fill: '#10b981', r: 5 }}
+                      activeDot={{ r: 7 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* User Growth Trend - Area Chart */}
+          <Card className="border-slate-200 dark:border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
+                User Growth Trend
+              </CardTitle>
+              <CardDescription className="text-slate-600 dark:text-slate-400">
+                Combined view of new signups and total users over time
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {reportData.userGrowth.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-600 dark:text-slate-400">No user growth data available</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={350}>
+                  <AreaChart data={reportData.userGrowth} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorNewUsers" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorTotalUsers" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-slate-300 dark:stroke-slate-700" />
+                    <XAxis
+                      dataKey="month"
+                      className="text-xs fill-slate-600 dark:fill-slate-400"
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis yAxisId="left" className="text-xs fill-slate-600 dark:fill-slate-400" />
+                    <YAxis yAxisId="right" orientation="right" className="text-xs fill-slate-600 dark:fill-slate-400" />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Area
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="newUsers"
+                      stroke="#3b82f6"
+                      fillOpacity={1}
+                      fill="url(#colorNewUsers)"
+                      name="New Users"
+                    />
+                    <Area
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="users"
+                      stroke="#10b981"
+                      fillOpacity={1}
+                      fill="url(#colorTotalUsers)"
+                      name="Total Users"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* User Growth Data Table */}
+          <Card className="border-slate-200 dark:border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
+                Monthly User Growth Data
+              </CardTitle>
+              <CardDescription className="text-slate-600 dark:text-slate-400">
+                Detailed breakdown of user registrations by month
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-700">
                       <th className="text-left py-2 px-4 font-medium text-slate-600 dark:text-slate-400">Month</th>
-                      <th className="text-left py-2 px-4 font-medium text-slate-600 dark:text-slate-400">Total Users</th>
-                      <th className="text-left py-2 px-4 font-medium text-slate-600 dark:text-slate-400">New Users</th>
+                      <th className="text-right py-2 px-4 font-medium text-slate-600 dark:text-slate-400">New Users</th>
+                      <th className="text-right py-2 px-4 font-medium text-slate-600 dark:text-slate-400">Total Users</th>
+                      <th className="text-right py-2 px-4 font-medium text-slate-600 dark:text-slate-400">Growth Rate</th>
                     </tr>
                   </thead>
                   <tbody>
                     {reportData.userGrowth.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="py-8 text-center text-slate-600 dark:text-slate-400">
+                        <td colSpan={4} className="py-8 text-center text-slate-600 dark:text-slate-400">
                           No user growth data available
                         </td>
                       </tr>
                     ) : (
-                      reportData.userGrowth.map((data, index) => (
-                        <tr key={index} className="border-b border-slate-100 dark:border-slate-700">
-                          <td className="py-2 px-4 text-slate-900 dark:text-white">{data.month}</td>
-                          <td className="py-2 px-4 text-slate-900 dark:text-white">{data.users}</td>
-                          <td className="py-2 px-4">
-                            <Badge 
-                              variant="default" 
-                              className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                            >
-                              +{data.newUsers}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))
+                      reportData.userGrowth.map((data, index) => {
+                        const previousMonth = index > 0 ? reportData.userGrowth[index - 1] : null;
+                        const growthRate = previousMonth && previousMonth.newUsers > 0
+                          ? ((data.newUsers - previousMonth.newUsers) / previousMonth.newUsers * 100).toFixed(1)
+                          : data.newUsers > 0 ? '100.0' : '0.0';
+                        const isPositive = parseFloat(growthRate) >= 0;
+
+                        return (
+                          <tr key={index} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="py-3 px-4 text-slate-900 dark:text-white font-medium">{data.month}</td>
+                            <td className="py-3 px-4 text-right">
+                              <Badge
+                                variant="default"
+                                className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                              >
+                                +{data.newUsers}
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-semibold">{data.users.toLocaleString()}</td>
+                            <td className="py-3 px-4 text-right">
+                              <span className={`font-medium ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {isPositive ? '+' : ''}{growthRate}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </main>
     </div>
   );

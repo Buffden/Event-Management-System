@@ -1,6 +1,7 @@
 import { BaseApiClient } from './base-api.client';
 import { eventAPI } from './event.api';
 import { speakerApiClient, SpeakerProfile, SpeakerSearchRequest, CreateInvitationRequest } from './speaker.api';
+import { CreateEventRequest, UpdateEventRequest } from './types/event.types';
 import { logger } from '../logger';
 
 const LOGGER_COMPONENT_NAME = 'AdminApiClient';
@@ -17,6 +18,7 @@ export interface SpeakerInvitation {
   id: string;
   speakerId: string;
   eventId: string;
+  sessionId?: string | null;
   message?: string | null;
   status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
   sentAt: string;
@@ -30,6 +32,32 @@ export interface DashboardStats {
   totalEvents: number;
   activeEvents: number;
   totalRegistrations: number;
+}
+
+export interface Message {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  subject: string;
+  content: string;
+  threadId?: string | null;
+  eventId?: string | null;
+  status: 'SENT' | 'DELIVERED' | 'READ';
+  sentAt: string;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentType?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MessageThread {
+  threadId: string;
+  participants: string[];
+  messages: Message[];
+  lastMessageAt: string;
 }
 
 export class AdminApiClient extends BaseApiClient {
@@ -48,23 +76,23 @@ export class AdminApiClient extends BaseApiClient {
     return eventAPI.getEventById(eventId);
   }
 
-  async createEvent(eventData: any) {
-    return eventAPI.createEvent(eventData);
+  async createEvent(eventData: Omit<CreateEventRequest, 'userId'>) {
+    return eventAPI.createEventAsAdmin(eventData);
   }
 
-  async updateEvent(eventId: string, eventData: any) {
-    return eventAPI.updateEvent(eventId, eventData);
+  async updateEvent(eventId: string, eventData: UpdateEventRequest) {
+    return eventAPI.updateEventAsAdmin(eventId, eventData);
   }
 
   async deleteEvent(eventId: string) {
-    return eventAPI.deleteEvent(eventId);
+    return eventAPI.deleteEventAsAdmin(eventId);
   }
 
   // Speaker Search and Management
   async searchSpeakers(filters: AdminSpeakerSearchFilters): Promise<SpeakerProfile[]> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Searching speakers', filters);
-      
+
       // Build query parameters
       const params = new URLSearchParams();
       if (filters.query) params.append('query', filters.query);
@@ -90,7 +118,7 @@ export class AdminApiClient extends BaseApiClient {
       }
 
       const result = await response.json();
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Speakers found', { count: result.data.length });
       return result.data || [];
     } catch (error) {
@@ -102,9 +130,9 @@ export class AdminApiClient extends BaseApiClient {
   async getSpeakerProfile(speakerId: string): Promise<SpeakerProfile> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Getting speaker profile by speaker ID', { speakerId });
-      
+
       const profile = await speakerApiClient.getSpeakerById(speakerId);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Speaker profile retrieved', { speakerId });
       return profile;
     } catch (error) {
@@ -117,7 +145,7 @@ export class AdminApiClient extends BaseApiClient {
   async createInvitation(invitationData: CreateInvitationRequest): Promise<SpeakerInvitation> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Creating invitation', invitationData);
-      
+
       const response = await fetch('/api/invitations/', {
         method: 'POST',
         headers: {
@@ -128,17 +156,33 @@ export class AdminApiClient extends BaseApiClient {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get error message from response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // If we can't parse the error, use the default message
+        }
+
+        // Provide user-friendly error messages
+        if (response.status === 409) {
+          errorMessage = 'An invitation already exists for this speaker and event. The invitation has been updated.';
+        }
+
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Invitation created successfully', { 
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Invitation created/updated successfully', {
         invitationId: result.data.id,
         speakerId: invitationData.speakerId,
         eventId: invitationData.eventId
       });
-      
+
       return result.data;
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to create invitation', error as Error);
@@ -149,7 +193,7 @@ export class AdminApiClient extends BaseApiClient {
   async getEventInvitations(eventId: string): Promise<SpeakerInvitation[]> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Getting event invitations', { eventId });
-      
+
       const response = await fetch(`/api/invitations/event/${eventId}`, {
         method: 'GET',
         headers: {
@@ -163,12 +207,12 @@ export class AdminApiClient extends BaseApiClient {
       }
 
       const result = await response.json();
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Event invitations retrieved', { 
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Event invitations retrieved', {
         eventId,
         count: result.data.length
       });
-      
+
       return result.data || [];
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to get event invitations', error as Error);
@@ -179,7 +223,7 @@ export class AdminApiClient extends BaseApiClient {
   async getInvitationById(invitationId: string): Promise<SpeakerInvitation> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Getting invitation', { invitationId });
-      
+
       const response = await fetch(`/api/invitations/${invitationId}`, {
         method: 'GET',
         headers: {
@@ -193,9 +237,9 @@ export class AdminApiClient extends BaseApiClient {
       }
 
       const result = await response.json();
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Invitation retrieved', { invitationId });
-      
+
       return result.data;
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to get invitation', error as Error);
@@ -207,9 +251,9 @@ export class AdminApiClient extends BaseApiClient {
   async getDashboardStats(): Promise<DashboardStats> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Fetching dashboard statistics');
-      
+
       const token = this.getToken();
-      
+
       // Fetch stats from all services in parallel
       const [userStats, eventStats, bookingStats] = await Promise.all([
         fetch('/api/auth/admin/stats', {
@@ -288,7 +332,7 @@ export class AdminApiClient extends BaseApiClient {
   }> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Fetching users', filters);
-      
+
       // Build query parameters
       const params = new URLSearchParams();
       if (filters?.search) params.append('search', filters.search);
@@ -296,10 +340,10 @@ export class AdminApiClient extends BaseApiClient {
       if (filters?.status && filters.status !== 'ALL') params.append('status', filters.status);
       if (filters?.page) params.append('page', filters.page.toString());
       if (filters?.limit) params.append('limit', filters.limit.toString());
-      
+
       const queryString = params.toString();
       const url = `/api/auth/admin/users${queryString ? `?${queryString}` : ''}`;
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -313,12 +357,12 @@ export class AdminApiClient extends BaseApiClient {
       }
 
       const result = await response.json();
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Users retrieved', { 
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Users retrieved', {
         count: result.data.length,
         pagination: result.pagination
       });
-      
+
       return {
         data: result.data || [],
         pagination: result.pagination || {
@@ -339,7 +383,7 @@ export class AdminApiClient extends BaseApiClient {
   async getUserEventCounts(): Promise<Record<string, number>> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Fetching user event counts');
-      
+
       const response = await fetch('/api/booking/admin/users/event-counts', {
         method: 'GET',
         headers: {
@@ -353,7 +397,7 @@ export class AdminApiClient extends BaseApiClient {
       }
 
       const result = await response.json();
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'User event counts retrieved');
       return result.data || {};
     } catch (error) {
@@ -369,7 +413,7 @@ export class AdminApiClient extends BaseApiClient {
   }> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Fetching attendance statistics');
-      
+
       const response = await fetch('/api/booking/admin/attendance-stats', {
         method: 'GET',
         headers: {
@@ -383,9 +427,9 @@ export class AdminApiClient extends BaseApiClient {
       }
 
       const result = await response.json();
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Attendance statistics retrieved', result.data);
-      
+
       return result.data || {
         totalRegistrations: 0,
         totalAttended: 0,
@@ -422,7 +466,7 @@ export class AdminApiClient extends BaseApiClient {
   }> {
     try {
       logger.debug(LOGGER_COMPONENT_NAME, 'Fetching reports data');
-      
+
       const [dashboardStats, attendanceStats, topEventsResponse, eventStatusResponse, userGrowthResponse] = await Promise.all([
         this.getDashboardStats(),
         this.getAttendanceStats(),
@@ -491,7 +535,7 @@ export class AdminApiClient extends BaseApiClient {
       );
 
       logger.info(LOGGER_COMPONENT_NAME, 'Reports data retrieved successfully');
-      
+
       return {
         totalEvents: dashboardStats.totalEvents,
         totalUsers: dashboardStats.totalUsers,
@@ -511,6 +555,182 @@ export class AdminApiClient extends BaseApiClient {
   public getToken(): string {
     const token = super.getToken();
     return token || '';
+  }
+
+  // Messaging - Admin endpoints
+  async getAllSpeakerMessages(limit = 50, offset = 0): Promise<Message[]> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching all speaker messages', { limit, offset });
+
+      const response = await fetch(`/api/messages/admin/all-speaker-messages?limit=${limit}&offset=${offset}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data || [];
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch all speaker messages', error as Error);
+      throw error;
+    }
+  }
+
+  async getMessagesByEvent(eventId: string, limit = 50, offset = 0): Promise<Message[]> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching messages by event', { eventId, limit, offset });
+
+      const response = await fetch(`/api/messages/admin/event/${eventId}?limit=${limit}&offset=${offset}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data || [];
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch messages by event', error as Error);
+      throw error;
+    }
+  }
+
+  async getMessagesBySpeaker(speakerUserId: string, limit = 50, offset = 0): Promise<Message[]> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching messages by speaker', { speakerUserId, limit, offset });
+
+      const response = await fetch(`/api/messages/admin/speaker/${speakerUserId}?limit=${limit}&offset=${offset}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data || [];
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch messages by speaker', error as Error);
+      throw error;
+    }
+  }
+
+  async getThreadsBySpeaker(speakerUserId: string, limit = 20, offset = 0): Promise<MessageThread[]> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching threads by speaker', { speakerUserId, limit, offset });
+
+      const response = await fetch(`/api/messages/admin/speaker/${speakerUserId}/threads?limit=${limit}&offset=${offset}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data || [];
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch threads by speaker', error as Error);
+      throw error;
+    }
+  }
+
+  async getUnreadSpeakerMessageCount(): Promise<number> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching unread speaker message count');
+
+      const response = await fetch('/api/messages/admin/unread-count', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data?.count || 0;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch unread message count', error as Error);
+      throw error;
+    }
+  }
+
+  async sendMessage(toUserId: string, subject: string, content: string, threadId?: string, eventId?: string): Promise<Message> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Sending message', { toUserId, subject });
+
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toUserId,
+          subject,
+          content,
+          threadId,
+          eventId
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to send message', error as Error);
+      throw error;
+    }
+  }
+
+  async markMessageAsRead(messageId: string): Promise<Message> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Marking message as read', { messageId });
+
+      const response = await fetch(`/api/messages/${messageId}/read`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to mark message as read', error as Error);
+      throw error;
+    }
   }
 }
 

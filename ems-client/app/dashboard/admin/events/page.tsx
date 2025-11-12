@@ -22,7 +22,9 @@ import {
   Play,
   Pause,
   Archive,
-  AlertCircle
+  AlertCircle,
+  MessageSquare,
+  Settings
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -32,6 +34,17 @@ import { eventAPI } from "@/lib/api/event.api";
 import { EventResponse, EventStatus, EventFilters } from "@/lib/api/types/event.types";
 import { withAdminAuth } from "@/components/hoc/withAuth";
 import { RejectionModal } from "@/components/admin/RejectionModal";
+import { feedbackAPI, FeedbackFormResponse } from "@/lib/api/feedback.api";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 const statusColors = {
   [EventStatus.DRAFT]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -51,10 +64,18 @@ function EventManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<EventStatus | 'ALL'>('ALL');
   const [selectedTimeframe, setSelectedTimeframe] = useState('ALL');
-  
+
   // Rejection modal state
   const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false);
   const [eventToReject, setEventToReject] = useState<{ id: string; name: string } | null>(null);
+
+  // Feedback form state
+  const [feedbackForms, setFeedbackForms] = useState<Record<string, FeedbackFormResponse | null>>({});
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [selectedEventForFeedback, setSelectedEventForFeedback] = useState<EventResponse | null>(null);
+  const [feedbackFormTitle, setFeedbackFormTitle] = useState('');
+  const [feedbackFormDescription, setFeedbackFormDescription] = useState('');
+  const [isCreatingFeedback, setIsCreatingFeedback] = useState(false);
 
   // API state management
   const [events, setEvents] = useState<EventResponse[]>([]);
@@ -108,6 +129,27 @@ function EventManagementPage() {
     loadEvents();
   }, [selectedStatus, pagination.page]);
 
+  // Load feedback forms for all events
+  useEffect(() => {
+    const loadFeedbackForms = async () => {
+      const forms: Record<string, FeedbackFormResponse | null> = {};
+      for (const event of events) {
+        try {
+          const form = await feedbackAPI.getFeedbackFormByEventId(event.id);
+          forms[event.id] = form;
+        } catch (error) {
+          logger.error(COMPONENT_NAME, `Failed to load feedback form for event ${event.id}`, error as Error);
+          forms[event.id] = null;
+        }
+      }
+      setFeedbackForms(forms);
+    };
+
+    if (events.length > 0) {
+      loadFeedbackForms();
+    }
+  }, [events]);
+
   // Filter events based on search and timeframe (status filtering is done server-side)
   const filteredEvents = events.filter(event => {
     const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -138,7 +180,7 @@ function EventManagementPage() {
           response = await eventAPI.cancelEvent(eventId);
           break;
         case 'delete':
-          response = await eventAPI.deleteEvent(eventId);
+          response = await eventAPI.deleteEventAsAdmin(eventId);
           break;
         default:
           throw new Error(`Unknown action: ${action}`);
@@ -198,6 +240,47 @@ function EventManagementPage() {
       return 0;
     }
     return Math.round((registered / capacity) * 100);
+  };
+
+  const handleCreateFeedbackForm = (event: EventResponse) => {
+    setSelectedEventForFeedback(event);
+    setFeedbackFormTitle(`Feedback for ${event.name}`);
+    setFeedbackFormDescription('');
+    setIsFeedbackModalOpen(true);
+  };
+
+  const handleManageFeedbackForm = (event: EventResponse) => {
+    router.push(`/dashboard/admin/events/${event.id}/feedback`);
+  };
+
+  const handleSubmitFeedbackForm = async () => {
+    if (!selectedEventForFeedback) return;
+
+    try {
+      setIsCreatingFeedback(true);
+      await feedbackAPI.createFeedbackForm({
+        eventId: selectedEventForFeedback.id,
+        title: feedbackFormTitle,
+        description: feedbackFormDescription || undefined,
+      });
+
+      logger.info(COMPONENT_NAME, 'Feedback form created successfully', { eventId: selectedEventForFeedback.id });
+
+      // Reload feedback forms
+      const form = await feedbackAPI.getFeedbackFormByEventId(selectedEventForFeedback.id);
+      setFeedbackForms(prev => ({ ...prev, [selectedEventForFeedback.id]: form }));
+
+      setIsFeedbackModalOpen(false);
+      setSelectedEventForFeedback(null);
+      setFeedbackFormTitle('');
+      setFeedbackFormDescription('');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create feedback form';
+      setError(errorMessage);
+      logger.error(COMPONENT_NAME, 'Failed to create feedback form', error as Error);
+    } finally {
+      setIsCreatingFeedback(false);
+    }
   };
 
   // Calculate stats from real data
@@ -431,7 +514,7 @@ function EventManagementPage() {
                   const eventEndDate = new Date(event.bookingEndDate);
                   return eventEndDate >= now && event.status !== EventStatus.CANCELLED && event.status !== EventStatus.COMPLETED;
                 }).map((event) => (
-            <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+            <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow" data-testid={`event-card-${event.id}`}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -485,8 +568,8 @@ function EventManagementPage() {
 
                 {/* Actions */}
                 <div className="flex flex-wrap gap-2">
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     variant="outline"
                     onClick={() => router.push(`/dashboard/admin/events/${event.id}`)}
                   >
@@ -498,6 +581,7 @@ function EventManagementPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => router.push(`/dashboard/admin/events/modify/${event.id}`)}
+                    data-testid={`edit-event-${event.id}`}
                   >
                     <Edit className="h-4 w-4 mr-1" />
                     Edit
@@ -548,6 +632,29 @@ function EventManagementPage() {
                     <Trash2 className="h-4 w-4 mr-1" />
                     Delete
                   </Button>
+
+                  {/* Feedback Form Button */}
+                  {feedbackForms[event.id] ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleManageFeedbackForm(event)}
+                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                    >
+                      <Settings className="h-4 w-4 mr-1" />
+                      Manage Feedback
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCreateFeedbackForm(event)}
+                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      Create Feedback
+                    </Button>
+                  )}
                 </div>
 
                 {/* Event Join Interface - Only show for published events */}
@@ -594,7 +701,7 @@ function EventManagementPage() {
                   const eventEndDate = new Date(event.bookingEndDate);
                   return eventEndDate < now || event.status === EventStatus.CANCELLED || event.status === EventStatus.COMPLETED;
                 }).map((event) => (
-                  <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow opacity-75">
+                  <Card key={event.id} className="border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow opacity-75" data-testid={`event-card-${event.id}`}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -648,8 +755,8 @@ function EventManagementPage() {
 
                       {/* Actions */}
                       <div className="flex flex-wrap gap-2">
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="outline"
                           onClick={() => router.push(`/dashboard/admin/events/${event.id}`)}
                         >
@@ -661,6 +768,7 @@ function EventManagementPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => router.push(`/dashboard/admin/events/modify/${event.id}`)}
+                          data-testid={`edit-event-${event.id}`}
                         >
                           <Edit className="h-4 w-4 mr-1" />
                           Edit
@@ -675,6 +783,29 @@ function EventManagementPage() {
                           <Trash2 className="h-4 w-4 mr-1" />
                           Delete
                         </Button>
+
+                        {/* Feedback Form Button */}
+                        {feedbackForms[event.id] ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleManageFeedbackForm(event)}
+                            className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                          >
+                            <Settings className="h-4 w-4 mr-1" />
+                            Manage Feedback
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCreateFeedbackForm(event)}
+                            className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                          >
+                            <MessageSquare className="h-4 w-4 mr-1" />
+                            Create Feedback
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -757,6 +888,59 @@ function EventManagementPage() {
           eventName={eventToReject?.name}
           isLoading={!!eventToReject && actionLoading === eventToReject.id}
         />
+
+        {/* Create Feedback Form Modal */}
+        <Dialog open={isFeedbackModalOpen} onOpenChange={setIsFeedbackModalOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Create Feedback Form</DialogTitle>
+              <DialogDescription>
+                Create a feedback form for {selectedEventForFeedback?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  value={feedbackFormTitle}
+                  onChange={(e) => setFeedbackFormTitle(e.target.value)}
+                  placeholder="Feedback form title"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="description">Description (Optional)</Label>
+                <Textarea
+                  id="description"
+                  value={feedbackFormDescription}
+                  onChange={(e) => setFeedbackFormDescription(e.target.value)}
+                  placeholder="Feedback form description"
+                  rows={4}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsFeedbackModalOpen(false);
+                  setSelectedEventForFeedback(null);
+                  setFeedbackFormTitle('');
+                  setFeedbackFormDescription('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmitFeedbackForm}
+                disabled={!feedbackFormTitle.trim() || isCreatingFeedback}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              >
+                {isCreatingFeedback ? 'Creating...' : 'Create Form'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

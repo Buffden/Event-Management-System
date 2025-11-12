@@ -46,6 +46,7 @@ export interface SpeakerInvitation {
   id: string;
   speakerId: string;
   eventId: string;
+  sessionId?: string | null;
   message?: string | null;
   status: InvitationStatus;
   sentAt: Date;
@@ -57,6 +58,7 @@ export interface SpeakerInvitation {
 export interface CreateInvitationRequest {
   speakerId: string;
   eventId: string;
+  sessionId?: string; // Optional: for session-specific invitations
   message?: string;
 }
 
@@ -73,9 +75,16 @@ export interface Message {
   subject: string;
   content: string;
   threadId?: string | null;
+  eventId?: string | null;
+  status: 'SENT' | 'DELIVERED' | 'READ';
   sentAt: Date;
+  deliveredAt?: Date | null;
   readAt?: Date | null;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentType?: string | null;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface CreateMessageRequest {
@@ -84,6 +93,10 @@ export interface CreateMessageRequest {
   subject: string;
   content: string;
   threadId?: string;
+  eventId?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  attachmentType?: string;
 }
 
 export interface MessageThread {

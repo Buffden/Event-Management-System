@@ -107,6 +107,11 @@ const config: Config = {
     }],
   },
   
+  // Transform ignore patterns - allow ESM modules to be transformed
+  transformIgnorePatterns: [
+    'node_modules/(?!(uuid)/)',
+  ],
+  
   // Module file extensions
   moduleFileExtensions: ['ts', 'js', 'json'],
   

@@ -1,10 +1,13 @@
+-- CreateEnum
+CREATE TYPE "FeedbackFormStatus" AS ENUM ('DRAFT', 'PUBLISHED', 'CLOSED');
+
 -- CreateTable
 CREATE TABLE "feedback_forms" (
     "id" TEXT NOT NULL,
     "eventId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
-    "isPublished" BOOLEAN NOT NULL DEFAULT false,
+    "status" "FeedbackFormStatus" NOT NULL DEFAULT 'DRAFT',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -28,6 +31,9 @@ CREATE TABLE "feedback_responses" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "feedback_forms_eventId_key" ON "feedback_forms"("eventId");
+
+-- CreateIndex
+CREATE INDEX "feedback_forms_status_idx" ON "feedback_forms"("status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "feedback_responses_bookingId_key" ON "feedback_responses"("bookingId");
