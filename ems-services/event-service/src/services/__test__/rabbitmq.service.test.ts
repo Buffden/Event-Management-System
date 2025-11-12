@@ -123,7 +123,7 @@ describe('RabbitMQ Service', () => {
       mockConnectFn.mockRejectedValue(connectionError);
 
       await expect(rabbitMQService.connect()).rejects.toThrow('Connection failed');
-      expect(mockLogger.error).toHaveBeenCalledWith(expect.any(String), expect.any(Error), expect.anything());
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to connect to RabbitMQ', connectionError);
     });
 
     it('should throw error when channel creation fails', async () => {

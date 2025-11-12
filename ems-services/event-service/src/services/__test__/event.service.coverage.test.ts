@@ -58,7 +58,14 @@ describe('EventService Coverage Tests', () => {
       expect(result).toBeNull();
       expect(mockPrisma.event.findUnique).toHaveBeenCalledWith({
         where: { id: 'event-123' },
-        include: { venue: true },
+        include: {
+          venue: true,
+          sessions: {
+            include: {
+              speakers: true,
+            },
+          },
+        },
       });
     });
 

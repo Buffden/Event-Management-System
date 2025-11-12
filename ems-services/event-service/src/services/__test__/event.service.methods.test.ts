@@ -72,7 +72,14 @@ describe('EventService Methods Coverage', () => {
           status: EventStatus.PENDING_APPROVAL,
           rejectionReason: null,
         },
-        include: { venue: true },
+        include: {
+          venue: true,
+          sessions: {
+            include: {
+              speakers: true,
+            },
+          },
+        },
       });
     });
 
@@ -309,7 +316,14 @@ describe('EventService Methods Coverage', () => {
           status: EventStatus.REJECTED,
           rejectionReason,
         },
-        include: { venue: true },
+        include: {
+          venue: true,
+          sessions: {
+            include: {
+              speakers: true,
+            },
+          },
+        },
       });
     });
 
