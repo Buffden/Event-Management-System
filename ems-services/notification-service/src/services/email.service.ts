@@ -26,7 +26,7 @@ class EmailService {
         try {
             // Now, we directly use the properties of the payload
             const mailOptions = {
-                from: `YourApp <${process.env.GMAIL_USER}>`, // Best practice to use an env var for the "from" address
+                from: `Event Manager <${process.env.GMAIL_USER}>`, // Best practice to use an env var for the "from" address
                 to: payload.to,
                 subject: payload.subject,
                 html: payload.body,
