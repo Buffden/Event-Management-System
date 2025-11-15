@@ -21,17 +21,20 @@ import {
 import { MaterialService } from '../services/material.service';
 
 // Mock fs/promises
-const mockFs = {
-  mkdir: jest.fn(),
-  access: jest.fn(),
-  writeFile: jest.fn(),
-  readFile: jest.fn(),
-  unlink: jest.fn(),
-};
+var mockFs: any;
 
-jest.mock('fs', () => ({
-  promises: mockFs,
-}));
+jest.mock('fs', () => {
+  mockFs = {
+    mkdir: jest.fn(),
+    access: jest.fn(),
+    writeFile: jest.fn(),
+    readFile: jest.fn(),
+    unlink: jest.fn(),
+  };
+  return {
+    promises: mockFs,
+  };
+});
 
 describe('MaterialService', () => {
   let materialService: MaterialService;

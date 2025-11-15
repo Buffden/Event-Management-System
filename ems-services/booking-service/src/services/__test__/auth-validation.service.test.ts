@@ -6,8 +6,12 @@
 
 import '@jest/globals';
 import axios from 'axios';
-import { authValidationService } from '../auth-validation.service';
 import { logger } from '../../utils/logger';
+
+// Unmock the auth-validation service so we can test the actual implementation
+jest.unmock('../auth-validation.service');
+// Get the actual service implementation
+const { authValidationService } = jest.requireActual('../auth-validation.service');
 
 // Mock dependencies
 jest.mock('axios');
@@ -156,7 +160,10 @@ describe('AuthValidationService', () => {
       expect(result).toBeNull();
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Auth service unavailable',
-        expect.any(Error),
+        expect.objectContaining({
+          isAxiosError: true,
+          request: expect.anything(),
+        }),
         expect.objectContaining({
           url: expect.any(String),
         })
@@ -207,9 +214,9 @@ describe('AuthValidationService', () => {
 
       mockAxios.post.mockResolvedValue(mockResponse as any);
 
-      // Create new instance to pick up env var
-      const { AuthValidationService } = require('../auth-validation.service');
-      const service = new (AuthValidationService as any)();
+      // Reset modules and require the service again to pick up the new env var
+      jest.resetModules();
+      const { authValidationService: service } = jest.requireActual('../auth-validation.service');
 
       await service.validateToken('token');
 
@@ -236,8 +243,9 @@ describe('AuthValidationService', () => {
 
       mockAxios.post.mockResolvedValue(mockResponse as any);
 
-      const { AuthValidationService } = require('../auth-validation.service');
-      const service = new (AuthValidationService as any)();
+      // Reset modules and require the service again to pick up the new env var
+      jest.resetModules();
+      const { authValidationService: service } = jest.requireActual('../auth-validation.service');
 
       await service.validateToken('token');
 

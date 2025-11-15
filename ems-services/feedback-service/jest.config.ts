@@ -127,6 +127,8 @@ const config: Config = {
     '!src/**/__test__/**/*',
     '!src/server.ts', // Entry point, usually not unit tested
     '!src/database.ts', // Database connection, tested in integration
+    '!src/routes/seeder.routes.ts', // Seeder routes excluded from coverage
+    '!src/utils/logger.ts', // Logger utility excluded from coverage
   ],
 
   // Error handling

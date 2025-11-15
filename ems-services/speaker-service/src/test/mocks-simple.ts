@@ -264,6 +264,7 @@ jest.mock('amqplib', () => ({
 }));
 
 jest.mock('fs', () => ({
+  existsSync: jest.fn(() => true),
   promises: {
     mkdir: jest.fn(),
     access: jest.fn(),

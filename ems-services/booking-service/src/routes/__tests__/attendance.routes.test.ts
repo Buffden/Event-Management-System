@@ -34,16 +34,22 @@ jest.mock('../../services/attendance.service', () => {
   };
 });
 
-jest.mock('../../middleware/auth.middleware', () => ({
-  authenticateToken: jest.fn((req: any, res: any, next: any) => {
+var mockAuthenticateToken: jest.Mock;
+
+jest.mock('../../middleware/auth.middleware', () => {
+  const mockFn = jest.fn((req: any, res: any, next: any) => {
     req.user = {
       userId: 'user-123',
       email: 'test@example.com',
       role: 'USER'
     };
     next();
-  }),
-}));
+  });
+  mockAuthenticateToken = mockFn;
+  return {
+    authenticateToken: mockFn,
+  };
+});
 
 jest.mock('../../middleware/error.middleware', () => ({
   asyncHandler: (fn: any) => (req: any, res: any, next: any) => {
@@ -126,24 +132,13 @@ describe('Attendance Routes', () => {
     });
 
     it('should return 401 when user is not authenticated', async () => {
-      // Mock middleware to not set user
-      jest.doMock('../../middleware/auth.middleware', () => ({
-        authenticateToken: jest.fn((req: any, res: any, next: any) => {
-          req.user = undefined;
-          next();
-        }),
-      }));
-
-      // Need to recreate app with new mock
-      const appWithoutUser = express();
-      appWithoutUser.use(express.json());
-      appWithoutUser.use((req: any, res: any, next: any) => {
+      // Override the mock to not set a user
+      mockAuthenticateToken.mockImplementationOnce((req: any, res: any, next: any) => {
         req.user = undefined;
         next();
       });
-      appWithoutUser.use('/api', attendanceRoutes);
 
-      const response = await request(appWithoutUser)
+      const response = await request(app)
         .post('/api/attendance/join')
         .send({ eventId: 'event-123' })
         .expect(401);
@@ -154,23 +149,8 @@ describe('Attendance Routes', () => {
 
   describe('POST /attendance/admin/join', () => {
     beforeEach(() => {
-      // Mock admin user
-      jest.doMock('../../middleware/auth.middleware', () => ({
-        authenticateToken: jest.fn((req: any, res: any, next: any) => {
-          req.user = {
-            userId: 'admin-123',
-            email: 'admin@example.com',
-            role: 'ADMIN'
-          };
-          next();
-        }),
-      }));
-    });
-
-    it('should allow admin to join event', async () => {
-      const appWithAdmin = express();
-      appWithAdmin.use(express.json());
-      appWithAdmin.use((req: any, res: any, next: any) => {
+      // Mock admin user for these tests
+      mockAuthenticateToken.mockImplementation((req: any, res: any, next: any) => {
         req.user = {
           userId: 'admin-123',
           email: 'admin@example.com',
@@ -178,7 +158,21 @@ describe('Attendance Routes', () => {
         };
         next();
       });
-      appWithAdmin.use('/api', attendanceRoutes);
+    });
+
+    afterEach(() => {
+      // Reset to default user mock
+      mockAuthenticateToken.mockImplementation((req: any, res: any, next: any) => {
+        req.user = {
+          userId: 'user-123',
+          email: 'test@example.com',
+          role: 'USER'
+        };
+        next();
+      });
+    });
+
+    it('should allow admin to join event', async () => {
 
       (mockAdminJoinEvent as jest.Mock).mockResolvedValue({
         success: true,
@@ -187,7 +181,7 @@ describe('Attendance Routes', () => {
         isFirstJoin: true,
       });
 
-      const response = await request(appWithAdmin)
+      const response = await request(app)
         .post('/api/attendance/admin/join')
         .send({ eventId: 'event-123' })
         .expect(200);
@@ -200,9 +194,8 @@ describe('Attendance Routes', () => {
     });
 
     it('should return 403 for non-admin users', async () => {
-      const appWithUser = express();
-      appWithUser.use(express.json());
-      appWithUser.use((req: any, res: any, next: any) => {
+      // Override mock to set user role to USER
+      mockAuthenticateToken.mockImplementationOnce((req: any, res: any, next: any) => {
         req.user = {
           userId: 'user-123',
           email: 'user@example.com',
@@ -210,9 +203,8 @@ describe('Attendance Routes', () => {
         };
         next();
       });
-      appWithUser.use('/api', attendanceRoutes);
 
-      const response = await request(appWithUser)
+      const response = await request(app)
         .post('/api/attendance/admin/join')
         .send({ eventId: 'event-123' })
         .expect(403);
@@ -221,19 +213,7 @@ describe('Attendance Routes', () => {
     });
 
     it('should return 400 when eventId is missing', async () => {
-      const appWithAdmin = express();
-      appWithAdmin.use(express.json());
-      appWithAdmin.use((req: any, res: any, next: any) => {
-        req.user = {
-          userId: 'admin-123',
-          email: 'admin@example.com',
-          role: 'ADMIN'
-        };
-        next();
-      });
-      appWithAdmin.use('/api', attendanceRoutes);
-
-      const response = await request(appWithAdmin)
+      const response = await request(app)
         .post('/api/attendance/admin/join')
         .send({})
         .expect(400);
@@ -242,25 +222,13 @@ describe('Attendance Routes', () => {
     });
 
     it('should return 400 when admin join fails', async () => {
-      const appWithAdmin = express();
-      appWithAdmin.use(express.json());
-      appWithAdmin.use((req: any, res: any, next: any) => {
-        req.user = {
-          userId: 'admin-123',
-          email: 'admin@example.com',
-          role: 'ADMIN'
-        };
-        next();
-      });
-      appWithAdmin.use('/api', attendanceRoutes);
-
       (mockAdminJoinEvent as jest.Mock).mockResolvedValue({
         success: false,
         message: 'Failed to join',
         isFirstJoin: false,
       });
 
-      const response = await request(appWithAdmin)
+      const response = await request(app)
         .post('/api/attendance/admin/join')
         .send({ eventId: 'event-123' })
         .expect(400);
@@ -269,21 +237,9 @@ describe('Attendance Routes', () => {
     });
 
     it('should return 500 on service error', async () => {
-      const appWithAdmin = express();
-      appWithAdmin.use(express.json());
-      appWithAdmin.use((req: any, res: any, next: any) => {
-        req.user = {
-          userId: 'admin-123',
-          email: 'admin@example.com',
-          role: 'ADMIN'
-        };
-        next();
-      });
-      appWithAdmin.use('/api', attendanceRoutes);
-
       (mockAdminJoinEvent as jest.Mock).mockRejectedValue(new Error('Service error'));
 
-      const response = await request(appWithAdmin)
+      const response = await request(app)
         .post('/api/attendance/admin/join')
         .send({ eventId: 'event-123' })
         .expect(500);
@@ -295,9 +251,8 @@ describe('Attendance Routes', () => {
 
   describe('GET /attendance/live/:eventId', () => {
     it('should return live attendance for admin', async () => {
-      const appWithAdmin = express();
-      appWithAdmin.use(express.json());
-      appWithAdmin.use((req: any, res: any, next: any) => {
+      // Override mock to set user role to ADMIN
+      mockAuthenticateToken.mockImplementationOnce((req: any, res: any, next: any) => {
         req.user = {
           userId: 'admin-123',
           email: 'admin@example.com',
@@ -305,7 +260,6 @@ describe('Attendance Routes', () => {
         };
         next();
       });
-      appWithAdmin.use('/api', attendanceRoutes);
 
       const mockAttendanceData = {
         eventId: 'event-123',
@@ -317,7 +271,7 @@ describe('Attendance Routes', () => {
 
       (mockGetLiveAttendance as jest.Mock).mockResolvedValue(mockAttendanceData);
 
-      const response = await request(appWithAdmin)
+      const response = await request(app)
         .get('/api/attendance/live/event-123')
         .expect(200);
 
@@ -326,9 +280,8 @@ describe('Attendance Routes', () => {
     });
 
     it('should return live attendance for speaker', async () => {
-      const appWithSpeaker = express();
-      appWithSpeaker.use(express.json());
-      appWithSpeaker.use((req: any, res: any, next: any) => {
+      // Override mock to set user role to SPEAKER
+      mockAuthenticateToken.mockImplementationOnce((req: any, res: any, next: any) => {
         req.user = {
           userId: 'speaker-123',
           email: 'speaker@example.com',
@@ -336,7 +289,6 @@ describe('Attendance Routes', () => {
         };
         next();
       });
-      appWithSpeaker.use('/api', attendanceRoutes);
 
       const mockAttendanceData = {
         eventId: 'event-123',
@@ -348,7 +300,7 @@ describe('Attendance Routes', () => {
 
       (mockGetLiveAttendance as jest.Mock).mockResolvedValue(mockAttendanceData);
 
-      const response = await request(appWithSpeaker)
+      const response = await request(app)
         .get('/api/attendance/live/event-123')
         .expect(200);
 
@@ -364,9 +316,8 @@ describe('Attendance Routes', () => {
     });
 
     it('should return 500 on service error', async () => {
-      const appWithAdmin = express();
-      appWithAdmin.use(express.json());
-      appWithAdmin.use((req: any, res: any, next: any) => {
+      // Override mock to set user role to ADMIN
+      mockAuthenticateToken.mockImplementationOnce((req: any, res: any, next: any) => {
         req.user = {
           userId: 'admin-123',
           email: 'admin@example.com',
@@ -374,11 +325,10 @@ describe('Attendance Routes', () => {
         };
         next();
       });
-      appWithAdmin.use('/api', attendanceRoutes);
 
       (mockGetLiveAttendance as jest.Mock).mockRejectedValue(new Error('Service error'));
 
-      const response = await request(appWithAdmin)
+      const response = await request(app)
         .get('/api/attendance/live/event-123')
         .expect(500);
 
@@ -388,9 +338,8 @@ describe('Attendance Routes', () => {
 
   describe('GET /attendance/summary/:eventId', () => {
     it('should return attendance summary for admin', async () => {
-      const appWithAdmin = express();
-      appWithAdmin.use(express.json());
-      appWithAdmin.use((req: any, res: any, next: any) => {
+      // Override mock to set user role to ADMIN
+      mockAuthenticateToken.mockImplementationOnce((req: any, res: any, next: any) => {
         req.user = {
           userId: 'admin-123',
           email: 'admin@example.com',
@@ -398,7 +347,6 @@ describe('Attendance Routes', () => {
         };
         next();
       });
-      appWithAdmin.use('/api', attendanceRoutes);
 
       const mockSummary = {
         eventId: 'event-123',
@@ -409,7 +357,7 @@ describe('Attendance Routes', () => {
 
       (mockGetAttendanceSummary as jest.Mock).mockResolvedValue(mockSummary);
 
-      const response = await request(appWithAdmin)
+      const response = await request(app)
         .get('/api/attendance/summary/event-123')
         .expect(200);
 
@@ -426,9 +374,8 @@ describe('Attendance Routes', () => {
     });
 
     it('should return 500 on service error', async () => {
-      const appWithAdmin = express();
-      appWithAdmin.use(express.json());
-      appWithAdmin.use((req: any, res: any, next: any) => {
+      // Override mock to set user role to ADMIN
+      mockAuthenticateToken.mockImplementationOnce((req: any, res: any, next: any) => {
         req.user = {
           userId: 'admin-123',
           email: 'admin@example.com',
@@ -436,11 +383,10 @@ describe('Attendance Routes', () => {
         };
         next();
       });
-      appWithAdmin.use('/api', attendanceRoutes);
 
       (mockGetAttendanceSummary as jest.Mock).mockRejectedValue(new Error('Service error'));
 
-      const response = await request(appWithAdmin)
+      const response = await request(app)
         .get('/api/attendance/summary/event-123')
         .expect(500);
 

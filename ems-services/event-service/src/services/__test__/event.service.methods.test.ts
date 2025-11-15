@@ -20,6 +20,7 @@ import {
   createMockVenue,
   mockEventPublisherService,
   mockRabbitMQService,
+  mockLogger,
   resetAllMocks,
 } from '../../test/mocks-simple';
 import { EventStatus } from '../../../generated/prisma';
@@ -467,6 +468,174 @@ describe('EventService Methods Coverage', () => {
       await expect(
         eventService.deleteEvent('event-123', 'speaker-123')
       ).rejects.toThrow('Event can only be deleted when in DRAFT status');
+    });
+
+    it('should handle successful invitation deletion', async () => {
+      const eventId = 'event-123';
+      const speakerId = 'speaker-123';
+      const existingEvent = createMockEvent({
+        id: eventId,
+        speakerId,
+        status: EventStatus.DRAFT,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(existingEvent);
+      mockPrisma.event.delete.mockResolvedValue(existingEvent);
+      mockAxios.delete.mockResolvedValue({
+        status: 200,
+        data: { success: true, deletedCount: 5 },
+      });
+
+      await eventService.deleteEvent(eventId, speakerId);
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'All invitations deleted successfully for event',
+        expect.objectContaining({
+          eventId,
+          deletedCount: 5,
+        })
+      );
+    });
+
+    it('should handle invitation deletion error with response', async () => {
+      const eventId = 'event-123';
+      const speakerId = 'speaker-123';
+      const existingEvent = createMockEvent({
+        id: eventId,
+        speakerId,
+        status: EventStatus.DRAFT,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(existingEvent);
+      mockPrisma.event.delete.mockResolvedValue(existingEvent);
+
+      const axiosError = {
+        isAxiosError: true,
+        response: {
+          status: 404,
+          data: { error: 'Invitations not found' },
+        },
+      };
+      mockAxios.isAxiosError.mockReturnValue(true);
+      mockAxios.delete.mockRejectedValue(axiosError);
+
+      await eventService.deleteEvent(eventId, speakerId);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to delete invitations for event',
+        expect.objectContaining({
+          eventId,
+          status: 404,
+          message: 'Invitations not found',
+        })
+      );
+    });
+
+    it('should handle invitation deletion error with request but no response', async () => {
+      const eventId = 'event-123';
+      const speakerId = 'speaker-123';
+      const existingEvent = createMockEvent({
+        id: eventId,
+        speakerId,
+        status: EventStatus.DRAFT,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(existingEvent);
+      mockPrisma.event.delete.mockResolvedValue(existingEvent);
+
+      const axiosError = {
+        isAxiosError: true,
+        request: {},
+      };
+      mockAxios.isAxiosError.mockReturnValue(true);
+      mockAxios.delete.mockRejectedValue(axiosError);
+
+      await eventService.deleteEvent(eventId, speakerId);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Speaker service unavailable when deleting invitations',
+        expect.objectContaining({
+          eventId,
+        })
+      );
+    });
+
+    it('should handle invitation deletion error with message', async () => {
+      const eventId = 'event-123';
+      const speakerId = 'speaker-123';
+      const existingEvent = createMockEvent({
+        id: eventId,
+        speakerId,
+        status: EventStatus.DRAFT,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(existingEvent);
+      mockPrisma.event.delete.mockResolvedValue(existingEvent);
+
+      const axiosError = {
+        isAxiosError: true,
+        message: 'Network timeout',
+      };
+      mockAxios.isAxiosError.mockReturnValue(true);
+      mockAxios.delete.mockRejectedValue(axiosError);
+
+      await eventService.deleteEvent(eventId, speakerId);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Error deleting invitations for event',
+        expect.objectContaining({
+          eventId,
+          message: 'Network timeout',
+        })
+      );
+    });
+
+    it('should handle non-axios error during invitation deletion', async () => {
+      const eventId = 'event-123';
+      const speakerId = 'speaker-123';
+      const existingEvent = createMockEvent({
+        id: eventId,
+        speakerId,
+        status: EventStatus.DRAFT,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(existingEvent);
+      mockPrisma.event.delete.mockResolvedValue(existingEvent);
+
+      const error = new Error('Unexpected error');
+      mockAxios.isAxiosError.mockReturnValue(false);
+      mockAxios.delete.mockRejectedValue(error);
+
+      await eventService.deleteEvent(eventId, speakerId);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Unexpected error deleting invitations for event',
+        expect.objectContaining({
+          eventId,
+          error: 'Unexpected error',
+        })
+      );
+    });
+
+    it('should allow admin to delete any event', async () => {
+      const eventId = 'event-123';
+      const adminId = 'admin-123';
+      const existingEvent = createMockEvent({
+        id: eventId,
+        speakerId: 'different-speaker',
+        status: EventStatus.PUBLISHED,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue(existingEvent);
+      mockPrisma.event.delete.mockResolvedValue(existingEvent);
+      mockAxios.delete.mockResolvedValue({
+        status: 200,
+        data: { success: true },
+      });
+
+      await eventService.deleteEvent(eventId, adminId, { isAdmin: true });
+
+      expect(mockPrisma.event.delete).toHaveBeenCalled();
     });
   });
 
