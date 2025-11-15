@@ -11,9 +11,9 @@ const router = Router();
 router.use(requireAdmin);
 
 /**
- * POST /admin/seed/update-booking-date - Update booking createdAt date (seeding-specific)
+ * POST /seed/update-booking-date - Update booking createdAt date (seeding-specific)
  */
-router.post('/admin/seed/update-booking-date',
+router.post('/seed/update-booking-date',
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { bookingId, createdAt } = req.body;
 

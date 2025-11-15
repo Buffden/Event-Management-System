@@ -15,9 +15,9 @@ const router = Router();
 router.use(requireAdmin);
 
 /**
- * GET /admin/events/:eventId/bookings - Get all bookings for a specific event
+ * GET /events/:eventId/bookings - Get all bookings for a specific event
  */
-router.get('/admin/events/:eventId/bookings',
+router.get('/events/:eventId/bookings',
   validateQuery(validatePagination),
   validateQuery(validateBookingStatus),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -62,9 +62,9 @@ router.get('/admin/events/:eventId/bookings',
 );
 
 /**
- * GET /admin/bookings - Get all bookings across all events
+ * GET /bookings - Get all bookings across all events
  */
-router.get('/admin/bookings',
+router.get('/bookings',
   validateQuery(validatePagination),
   validateQuery(validateBookingStatus),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -108,9 +108,9 @@ router.get('/admin/bookings',
 );
 
 /**
- * GET /admin/events/:eventId/capacity - Get detailed capacity information for an event
+ * GET /events/:eventId/capacity - Get detailed capacity information for an event
  */
-router.get('/admin/events/:eventId/capacity',
+router.get('/events/:eventId/capacity',
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { eventId } = req.params;
 
@@ -139,9 +139,9 @@ router.get('/admin/events/:eventId/capacity',
 );
 
 /**
- * GET /admin/bookings/:id - Get specific booking details (admin view)
+ * GET /bookings/:id - Get specific booking details (admin view)
  */
-router.get('/admin/bookings/:id',
+router.get('/bookings/:id',
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
 
@@ -177,9 +177,9 @@ router.get('/admin/bookings/:id',
 );
 
 /**
- * DELETE /admin/bookings/:id - Cancel a booking (admin override)
+ * DELETE /bookings/:id - Cancel a booking (admin override)
  */
-router.delete('/admin/bookings/:id',
+router.delete('/bookings/:id',
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const adminId = req.user!.userId;
@@ -460,8 +460,257 @@ router.put('/:ticketId/revoke', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// ==================== TICKET MANAGEMENT ROUTES (Client-compatible paths) ====================
+// These routes match the client API expectations: /admin/tickets/events/:eventId/...
+
 /**
- * GET /admin/stats - Get booking statistics for admin dashboard
+ * Get attendance report for an event (client-compatible path)
+ * GET /tickets/events/:eventId/attendance
+ */
+router.get('/tickets/events/:eventId/attendance', async (req: AuthRequest, res: Response) => {
+  try {
+    const { eventId } = req.params;
+
+    const attendance = await ticketService.getEventAttendance(eventId);
+
+    return res.json({
+      success: true,
+      data: attendance
+    });
+  } catch (error) {
+    logger.error('Get event attendance failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Get all tickets for an event (client-compatible path)
+ * GET /tickets/events/:eventId/tickets
+ */
+router.get('/tickets/events/:eventId/tickets', async (req: AuthRequest, res: Response) => {
+  try {
+    const { eventId } = req.params;
+    const { page = '1', limit = '10', status } = req.query;
+
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: {
+      booking: {
+        eventId: string;
+      };
+      status?: TicketStatus;
+    } = {
+      booking: {
+        eventId: eventId
+      }
+    };
+
+    if (status) {
+      where.status = status as TicketStatus;
+    }
+
+    const [tickets, total] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        include: {
+          qrCode: true,
+          booking: {
+            include: {
+              event: true
+            }
+          },
+          attendanceRecords: true
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        skip,
+        take: limitNum
+      }),
+      prisma.ticket.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    return res.json({
+      success: true,
+      data: {
+        tickets: tickets.map(ticket => ({
+          id: ticket.id,
+          bookingId: ticket.bookingId,
+          userId: ticket.booking.userId,
+          eventId: ticket.booking.eventId,
+          status: ticket.status,
+          issuedAt: ticket.issuedAt.toISOString(),
+          expiresAt: ticket.expiresAt.toISOString(),
+          scannedAt: ticket.scannedAt?.toISOString(),
+          qrCode: ticket.qrCode ? {
+            id: ticket.qrCode.id,
+            data: ticket.qrCode.data,
+            format: ticket.qrCode.format,
+            scanCount: ticket.qrCode.scanCount
+          } : null,
+          attendanceRecords: ticket.attendanceRecords.map(record => ({
+            id: record.id,
+            scanTime: record.scanTime.toISOString(),
+            scanLocation: record.scanLocation,
+            scannedBy: record.scannedBy,
+            scanMethod: record.scanMethod
+          }))
+        })),
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages
+      }
+    });
+  } catch (error) {
+    logger.error('Get event tickets failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Get ticket statistics for an event (client-compatible path)
+ * GET /tickets/events/:eventId/stats
+ */
+router.get('/tickets/events/:eventId/stats', async (req: AuthRequest, res: Response) => {
+  try {
+    const { eventId } = req.params;
+
+    const [
+      totalTickets,
+      issuedTickets,
+      scannedTickets,
+      revokedTickets,
+      expiredTickets
+    ] = await Promise.all([
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          }
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          },
+          status: 'ISSUED'
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          },
+          status: 'SCANNED'
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          },
+          status: 'REVOKED'
+        }
+      }),
+      prisma.ticket.count({
+        where: {
+          booking: {
+            eventId: eventId
+          },
+          status: 'EXPIRED'
+        }
+      })
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        totalTickets,
+        issuedTickets,
+        scannedTickets,
+        revokedTickets,
+        expiredTickets,
+        attendanceRate: totalTickets > 0 ? (scannedTickets / totalTickets) * 100 : 0
+      }
+    });
+  } catch (error) {
+    logger.error('Get ticket stats failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * Revoke a ticket (Admin only) (client-compatible path)
+ * PUT /tickets/:ticketId/revoke
+ */
+router.put('/tickets/:ticketId/revoke', async (req: AuthRequest, res: Response) => {
+  try {
+    const { ticketId } = req.params;
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        booking: {
+          include: {
+            event: true
+          }
+        }
+      }
+    });
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ticket not found'
+      });
+    }
+
+    if (ticket.status === 'REVOKED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Ticket is already revoked'
+      });
+    }
+
+    await prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        status: 'REVOKED'
+      }
+    });
+
+    logger.info('Ticket revoked by admin', { ticketId, adminId: req.user?.userId });
+
+    return res.json({
+      success: true,
+      message: 'Ticket revoked successfully'
+    });
+  } catch (error) {
+    logger.error('Revoke ticket failed', error as Error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+/**
+ * GET /stats - Get booking statistics for admin dashboard
  */
 router.get('/stats',
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -481,7 +730,7 @@ router.get('/stats',
 );
 
 /**
- * GET /admin/attendance-stats - Get overall attendance statistics across all events
+ * GET /attendance-stats - Get overall attendance statistics across all events
  * Only counts attendees (USER role), excludes admins and speakers
  */
 router.get('/attendance-stats',
@@ -540,7 +789,7 @@ router.get('/attendance-stats',
 );
 
 /**
- * GET /admin/users/event-counts - Get event registration counts per user
+ * GET /users/event-counts - Get event registration counts per user
  */
 router.get('/users/event-counts',
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -566,7 +815,7 @@ router.get('/users/event-counts',
 );
 
 /**
- * GET /admin/reports/top-events - Get top performing events with registrations and attendance
+ * GET /reports/top-events - Get top performing events with registrations and attendance
  * Only counts attendees (USER role), excludes admins and speakers
  */
 router.get('/reports/top-events',

@@ -64,7 +64,7 @@ export default function AdminTicketsPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const logger = useLogger();
-  
+
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [ticketStats, setTicketStats] = useState<TicketStats | null>(null);
@@ -92,7 +92,7 @@ export default function AdminTicketsPage() {
       router.push('/dashboard');
       return;
     }
-    
+
     loadEvents();
   }, [isAuthenticated, isAdmin, router]);
 
@@ -115,7 +115,7 @@ export default function AdminTicketsPage() {
     // Filter by search term (user ID)
     if (filters.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(ticket => 
+      filtered = filtered.filter(ticket =>
         ticket.userId.toLowerCase().includes(searchLower) ||
         ticket.id.toLowerCase().includes(searchLower)
       );
@@ -125,7 +125,7 @@ export default function AdminTicketsPage() {
     if (filters.dateRange) {
       const now = new Date();
       const filterDate = new Date();
-      
+
       switch (filters.dateRange) {
         case 'today':
           filterDate.setHours(0, 0, 0, 0);
@@ -149,10 +149,10 @@ export default function AdminTicketsPage() {
     try {
       setLoading(true);
       logger.info(LOGGER_COMPONENT_NAME, 'Loading events for admin');
-      
+
       const response = await eventAPI.getAllEvents();
       setEvents(response.data?.events || []);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Events loaded successfully');
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load events', error as Error);
@@ -166,10 +166,12 @@ export default function AdminTicketsPage() {
 
     try {
       logger.info(LOGGER_COMPONENT_NAME, 'Loading ticket stats for event');
-      
-      const stats = await adminTicketAPI.getEventTicketStats(selectedEventId);
-      setTicketStats(stats);
-      
+
+      const response = await adminTicketAPI.getEventTicketStats(selectedEventId);
+      // Backend returns { success: true, data: { totalTickets, ... } }
+      const statsData = response.data || response;
+      setTicketStats(statsData);
+
       logger.info(LOGGER_COMPONENT_NAME, 'Ticket stats loaded successfully');
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load ticket stats', error as Error);
@@ -182,17 +184,17 @@ export default function AdminTicketsPage() {
     try {
       setTicketsLoading(true);
       logger.info(LOGGER_COMPONENT_NAME, 'Loading tickets for event');
-      
+
       const response = await adminTicketAPI.getEventTickets(selectedEventId, {
         page: 1,
         limit: 100
       });
-      
+
       // Fix: Backend returns data.tickets, not response.tickets
       const ticketsData = response.data?.tickets || [];
       setTickets(ticketsData);
       setFilteredTickets(ticketsData);
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'Event tickets loaded successfully', { count: ticketsData.length });
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load event tickets', error as Error);
@@ -209,11 +211,11 @@ export default function AdminTicketsPage() {
       logger.info(LOGGER_COMPONENT_NAME, 'Revoking ticket');
 
       const result = await adminTicketAPI.revokeTicket(ticketId);
-      
+
       if (result.success) {
         setRevokeStatus(prev => ({ ...prev, [ticketId]: 'success' }));
         logger.info(LOGGER_COMPONENT_NAME, 'Ticket revoked successfully');
-        
+
         // Refresh the tickets list
         loadEventTickets();
         loadEventTicketStats();
@@ -234,7 +236,7 @@ export default function AdminTicketsPage() {
       'REVOKED': 'destructive',
       'EXPIRED': 'outline'
     } as const;
-    
+
     return (
       <Badge variant={variants[status as keyof typeof variants] || 'outline'}>
         {status}
@@ -347,7 +349,7 @@ export default function AdminTicketsPage() {
                   <div className="text-2xl font-bold">{ticketStats.totalTickets}</div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Issued</CardTitle>
@@ -356,7 +358,7 @@ export default function AdminTicketsPage() {
                   <div className="text-2xl font-bold text-blue-600">{ticketStats.issuedTickets}</div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Scanned</CardTitle>
@@ -365,7 +367,7 @@ export default function AdminTicketsPage() {
                   <div className="text-2xl font-bold text-green-600">{ticketStats.scannedTickets}</div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Expired</CardTitle>
@@ -374,7 +376,7 @@ export default function AdminTicketsPage() {
                   <div className="text-2xl font-bold text-orange-600">{ticketStats.expiredTickets}</div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium">Revoked</CardTitle>
