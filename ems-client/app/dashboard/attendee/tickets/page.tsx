@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { useLogger } from '@/lib/logger/LoggerProvider';
 import { TicketResponse } from '@/lib/api/types/booking.types';
-import { DashboardHeader } from '@/components/attendee/DashboardHeader';
+import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { LoadingSpinner } from '@/components/attendee/LoadingSpinner';
 import { EmptyState } from '@/components/attendee/EmptyState';
 import { TicketCard } from '@/components/attendee/TicketCard';
@@ -107,6 +107,11 @@ export default function AttendeeTicketsPage() {
       <DashboardHeader
         user={user}
         title="My Tickets"
+        badge={{
+          label: 'Attendee Portal',
+          variant: 'secondary',
+          className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+        }}
         showBackButton
         backHref="/dashboard/attendee"
       />

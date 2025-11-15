@@ -16,7 +16,6 @@ import { useEffect, useState } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
 import { withUserAuth } from "@/components/hoc/withAuth";
 import { attendeeDashboardAPI } from "@/lib/api/booking.api";
-import { DashboardHeader } from "@/components/attendee/DashboardHeader";
 import { LoadingSpinner } from "@/components/attendee/LoadingSpinner";
 import { ErrorMessage } from "@/components/attendee/ErrorMessage";
 import { StatsCard } from "@/components/attendee/StatsCard";
@@ -99,7 +98,6 @@ function AttendeeDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <DashboardHeader user={user} onLogout={logout} />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
