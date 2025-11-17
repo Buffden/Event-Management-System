@@ -218,16 +218,18 @@ function AdminMessagingCenter() {
 
       // Load all users
       const usersResponse = await adminApiClient.getAllUsers({ limit: 1000 });
-      const users = usersResponse.data.map(user => ({
+      const users = (usersResponse.data || []).map(user => ({
         id: user.id,
         name: user.name || user.email,
         email: user.email,
         type: 'user' as const
       }));
 
-      // Load all speakers
-      const speakers = await speakerApiClient.searchSpeakers({ query: '', limit: 1000 });
-      const speakersList = speakers.map(speaker => ({
+      // Load all speakers - use undefined for query to get all speakers
+      const speakers = await speakerApiClient.searchSpeakers({ limit: 1000 });
+      // Ensure speakers is an array
+      const speakersArray = Array.isArray(speakers) ? speakers : [];
+      const speakersList = speakersArray.map(speaker => ({
         id: speaker.userId,
         name: speaker.name,
         email: speaker.email,
@@ -245,7 +247,7 @@ function AdminMessagingCenter() {
 
       logger.info(LOGGER_COMPONENT_NAME, 'All recipients loaded', {
         usersCount: users.length,
-        speakersCount: speakers.length,
+        speakersCount: speakersArray.length,
         totalCount: allRecipientsList.length
       });
     } catch (error) {

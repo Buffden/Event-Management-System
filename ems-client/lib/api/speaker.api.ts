@@ -168,12 +168,13 @@ class SpeakerApiClient extends BaseApiClient {
     if (filters.limit) params.append('limit', filters.limit.toString());
     if (filters.offset) params.append('offset', filters.offset.toString());
 
-    return this.request<SpeakerProfile[]>(`/?${params.toString()}`);
+    const result = await this.request<ApiResponse<SpeakerProfile[]>>(`/?${params.toString()}`);
+    return result.data || [];
   }
 
   // Invitation Management - use direct API calls to /api/invitations
   async getSpeakerInvitations(
-    speakerId: string, 
+    speakerId: string,
     filters?: {
       search?: string;
       status?: string;
@@ -205,11 +206,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return {
       invitations: result.data || [],
@@ -232,11 +233,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data || [];
   }
@@ -250,11 +251,11 @@ class SpeakerApiClient extends BaseApiClient {
       },
       body: JSON.stringify(response),
     });
-    
+
     if (!fetchResponse.ok) {
       throw new Error(`HTTP error! status: ${fetchResponse.status}`);
     }
-    
+
     const result = await fetchResponse.json();
     return result.data;
   }
@@ -273,11 +274,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data || { total: 0, pending: 0, accepted: 0, declined: 0, expired: 0 };
   }
@@ -291,11 +292,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data || [];
   }
@@ -308,11 +309,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data || [];
   }
@@ -325,11 +326,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data || [];
   }
@@ -342,11 +343,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data || null;
   }
@@ -360,11 +361,11 @@ class SpeakerApiClient extends BaseApiClient {
       },
       body: JSON.stringify(message),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data;
   }
@@ -377,11 +378,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data;
   }
@@ -394,11 +395,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data || { count: 0 };
   }
@@ -412,11 +413,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data || [];
   }
@@ -484,11 +485,11 @@ class SpeakerApiClient extends BaseApiClient {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return result.data || { totalMaterials: 0, totalSize: 0, materialsByType: {} };
   }

@@ -69,7 +69,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Sessions and speakers state
   const [sessions, setSessions] = useState<SessionResponse[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -220,15 +220,10 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
         });
       });
 
-      if (allSessionSpeakers.length === 0) {
-        setAllSpeakers([]);
-        return;
-      }
-
       // Create invitation lookup map by sessionId and speakerId
       const invitationMap = new Map<string, SpeakerInvitation>();
       eventInvitations.forEach(invitation => {
-        const key = invitation.sessionId 
+        const key = invitation.sessionId
           ? `${invitation.sessionId}:${invitation.speakerId}`
           : `event-level:${invitation.speakerId}`;
         invitationMap.set(key, invitation);
@@ -236,13 +231,50 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
       // Create a map to track all session-speaker combinations
       const sessionSpeakerMap = new Map<string, { speakerId: string; session?: SessionResponse; invitation?: SpeakerInvitation }>();
-      
+
       // Process all session speakers
       allSessionSpeakers.forEach(({ speakerId, session }) => {
         const key = session ? `${session.id}:${speakerId}` : `event-level:${speakerId}`;
         const invitation = invitationMap.get(key);
         sessionSpeakerMap.set(key, { speakerId, session, invitation });
       });
+
+      // Also include event-level speakers (invited to event but not assigned to a session)
+      eventInvitations.forEach(invitation => {
+        if (!invitation.sessionId) {
+          // This is an event-level invitation
+          const key = `event-level:${invitation.speakerId}`;
+          // Only add if not already in the map (to avoid duplicates)
+          if (!sessionSpeakerMap.has(key)) {
+            sessionSpeakerMap.set(key, {
+              speakerId: invitation.speakerId,
+              session: undefined,
+              invitation
+            });
+          }
+        }
+      });
+
+      // Also include speakers from currentSpeakerAttendance who have joined (even if not in sessions or invitations)
+      if (currentSpeakerAttendance && currentSpeakerAttendance.speakers) {
+        currentSpeakerAttendance.speakers.forEach(speaker => {
+          const key = `event-level:${speaker.speakerId}`;
+          // Only add if not already in the map
+          if (!sessionSpeakerMap.has(key)) {
+            sessionSpeakerMap.set(key, {
+              speakerId: speaker.speakerId,
+              session: undefined,
+              invitation: undefined
+            });
+          }
+        });
+      }
+
+      // If no speakers found at all, return empty array
+      if (sessionSpeakerMap.size === 0) {
+        setAllSpeakers([]);
+        return;
+      }
 
       // Create a map of joined speaker IDs from current speaker attendance (if available)
       const joinedSpeakerIds = new Set<string>();
@@ -291,10 +323,10 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                 } as SpeakerProfile;
               }
             }
-            
+
             // Check join status from current speaker attendance data
             const hasJoined = joinedSpeakerIds.has(speakerId);
-            
+
             return {
               speaker,
               session: session || undefined,
@@ -313,7 +345,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
       // Filter out any null results
       const validSpeakers = speakersWithInfo.filter((item): item is NonNullable<typeof item> => item !== null);
-      
+
       // Log join status for debugging
       const joinedCount = validSpeakers.filter(s => s.hasJoined).length;
       logger.info(LOGGER_COMPONENT_NAME, 'All speakers loaded for sessions', {
@@ -324,7 +356,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
         hasSpeakerAttendance: !!currentSpeakerAttendance,
         speakerAttendanceCount: currentSpeakerAttendance?.speakers?.length || 0
       });
-      
+
       setAllSpeakers(validSpeakers);
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to load all speakers for sessions', error as Error);
@@ -354,7 +386,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       });
 
       // Only update if join status has changed
-      const hasChanges = prevSpeakers.some(speaker => 
+      const hasChanges = prevSpeakers.some(speaker =>
         speaker.hasJoined !== joinedSpeakerIds.has(speaker.speaker.id)
       );
 
@@ -393,10 +425,10 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
   }>) => {
     try {
       const token = attendanceAPI.getToken();
-      
+
       // Collect all unique material IDs with their speaker information
       const materialSpeakerMap = new Map<string, Array<{ speakerId: string; speakerName: string }>>();
-      
+
       joinedSpeakers.forEach(speaker => {
         speaker.materialsSelected.forEach(materialId => {
           if (!materialSpeakerMap.has(materialId)) {
@@ -415,7 +447,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
       // Check if material IDs have changed - if not, skip fetching
       const previousIds = previousMaterialIdsRef.current;
-      const idsChanged = 
+      const idsChanged =
         previousIds.size !== currentMaterialIdsSet.size ||
         !Array.from(currentMaterialIdsSet).every(id => previousIds.has(id));
 
@@ -456,7 +488,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
           }
           const result = await response.json();
           const material = result.data || null;
-          
+
           if (material) {
             // Get speaker info for this material
             const speakers = materialSpeakerMap.get(materialId) || [];
@@ -467,7 +499,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
               speakerName: speaker.speakerName
             }));
           }
-          
+
           return null;
         } catch (err) {
           logger.warn(LOGGER_COMPONENT_NAME, 'Failed to load material', err as Error);
@@ -476,14 +508,14 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       });
 
       const materialResults = await Promise.all(materialPromises);
-      
+
       // Flatten the results (each material might be associated with multiple speakers)
       const allMaterials: Array<{
         material: PresentationMaterial;
         speakerId: string;
         speakerName: string;
       }> = [];
-      
+
       materialResults.forEach(result => {
         if (result && Array.isArray(result)) {
           allMaterials.push(...result);
@@ -497,7 +529,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
         speakerId: string;
         speakerName: string;
       }>();
-      
+
       allMaterials.forEach(item => {
         const key = `${item.material.id}-${item.speakerId}`;
         if (!uniqueMaterials.has(key)) {
@@ -506,7 +538,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       });
 
       setSelectedMaterials(Array.from(uniqueMaterials.values()));
-      
+
       logger.info(LOGGER_COMPONENT_NAME, 'All speaker materials loaded', {
         eventId,
         totalMaterials: uniqueMaterials.size,
@@ -583,9 +615,9 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     setRefreshing(true);
     try {
       await Promise.all([
-        loadEvent(), 
-        loadAttendance(), 
-        loadSessions(), 
+        loadEvent(),
+        loadAttendance(),
+        loadSessions(),
         loadEventInvitations()
       ]);
       // Note: updateSpeakerJoinStatus will be called automatically via useEffect
@@ -611,18 +643,18 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
       logger.info(LOGGER_COMPONENT_NAME, 'Attempting to auto-join attendee to event', { eventId });
 
       const result = await attendanceAPI.joinEvent(eventId);
-      
+
       if (result.success) {
-        logger.info(LOGGER_COMPONENT_NAME, 'Attendee auto-joined event successfully', { 
-          eventId, 
-          isFirstJoin: result.isFirstJoin 
+        logger.info(LOGGER_COMPONENT_NAME, 'Attendee auto-joined event successfully', {
+          eventId,
+          isFirstJoin: result.isFirstJoin
         });
         // The auto-refresh interval (every 5 seconds) will pick up the change
         // for admins and speakers viewing the event
       } else {
-        logger.warn(LOGGER_COMPONENT_NAME, 'Failed to auto-join attendee', { 
-          eventId, 
-          message: result.message 
+        logger.warn(LOGGER_COMPONENT_NAME, 'Failed to auto-join attendee', {
+          eventId,
+          message: result.message
         });
         // Don't show error to user - they might have already joined or event hasn't started
       }
@@ -655,7 +687,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
     // Only load attendance if event is loaded and we haven't loaded it for this event yet
     if (event && event.id !== loadedAttendanceEventIdRef.current) {
       loadedAttendanceEventIdRef.current = event.id;
-      
+
       // Auto-join attendees when they enter the auditorium
       // The backend will validate if the event has started
       if (userRole === 'USER') {
@@ -930,7 +962,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                         const speakerName = speakerMaterials[0]?.speakerName || 'Speaker';
                         const uniqueSpeakers = new Set(selectedMaterials.map(m => m.speakerId)).size;
                         const showSpeakerHeader = uniqueSpeakers > 1;
-                        
+
                         return (
                           <div key={speakerId} className="space-y-2">
                             {showSpeakerHeader && (
@@ -1171,7 +1203,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                       <UserCheck className="h-5 w-5 mr-2 text-green-600 dark:text-green-400" />
                       Joined Attendees ({joinedAttendees.length})
                     </div>
-                    <div 
+                    <div
                       className="text-xs text-slate-500 dark:text-slate-400 cursor-help"
                       title="Shows attendees who joined the event. They may have left the page but are still counted as having joined."
                     >
@@ -1186,7 +1218,7 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
                         joinedAttendees.map((attendee) => {
                           const joinedAt = attendee.joinedAt ? new Date(attendee.joinedAt) : null;
                           const timeAgo = joinedAt ? getTimeAgo(joinedAt) : null;
-                          
+
                           return (
                             <div key={attendee.userId} className="flex items-center space-x-3 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700/30">
                               <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">

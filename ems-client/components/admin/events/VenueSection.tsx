@@ -24,6 +24,11 @@ export function VenueSection({
     label: `${venue.name} - ${venue.address} (Capacity: ${venue.capacity})`
   }));
 
+  const handleChange = (value: string | number) => {
+    const numValue = typeof value === 'number' ? value : Number(value);
+    onVenueChange(isNaN(numValue) ? 0 : numValue);
+  };
+
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
@@ -35,7 +40,7 @@ export function VenueSection({
         id="venueId"
         label="Select Venue"
         value={venueId}
-        onChange={onVenueChange}
+        onChange={handleChange}
         options={venueOptions}
         placeholder="Select a venue"
         required

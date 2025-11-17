@@ -7,7 +7,7 @@ interface BasicInfoSectionProps {
   name: string;
   category: string;
   description: string;
-  bannerImageUrl: string;
+  bannerImageUrl: string | undefined;
   errors: Record<string, string>;
   onNameChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
@@ -68,7 +68,7 @@ export function BasicInfoSection({
       <TextInput
         id="bannerImageUrl"
         label="Banner Image URL"
-        value={bannerImageUrl}
+        value={bannerImageUrl || ''}
         onChange={onBannerImageUrlChange}
         placeholder="https://example.com/image.jpg"
         type="url"
