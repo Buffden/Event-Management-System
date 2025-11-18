@@ -441,6 +441,65 @@ export class AdminApiClient extends BaseApiClient {
     }
   }
 
+  // User Growth Report
+  async getUserGrowthData(): Promise<Array<{
+    month: string;
+    users: number;
+    newUsers: number;
+  }>> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching user growth data', {
+        tokenExists: !!this.getToken(),
+        tokenLength: this.getToken()?.length || 0
+      });
+
+      const response = await fetch('/api/auth/admin/reports/user-growth', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(LOGGER_COMPONENT_NAME, 'User growth API error', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText
+        });
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      const result = await response.json();
+
+      logger.info(LOGGER_COMPONENT_NAME, 'User growth data retrieved', {
+        success: result.success,
+        dataLength: result.data?.length || 0,
+        hasData: !!result.data,
+        sampleData: result.data?.slice(0, 2) // Log first 2 items for debugging
+      });
+
+      if (!result.success) {
+        logger.warn(LOGGER_COMPONENT_NAME, 'User growth API returned success: false', result);
+        return [];
+      }
+
+      return result.data || [];
+    } catch (error) {
+      logger.errorWithContext(
+        LOGGER_COMPONENT_NAME,
+        'Failed to fetch user growth data',
+        error as Error,
+        {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
+      );
+      throw error;
+    }
+  }
+
   // Reports
   async getReportsData(): Promise<{
     totalEvents: number;

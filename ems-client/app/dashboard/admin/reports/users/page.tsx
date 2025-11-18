@@ -51,18 +51,34 @@ export default function UserReportPage() {
       setError(null);
       logger.info(COMPONENT_NAME, 'Loading user report data');
 
-      // Fetch user growth data
-      const userGrowthResponse = await fetch('/api/auth/admin/reports/user-growth', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      // Fetch user growth data using adminApiClient
+      try {
+        logger.debug(COMPONENT_NAME, 'Fetching user growth data...');
+        const userGrowthData = await adminApiClient.getUserGrowthData();
+        logger.info(COMPONENT_NAME, 'User growth data received', {
+          dataLength: userGrowthData.length,
+          sampleData: userGrowthData.slice(0, 3) // Log first 3 items for debugging
+        });
 
-      if (userGrowthResponse.ok) {
-        const userGrowthData = await userGrowthResponse.json();
-        setUserGrowth(userGrowthData.data || []);
+        if (userGrowthData && userGrowthData.length > 0) {
+          setUserGrowth(userGrowthData);
+        } else {
+          logger.warn(COMPONENT_NAME, 'User growth data is empty');
+          setUserGrowth([]);
+        }
+      } catch (fetchError) {
+        logger.errorWithContext(
+          COMPONENT_NAME,
+          'Error fetching user growth data',
+          fetchError as Error,
+          {
+            errorMessage:
+              fetchError instanceof Error ? fetchError.message : String(fetchError),
+            errorStack: fetchError instanceof Error ? fetchError.stack : undefined
+          }
+        );
+        // Don't set error state, just log it - other data might still be available
+        setUserGrowth([]); // Set empty array so charts show "No data available"
       }
 
       // Fetch user statistics
@@ -79,7 +95,10 @@ export default function UserReportPage() {
         Object.entries(roleCounts).map(([role, count]) => ({ role, count }))
       );
 
-      logger.info(COMPONENT_NAME, 'User report data loaded successfully');
+      logger.info(COMPONENT_NAME, 'User report data loaded successfully', {
+        totalUsers,
+        userRolesCount: Object.keys(roleCounts).length
+      });
     } catch (err) {
       logger.error(COMPONENT_NAME, 'Failed to load user report data', err as Error);
       setError('Failed to load user report data. Please try again later.');
