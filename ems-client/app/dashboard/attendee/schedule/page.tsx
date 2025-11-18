@@ -16,7 +16,7 @@ import { PageLayout } from '@/components/attendee/PageLayout';
 const LOGGER_COMPONENT_NAME = 'AttendeeSchedulePage';
 
 export default function AttendeeSchedulePage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const logger = useLogger();
 
@@ -39,18 +39,29 @@ export default function AttendeeSchedulePage() {
   });
 
   useEffect(() => {
+    // Wait for auth check to complete before redirecting
+    if (isLoading) {
+      return;
+    }
+
+    // Only redirect if auth check is complete and user is not authenticated
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
+    // Wait for auth check to complete before loading schedule
+    if (isLoading) {
+      return;
+    }
+
     if (isAuthenticated) {
       loadSchedule();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate, isAuthenticated]);
+  }, [startDate, endDate, isAuthenticated, isLoading]);
 
   const loadSchedule = async () => {
     try {
@@ -211,8 +222,9 @@ export default function AttendeeSchedulePage() {
     return { start: rangeStart, end: rangeEnd, days };
   }, [scheduleItems, startDate, endDate]);
 
-  if (loading) {
-    return <LoadingSpinner message="Loading schedule..." />;
+  // Show loading spinner while auth is being checked or schedule is loading
+  if (isLoading || loading) {
+    return <LoadingSpinner message={isLoading ? "Checking authentication..." : "Loading schedule..."} />;
   }
 
   return (

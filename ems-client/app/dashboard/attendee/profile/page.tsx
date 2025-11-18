@@ -23,7 +23,7 @@ interface ProfileFormData {
 }
 
 export default function AttendeeProfilePage() {
-  const { user, checkAuth, isAuthenticated } = useAuth();
+  const { user, checkAuth, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const logger = useLogger();
 
@@ -41,13 +41,19 @@ export default function AttendeeProfilePage() {
   });
 
   useEffect(() => {
+    // Wait for auth check to complete before redirecting
+    if (isLoading) {
+      return;
+    }
+
+    // Only redirect if auth check is complete and user is not authenticated
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
 
     loadProfile();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, isLoading, user]);
 
   const loadProfile = async () => {
     try {
@@ -175,8 +181,9 @@ export default function AttendeeProfilePage() {
     }
   };
 
-  if (loading) {
-    return <LoadingSpinner message="Loading profile..." />;
+  // Show loading spinner while auth is being checked or profile is loading
+  if (isLoading || loading) {
+    return <LoadingSpinner message={isLoading ? "Checking authentication..." : "Loading profile..."} />;
   }
 
   return (

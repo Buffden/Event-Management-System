@@ -17,7 +17,7 @@ import { TicketSectionHeader } from '@/components/attendee/TicketSectionHeader';
 const LOGGER_COMPONENT_NAME = 'AttendeeTicketsPage';
 
 export default function AttendeeTicketsPage() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const logger = useLogger();
 
@@ -25,13 +25,19 @@ export default function AttendeeTicketsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Wait for auth check to complete before redirecting
+    if (isLoading) {
+      return;
+    }
+
+    // Only redirect if auth check is complete and user is not authenticated
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
 
     loadTickets();
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   const loadTickets = async () => {
     try {
@@ -95,8 +101,9 @@ export default function AttendeeTicketsPage() {
   };
 
 
-  if (loading) {
-    return <LoadingSpinner message="Loading tickets..." />;
+  // Show loading spinner while auth is being checked or tickets are loading
+  if (isLoading || loading) {
+    return <LoadingSpinner message={isLoading ? "Checking authentication..." : "Loading tickets..."} />;
   }
 
   const activeTickets = tickets.filter(ticket => !isTicketEventExpired(ticket));

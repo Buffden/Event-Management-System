@@ -61,7 +61,7 @@ interface TicketFilters {
 }
 
 export default function AdminTicketsPage() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const logger = useLogger();
 
@@ -83,6 +83,12 @@ export default function AdminTicketsPage() {
   const isAdmin = user?.role === 'ADMIN';
 
   useEffect(() => {
+    // Wait for auth check to complete before redirecting
+    if (isLoading) {
+      return;
+    }
+
+    // Only redirect if auth check is complete and user is not authenticated
     if (!isAuthenticated) {
       router.push('/login');
       return;
@@ -94,7 +100,7 @@ export default function AdminTicketsPage() {
     }
 
     loadEvents();
-  }, [isAuthenticated, isAdmin, router]);
+  }, [isAuthenticated, isLoading, isAdmin, router]);
 
   useEffect(() => {
     if (selectedEventId) {
@@ -257,6 +263,18 @@ export default function AdminTicketsPage() {
   };
 
   const selectedEvent = events.find(event => event.id === selectedEventId);
+
+  // Show loading spinner while auth is being checked
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
