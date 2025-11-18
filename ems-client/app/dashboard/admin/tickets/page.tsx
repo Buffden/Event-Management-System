@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { useLogger } from '@/lib/logger/LoggerProvider';
 // Note: Using basic HTML elements since table and select components are not available
-import { Search, Filter, Download, RefreshCw } from 'lucide-react';
+import { Search, Filter, Download, RefreshCw, ArrowLeft } from 'lucide-react';
 
 const LOGGER_COMPONENT_NAME = 'AdminTicketsPage';
 
@@ -272,6 +272,15 @@ export default function AdminTicketsPage() {
 
   return (
     <div className="container mx-auto p-6">
+      <Button
+        variant="ghost"
+        onClick={() => router.push('/dashboard/admin')}
+        className="mb-4"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Back to Dashboard
+      </Button>
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Ticket Management</h1>
         <Button
