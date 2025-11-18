@@ -11,7 +11,7 @@ EVENT_API_URL = os.getenv('EVENT_API_URL', 'http://localhost/api/event')
 BOOKING_API_URL = os.getenv('BOOKING_API_URL', 'http://localhost/api/booking')
 
 # Admin credentials
-ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@eventmanagement.com')
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@ems.com')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'Admin123!')
 
 # Colors for terminal output

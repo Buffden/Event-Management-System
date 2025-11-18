@@ -125,7 +125,7 @@ def main():
         utils.print_error("  2. ADMIN_EMAIL and ADMIN_PASSWORD are set correctly")
         print()
         utils.print_info("Default admin credentials from seed file:")
-        utils.print_info("  Email: admin@eventmanagement.com")
+        utils.print_info("  Email: admin@ems.com")
         utils.print_info("  Password: Admin123!")
         print()
         sys.exit(1)
