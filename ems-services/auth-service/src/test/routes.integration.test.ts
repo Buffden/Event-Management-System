@@ -1,6 +1,6 @@
 /**
  * Integration Tests for Auth Service Routes using Supertest
- * 
+ *
  * Tests all HTTP endpoints with real request/response cycles
  * to achieve comprehensive route coverage.
  */
@@ -98,10 +98,10 @@ describe('Routes Integration Tests with Supertest', () => {
   describe('POST /register', () => {
     it('should register a new user successfully', async () => {
       const mockUser = createMockUser({ id: 'new-user-123', email: 'newuser@example.com', name: 'New User' });
-      
+
       // Mock the findUnique call (no existing user)
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      
+
       // Mock the transaction to return the created user
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
         const mockTx = {
@@ -122,7 +122,7 @@ describe('Routes Integration Tests with Supertest', () => {
         };
         return await callback(mockTx);
       });
-      
+
       mockBcrypt.hash.mockResolvedValue('hashed_password');
       mockJWT.sign.mockReturnValue('mock.jwt.token');
       mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
@@ -171,9 +171,9 @@ describe('Routes Integration Tests with Supertest', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      
-      const mockUser = createMockUser({ 
-        isActive: true, 
+
+      const mockUser = createMockUser({
+        isActive: true,
         password: 'hashed_password',
         accounts: [mockAccount], // Include accounts array
       });
@@ -345,7 +345,7 @@ describe('Routes Integration Tests with Supertest', () => {
     it('should verify email with valid token', async () => {
       const mockUser = createMockUser({ isActive: false, emailVerified: null });
       const verifiedUser = createMockUser({ isActive: true, emailVerified: new Date() });
-      
+
       mockJWT.verify.mockReturnValue({
         userId: mockUser.id,
         type: 'email-verification',
@@ -520,7 +520,7 @@ describe('Routes Integration Tests with Supertest', () => {
     it('should update user profile', async () => {
       const mockUser = createMockUser();
       const updatedUser = createMockUser({ name: 'Updated Name' });
-      
+
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       mockPrisma.user.update.mockResolvedValue(updatedUser);
 
@@ -681,13 +681,24 @@ describe('Routes Integration Tests with Supertest', () => {
 
   describe('GET /admin/users', () => {
     it('should return paginated user list for admin', async () => {
-      const adminUser = createMockUser({ role: 'ADMIN' });
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
       const mockUsers = [
         createMockUser({ email: 'user1@example.com' }),
         createMockUser({ email: 'user2@example.com' }),
       ];
 
-      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      // Mock JWT verification to return admin user ID
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+
+      // Mock getProfile call (used by route to verify admin)
+      mockPrisma.user.findUnique.mockImplementation((args: any) => {
+        // When called with admin user ID, return admin user
+        if (args?.where?.id === 'admin-123') {
+          return Promise.resolve(adminUser);
+        }
+        return Promise.resolve(null);
+      });
+
       mockPrisma.user.count.mockResolvedValue(2);
       mockPrisma.user.findMany.mockResolvedValue(mockUsers as any);
       (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
@@ -707,8 +718,20 @@ describe('Routes Integration Tests with Supertest', () => {
     });
 
     it('should filter users by role', async () => {
-      const adminUser = createMockUser({ role: 'ADMIN' });
-      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+
+      // Mock JWT verification to return admin user ID
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+
+      // Mock getProfile call (used by route to verify admin)
+      mockPrisma.user.findUnique.mockImplementation((args: any) => {
+        // When called with admin user ID, return admin user
+        if (args?.where?.id === 'admin-123') {
+          return Promise.resolve(adminUser);
+        }
+        return Promise.resolve(null);
+      });
+
       mockPrisma.user.count.mockResolvedValue(5);
       mockPrisma.user.findMany.mockResolvedValue([]);
       (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
@@ -729,8 +752,20 @@ describe('Routes Integration Tests with Supertest', () => {
     });
 
     it('should search users by email or name', async () => {
-      const adminUser = createMockUser({ role: 'ADMIN' });
-      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+
+      // Mock JWT verification to return admin user ID
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+
+      // Mock getProfile call (used by route to verify admin)
+      mockPrisma.user.findUnique.mockImplementation((args: any) => {
+        // When called with admin user ID, return admin user
+        if (args?.where?.id === 'admin-123') {
+          return Promise.resolve(adminUser);
+        }
+        return Promise.resolve(null);
+      });
+
       mockPrisma.user.count.mockResolvedValue(1);
       mockPrisma.user.findMany.mockResolvedValue([]);
       (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
