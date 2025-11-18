@@ -11,7 +11,8 @@ import {
   Plus,
   Eye,
   Ticket,
-  MessageSquare
+  MessageSquare,
+  MapPin
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -209,6 +210,15 @@ function AdminDashboard() {
                 >
                   <MessageSquare className="h-5 w-5" />
                   <span className="text-sm">Messages</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2 border-slate-200 dark:border-slate-700"
+                  onClick={() => router.push('/dashboard/admin/venues/create')}
+                >
+                  <MapPin className="h-5 w-5" />
+                  <span className="text-sm">Add New Venue</span>
                 </Button>
               </div>
             </CardContent>
