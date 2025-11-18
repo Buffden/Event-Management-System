@@ -339,5 +339,168 @@ describe('MessageService', () => {
       });
     });
   });
+
+  describe('getMessageById', () => {
+    it('should retrieve message by ID', async () => {
+      const messageId = 'msg-123';
+      const mockMessage = createMockMessage({ id: messageId });
+
+      mockPrisma.message.findUnique.mockResolvedValue(mockMessage);
+
+      const result = await messageService.getMessageById(messageId);
+
+      expect(result).toBeDefined();
+      expect(result?.id).toBe(messageId);
+      expect(mockPrisma.message.findUnique).toHaveBeenCalledWith({
+        where: { id: messageId },
+      });
+    });
+
+    it('should return null when message not found', async () => {
+      mockPrisma.message.findUnique.mockResolvedValue(null);
+
+      const result = await messageService.getMessageById('non-existent');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getUserMessages', () => {
+    it('should retrieve user inbox messages', async () => {
+      const userId = 'user-123';
+      const mockMessages = [createMockMessage({ toUserId: userId })];
+
+      mockPrisma.message.findMany.mockResolvedValue(mockMessages);
+
+      const result = await messageService.getUserMessages(userId, 50, 0);
+
+      expect(result).toHaveLength(1);
+      expect(mockPrisma.message.findMany).toHaveBeenCalledWith({
+        where: { toUserId: userId },
+        orderBy: { sentAt: 'desc' },
+        take: 50,
+        skip: 0,
+      });
+    });
+  });
+
+  describe('getSentMessages', () => {
+    it('should retrieve sent messages', async () => {
+      const userId = 'user-123';
+      const mockMessages = [createMockMessage({ fromUserId: userId })];
+
+      mockPrisma.message.findMany.mockResolvedValue(mockMessages);
+
+      const result = await messageService.getSentMessages(userId, 50, 0);
+
+      expect(result).toHaveLength(1);
+      expect(mockPrisma.message.findMany).toHaveBeenCalledWith({
+        where: { fromUserId: userId },
+        orderBy: { sentAt: 'desc' },
+        take: 50,
+        skip: 0,
+      });
+    });
+  });
+
+  describe('getMessageThread', () => {
+    it('should retrieve message thread', async () => {
+      const threadId = 'thread-123';
+      const mockMessages = [
+        createMockMessage({ threadId, fromUserId: 'user-1', toUserId: 'user-2' }),
+        createMockMessage({ threadId, fromUserId: 'user-2', toUserId: 'user-1' }),
+      ];
+
+      mockPrisma.message.findMany.mockResolvedValue(mockMessages);
+
+      const result = await messageService.getMessageThread(threadId);
+
+      expect(result).toBeDefined();
+      expect(result?.threadId).toBe(threadId);
+      expect(result?.messages).toHaveLength(2);
+    });
+
+    it('should return null when thread not found', async () => {
+      mockPrisma.message.findMany.mockResolvedValue([]);
+
+      const result = await messageService.getMessageThread('non-existent');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getUserThreads', () => {
+    it('should retrieve user threads', async () => {
+      const userId = 'user-123';
+      const mockMessages = [
+        createMockMessage({ threadId: 'thread-1', fromUserId: userId }),
+        createMockMessage({ threadId: 'thread-1', toUserId: userId }),
+        createMockMessage({ threadId: 'thread-2', fromUserId: userId }),
+      ];
+
+      mockPrisma.message.findMany.mockResolvedValue(mockMessages);
+
+      const result = await messageService.getUserThreads(userId, 20, 0);
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+    });
+  });
+
+  describe('getConversation', () => {
+    it('should retrieve conversation between two users', async () => {
+      const userId1 = 'user-123';
+      const userId2 = 'user-456';
+      const threadId = 'thread_user-123_user-456';
+      const mockMessages = [
+        createMockMessage({ threadId, fromUserId: userId1, toUserId: userId2 }),
+      ];
+
+      mockPrisma.message.findMany.mockResolvedValue(mockMessages);
+
+      // Mock getMessageThread since getConversation calls it
+      jest.spyOn(messageService, 'getMessageThread').mockResolvedValue({
+        threadId,
+        participants: [userId1, userId2],
+        messages: mockMessages,
+        lastMessageAt: new Date(),
+      });
+
+      const result = await messageService.getConversation(userId1, userId2);
+
+      expect(result).toBeDefined();
+      expect(result?.threadId).toBe(threadId);
+    });
+  });
+
+  describe('getUnreadMessageCount', () => {
+    it('should retrieve unread message count', async () => {
+      const userId = 'user-123';
+      mockPrisma.message.count.mockResolvedValue(5);
+
+      const result = await messageService.getUnreadMessageCount(userId);
+
+      expect(result).toBe(5);
+      expect(mockPrisma.message.count).toHaveBeenCalledWith({
+        where: {
+          toUserId: userId,
+          readAt: null,
+        },
+      });
+    });
+  });
+
+  describe('deleteMessage', () => {
+    it('should delete message', async () => {
+      const messageId = 'msg-123';
+      mockPrisma.message.delete.mockResolvedValue(createMockMessage({ id: messageId }));
+
+      await messageService.deleteMessage(messageId);
+
+      expect(mockPrisma.message.delete).toHaveBeenCalledWith({
+        where: { id: messageId },
+      });
+    });
+  });
 });
 

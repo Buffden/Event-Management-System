@@ -276,6 +276,18 @@ describe('TicketService', () => {
       );
       expect(result).toHaveLength(2);
     });
+
+    it('should handle errors when getting user tickets', async () => {
+      const dbError = new Error('Database connection failed');
+      mockPrisma.ticket.findMany.mockRejectedValue(dbError);
+
+      await expect(ticketService.getUserTickets('user-123')).rejects.toThrow('Database connection failed');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to get user tickets',
+        dbError,
+        { userId: 'user-123' }
+      );
+    });
   });
 
   // ============================================================================
@@ -364,6 +376,18 @@ describe('TicketService', () => {
 
       expect(result.totalTickets).toBe(0);
       expect(result.attendanceRate).toBe(0);
+    });
+
+    it('should handle errors when getting event attendance', async () => {
+      const dbError = new Error('Database connection failed');
+      mockPrisma.ticket.count.mockRejectedValue(dbError);
+
+      await expect(ticketService.getEventAttendance('event-123')).rejects.toThrow('Database connection failed');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to get event attendance',
+        dbError,
+        { eventId: 'event-123' }
+      );
     });
   });
 
@@ -482,6 +506,38 @@ describe('TicketService', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('Failed');
+    });
+
+    it('should throw error when mapping ticket without booking', async () => {
+      const mockTicket = mocks.createMockTicket();
+      const ticketWithoutBooking = {
+        ...mockTicket,
+        booking: null,
+      };
+
+      // Access private method through service instance
+      const service = ticketService as any;
+
+      expect(() => {
+        service.mapTicketToResponse(ticketWithoutBooking, null, null);
+      }).toThrow('Cannot map ticket to response: missing booking or eventId');
+    });
+
+    it('should throw error when mapping ticket without eventId', async () => {
+      const mockTicket = mocks.createMockTicket();
+      const ticketWithoutEventId = {
+        ...mockTicket,
+        booking: {
+          eventId: undefined,
+        },
+      };
+
+      // Access private method through service instance
+      const service = ticketService as any;
+
+      expect(() => {
+        service.mapTicketToResponse(ticketWithoutEventId, null, null);
+      }).toThrow('Cannot map ticket to response: missing booking or eventId');
     });
   });
 });

@@ -626,5 +626,163 @@ describe('EventService Coverage Tests', () => {
       );
     });
   });
+
+  describe('mapEventToResponse with sessions and speakers', () => {
+    it('should map event with sessions containing speakers', async () => {
+      const mockEvent = createMockEvent({
+        id: 'event-123',
+        status: EventStatus.PUBLISHED,
+      });
+
+      const mockSession = {
+        id: 'session-123',
+        eventId: 'event-123',
+        title: 'Test Session',
+        description: 'Test Description',
+        startsAt: new Date('2025-12-01T09:00:00Z'),
+        endsAt: new Date('2025-12-01T10:00:00Z'),
+        stage: 'Stage A',
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
+        speakers: [
+          {
+            id: 'session-speaker-123',
+            sessionId: 'session-123',
+            speakerId: 'speaker-123',
+            materialsAssetId: null,
+            materialsStatus: 'REQUESTED',
+            speakerCheckinConfirmed: false,
+            specialNotes: null,
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            updatedAt: new Date('2024-01-01T00:00:00Z'),
+          },
+        ],
+      };
+
+      mockPrisma.event.findUnique.mockResolvedValue({
+        ...mockEvent,
+        venue: createMockVenue({
+          openingTime: '09:00:00',
+          closingTime: '18:00:00',
+        }),
+        sessions: [mockSession],
+      });
+
+      const result = await eventService.getEventById('event-123', true);
+
+      expect(result).toBeDefined();
+      expect(result?.sessions).toBeDefined();
+      expect(result?.sessions.length).toBe(1);
+      expect(result?.sessions[0].id).toBe('session-123');
+      expect(result?.sessions[0].speakers).toBeDefined();
+      expect(result?.sessions[0].speakers.length).toBe(1);
+      expect(result?.sessions[0].speakers[0].id).toBe('session-speaker-123');
+    });
+
+    it('should map event with sessions having string dates', async () => {
+      const mockEvent = createMockEvent({
+        id: 'event-123',
+        status: EventStatus.PUBLISHED,
+      });
+
+      const mockSession = {
+        id: 'session-123',
+        eventId: 'event-123',
+        title: 'Test Session',
+        description: 'Test Description',
+        startsAt: '2025-12-01T09:00:00Z',
+        endsAt: '2025-12-01T10:00:00Z',
+        stage: 'Stage A',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        speakers: [
+          {
+            id: 'session-speaker-123',
+            sessionId: 'session-123',
+            speakerId: 'speaker-123',
+            materialsAssetId: null,
+            materialsStatus: 'REQUESTED',
+            speakerCheckinConfirmed: false,
+            specialNotes: null,
+            createdAt: '2024-01-01T00:00:00Z',
+            updatedAt: '2024-01-01T00:00:00Z',
+          },
+        ],
+      };
+
+      mockPrisma.event.findUnique.mockResolvedValue({
+        ...mockEvent,
+        venue: createMockVenue({
+          openingTime: '09:00:00',
+          closingTime: '18:00:00',
+        }),
+        sessions: [mockSession],
+      });
+
+      const result = await eventService.getEventById('event-123', true);
+
+      expect(result).toBeDefined();
+      expect(result?.sessions).toBeDefined();
+      expect(result?.sessions[0].startsAt).toBe('2025-12-01T09:00:00Z');
+    });
+
+    it('should map event with empty sessions array', async () => {
+      const mockEvent = createMockEvent({
+        id: 'event-123',
+        status: EventStatus.PUBLISHED,
+      });
+
+      mockPrisma.event.findUnique.mockResolvedValue({
+        ...mockEvent,
+        venue: createMockVenue({
+          openingTime: '09:00:00',
+          closingTime: '18:00:00',
+        }),
+        sessions: [],
+      });
+
+      const result = await eventService.getEventById('event-123', true);
+
+      expect(result).toBeDefined();
+      expect(result?.sessions).toBeDefined();
+      expect(result?.sessions.length).toBe(0);
+    });
+
+    it('should map event with sessions having non-array speakers', async () => {
+      const mockEvent = createMockEvent({
+        id: 'event-123',
+        status: EventStatus.PUBLISHED,
+      });
+
+      const mockSession = {
+        id: 'session-123',
+        eventId: 'event-123',
+        title: 'Test Session',
+        description: 'Test Description',
+        startsAt: new Date('2025-12-01T09:00:00Z'),
+        endsAt: new Date('2025-12-01T10:00:00Z'),
+        stage: 'Stage A',
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
+        speakers: null,
+      };
+
+      mockPrisma.event.findUnique.mockResolvedValue({
+        ...mockEvent,
+        venue: createMockVenue({
+          openingTime: '09:00:00',
+          closingTime: '18:00:00',
+        }),
+        sessions: [mockSession],
+      });
+
+      const result = await eventService.getEventById('event-123', true);
+
+      expect(result).toBeDefined();
+      expect(result?.sessions).toBeDefined();
+      expect(result?.sessions[0].speakers).toBeDefined();
+      expect(result?.sessions[0].speakers.length).toBe(0);
+    });
+  });
 });
 

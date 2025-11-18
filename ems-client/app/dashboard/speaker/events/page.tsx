@@ -724,22 +724,6 @@ function SpeakerEventManagementPage() {
                                         View Details
                                     </Button>
 
-                                    {isAccepted && event.status === EventStatus.PUBLISHED && (
-                                        <Button
-                                            size="sm"
-                                            variant="default"
-                                            onClick={() => router.push(`/dashboard/speaker/events/${event.id}/live`)}
-                                            disabled={isEventEnded}
-                                            className={isEventEnded
-                                                ? "bg-gray-400 cursor-not-allowed"
-                                                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                                            }
-                                        >
-                                            <Play className="h-4 w-4 mr-1"/>
-                                            {isEventEnded ? 'Event Ended' : 'Join Event'}
-                                        </Button>
-                                    )}
-
                                     {eventFeedbackForms.has(event.id) && (
                                         <Button
                                             size="sm"

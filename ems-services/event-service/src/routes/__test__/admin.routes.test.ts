@@ -50,6 +50,18 @@ jest.mock('../../services/venue.service', () => ({
   },
 }));
 
+jest.mock('../../services/session.service', () => ({
+  sessionService: {
+    createSession: jest.fn(),
+    listSessions: jest.fn(),
+    updateSession: jest.fn(),
+    deleteSession: jest.fn(),
+    assignSpeaker: jest.fn(),
+    updateSpeakerAssignment: jest.fn(),
+    removeSpeaker: jest.fn(),
+  },
+}));
+
 jest.mock('../../utils/logger', () => ({
   logger: mockLogger,
 }));
@@ -63,6 +75,8 @@ jest.mock('../../database', () => ({
 import adminRoutes from '../admin.routes';
 import { eventService } from '../../services/event.service';
 import { venueService } from '../../services/venue.service';
+import { sessionService } from '../../services/session.service';
+import { createMockSessionSpeaker } from '../../test/mocks-simple';
 
 describe('Admin Routes', () => {
   let app: Express;
@@ -654,6 +668,182 @@ describe('Admin Routes', () => {
       expect(response.body.data).toBeDefined();
       expect(Array.isArray(response.body.data)).toBe(true);
       expect(response.body.data.length).toBe(0); // All filtered out since count is 0
+    });
+  });
+
+  describe('POST /api/admin/events/:eventId/sessions', () => {
+    it('should create a session', async () => {
+      const mockSession = {
+        id: 'session-123',
+        eventId: 'event-123',
+        title: 'Test Session',
+        description: 'Test Description',
+        startsAt: '2025-01-01T09:00:00Z',
+        endsAt: '2025-01-01T10:00:00Z',
+        stage: 'Stage A',
+      };
+      (sessionService.createSession as jest.MockedFunction<any>).mockResolvedValue(mockSession);
+
+      const response = await request(app)
+        .post('/api/admin/events/event-123/sessions')
+        .send({
+          title: 'Test Session',
+          description: 'Test Description',
+          startsAt: '2025-01-01T09:00:00Z',
+          endsAt: '2025-01-01T10:00:00Z',
+          stage: 'Stage A',
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(sessionService.createSession).toHaveBeenCalledWith(
+        'event-123',
+        expect.objectContaining({
+          title: 'Test Session',
+        })
+      );
+    });
+  });
+
+  describe('GET /api/admin/events/:eventId/sessions', () => {
+    it('should list sessions for an event', async () => {
+      const mockSessions = [
+        {
+          id: 'session-123',
+          eventId: 'event-123',
+          title: 'Test Session',
+        },
+      ];
+      (sessionService.listSessions as jest.MockedFunction<any>).mockResolvedValue(mockSessions);
+
+      const response = await request(app)
+        .get('/api/admin/events/event-123/sessions');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(sessionService.listSessions).toHaveBeenCalledWith('event-123');
+    });
+  });
+
+  describe('PUT /api/admin/events/:eventId/sessions/:sessionId', () => {
+    it('should update a session', async () => {
+      const mockSession = {
+        id: 'session-123',
+        eventId: 'event-123',
+        title: 'Updated Session',
+      };
+      (sessionService.updateSession as jest.MockedFunction<any>).mockResolvedValue(mockSession);
+
+      const response = await request(app)
+        .put('/api/admin/events/event-123/sessions/session-123')
+        .send({
+          title: 'Updated Session',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(sessionService.updateSession).toHaveBeenCalledWith(
+        'event-123',
+        'session-123',
+        expect.objectContaining({
+          title: 'Updated Session',
+        })
+      );
+    });
+  });
+
+  describe('DELETE /api/admin/events/:eventId/sessions/:sessionId', () => {
+    it('should delete a session', async () => {
+      (sessionService.deleteSession as jest.MockedFunction<any>).mockResolvedValue(undefined);
+
+      const response = await request(app)
+        .delete('/api/admin/events/event-123/sessions/session-123');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.message).toBe('Session deleted successfully');
+      expect(sessionService.deleteSession).toHaveBeenCalledWith('event-123', 'session-123');
+    });
+  });
+
+  describe('POST /api/admin/events/:eventId/sessions/:sessionId/speakers', () => {
+    it('should assign speaker to session', async () => {
+      const mockAssignment = createMockSessionSpeaker({
+        sessionId: 'session-123',
+        speakerId: 'speaker-123',
+      });
+      (sessionService.assignSpeaker as jest.MockedFunction<any>).mockResolvedValue(mockAssignment);
+
+      const response = await request(app)
+        .post('/api/admin/events/event-123/sessions/session-123/speakers')
+        .send({
+          speakerId: 'speaker-123',
+          specialNotes: 'Test notes',
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(sessionService.assignSpeaker).toHaveBeenCalledWith(
+        'event-123',
+        'session-123',
+        expect.objectContaining({
+          speakerId: 'speaker-123',
+        })
+      );
+    });
+  });
+
+  describe('PATCH /api/admin/events/:eventId/sessions/:sessionId/speakers/:speakerId', () => {
+    it('should update speaker assignment', async () => {
+      const mockAssignment = createMockSessionSpeaker({
+        sessionId: 'session-123',
+        speakerId: 'speaker-123',
+        specialNotes: 'Updated notes',
+      });
+      (sessionService.updateSpeakerAssignment as jest.MockedFunction<any>).mockResolvedValue(
+        mockAssignment
+      );
+
+      const response = await request(app)
+        .patch('/api/admin/events/event-123/sessions/session-123/speakers/speaker-123')
+        .send({
+          specialNotes: 'Updated notes',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data).toBeDefined();
+      expect(sessionService.updateSpeakerAssignment).toHaveBeenCalledWith(
+        'event-123',
+        'session-123',
+        'speaker-123',
+        expect.objectContaining({
+          specialNotes: 'Updated notes',
+        })
+      );
+    });
+  });
+
+  describe('DELETE /api/admin/events/:eventId/sessions/:sessionId/speakers/:speakerId', () => {
+    it('should remove speaker from session', async () => {
+      (sessionService.removeSpeaker as jest.MockedFunction<any>).mockResolvedValue(undefined);
+
+      const response = await request(app)
+        .delete('/api/admin/events/event-123/sessions/session-123/speakers/speaker-123');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.message).toBe('Speaker removed from session');
+      expect(sessionService.removeSpeaker).toHaveBeenCalledWith(
+        'event-123',
+        'session-123',
+        'speaker-123'
+      );
     });
   });
 });

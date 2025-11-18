@@ -43,7 +43,8 @@ interface SpeakerSearchModalProps {
   onInviteSpeaker: (speakerId: string, message: string) => Promise<void>;
   eventId: string;
   eventName: string;
-  currentSpeakerId?: string; // If event already has a speaker assigned
+  currentSpeakerId?: string; // Legacy: If event already has a speaker assigned (deprecated)
+  invitedSpeakerIds?: string[]; // List of speaker IDs already invited to this event
 }
 
 export function SpeakerSearchModal({
@@ -52,7 +53,8 @@ export function SpeakerSearchModal({
   onInviteSpeaker,
   eventId,
   eventName,
-  currentSpeakerId
+  currentSpeakerId,
+  invitedSpeakerIds = []
 }: SpeakerSearchModalProps) {
   const logger = useLogger();
   const [searchTerm, setSearchTerm] = useState('');
@@ -111,7 +113,7 @@ export function SpeakerSearchModal({
       const results = await adminApiClient.searchSpeakers(filters);
       setSpeakers(results);
 
-      logger.info(LOGGER_COMPONENT_NAME, 'Speaker search completed', { 
+      logger.info(LOGGER_COMPONENT_NAME, 'Speaker search completed', {
         query: searchTerm,
         expertiseFilter,
         resultsCount: results.length
@@ -131,8 +133,8 @@ export function SpeakerSearchModal({
 
   // Handle expertise filter toggle
   const toggleExpertise = (expertise: string) => {
-    setExpertiseFilter(prev => 
-      prev.includes(expertise) 
+    setExpertiseFilter(prev =>
+      prev.includes(expertise)
         ? prev.filter(e => e !== expertise)
         : [...prev, expertise]
     );
@@ -150,15 +152,15 @@ export function SpeakerSearchModal({
 
     try {
       setInviting(true);
-      logger.debug(LOGGER_COMPONENT_NAME, 'Sending invitation', { 
+      logger.debug(LOGGER_COMPONENT_NAME, 'Sending invitation', {
         speakerId: selectedSpeaker.id,
         eventId,
         eventName
       });
 
       await onInviteSpeaker(selectedSpeaker.id, invitationMessage);
-      
-      logger.info(LOGGER_COMPONENT_NAME, 'Invitation sent successfully', { 
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Invitation sent successfully', {
         speakerId: selectedSpeaker.id,
         eventId
       });
@@ -295,8 +297,8 @@ export function SpeakerSearchModal({
                         selectedSpeaker?.id === speaker.id
                           ? 'border-primary bg-primary/5'
                           : 'hover:bg-gray-50 dark:hover:bg-gray-800'
-                      } ${currentSpeakerId === speaker.id ? 'opacity-50' : ''}`}
-                      onClick={() => currentSpeakerId !== speaker.id && handleSelectSpeaker(speaker)}
+                      } ${(currentSpeakerId === speaker.id || invitedSpeakerIds.includes(speaker.id)) ? 'opacity-50' : ''}`}
+                      onClick={() => currentSpeakerId !== speaker.id && !invitedSpeakerIds.includes(speaker.id) && handleSelectSpeaker(speaker)}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -317,8 +319,13 @@ export function SpeakerSearchModal({
                                 Current Speaker
                               </Badge>
                             )}
+                            {invitedSpeakerIds.includes(speaker.id) && currentSpeakerId !== speaker.id && (
+                              <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
+                                Already Invited
+                              </Badge>
+                            )}
                           </div>
-                          
+
                           <div className="flex items-center gap-4 text-sm text-gray-500 mb-2">
                             <div className="flex items-center gap-1">
                               <Mail className="h-3 w-3" />
@@ -348,7 +355,7 @@ export function SpeakerSearchModal({
                           )}
                         </div>
 
-                        {currentSpeakerId !== speaker.id && (
+                        {currentSpeakerId !== speaker.id && !invitedSpeakerIds.includes(speaker.id) && (
                           <Button
                             size="sm"
                             variant={selectedSpeaker?.id === speaker.id ? 'default' : 'outline'}
@@ -395,8 +402,8 @@ export function SpeakerSearchModal({
             Cancel
           </Button>
           {selectedSpeaker && (
-            <Button 
-              onClick={handleSendInvitation} 
+            <Button
+              onClick={handleSendInvitation}
               disabled={inviting || !invitationMessage.trim()}
             >
               {inviting ? (

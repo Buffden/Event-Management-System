@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 const adminUsers = [
     {
         name: 'System Administrator',
-        email: 'admin@eventmanagement.com',
+        email: 'admin@ems.com',
         password: 'Admin123!',
         role: Role.ADMIN,
         emailVerified: new Date(),
@@ -17,14 +17,6 @@ const adminUsers = [
         email: 'ashwinathappank@yahoo.com',
         password: 'Speaker123!',
         role: Role.SPEAKER,
-        emailVerified: new Date(),
-        isActive: true
-    },
-    {
-        name: 'User 1',
-        email: '085.ashwin@gmail.com',
-        password: 'User123!',
-        role: Role.USER,
         emailVerified: new Date(),
         isActive: true
     }

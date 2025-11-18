@@ -1,10 +1,10 @@
 /**
  * Jest Configuration for Auth Service
- * 
+ *
  * This configuration follows the standardized testing pattern for EMS microservices.
  * It includes comprehensive coverage reporting, proper TypeScript support, and
  * optimized test environment setup.
- * 
+ *
  * Key Features:
  * - TypeScript support with ts-jest
  * - Comprehensive coverage reporting with thresholds
@@ -20,10 +20,10 @@ const config: Config = {
   // Test environment and preset
   preset: 'ts-jest',
   testEnvironment: 'node',
-  
+
   // Module resolution
   moduleDirectories: ['node_modules', 'src'],
-  
+
   // Test file patterns
   testMatch: [
     '<rootDir>/src/**/__tests__/**/*.test.ts',
@@ -31,7 +31,7 @@ const config: Config = {
     '<rootDir>/src/**/*.test.ts',
     '<rootDir>/src/**/*.spec.ts',
   ],
-  
+
   // Coverage configuration
   collectCoverage: true,
   coverageDirectory: 'coverage',
@@ -44,7 +44,7 @@ const config: Config = {
     'clover',
     'json',
   ],
-  
+
   // Coverage thresholds (adjust based on your requirements)
   coverageThreshold: {
     global: {
@@ -61,7 +61,7 @@ const config: Config = {
       statements: 80,
     },
   },
-  
+
   // Files to exclude from coverage
   coveragePathIgnorePatterns: [
     '/node_modules/',
@@ -77,28 +77,28 @@ const config: Config = {
     '/types/',
     '/middleware/error.middleware.ts', // Error middleware is hard to test
   ],
-  
+
   // Setup files
   setupFiles: ['<rootDir>/src/test/env-setup.ts'],
   setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
-  
+
   // Mock modules
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@test/(.*)$': '<rootDir>/src/test/$1',
     '^../database$': '<rootDir>/src/test/mocks-simple.ts',
   },
-  
+
   // Test timeout (adjust based on your needs)
   testTimeout: 10000,
-  
+
   // Clear mocks between tests
   clearMocks: true,
   restoreMocks: true,
-  
+
   // Verbose output for better debugging
   verbose: true,
-  
+
   // TypeScript configuration
   transform: {
     '^.+\\.ts$': ['ts-jest', {
@@ -106,21 +106,21 @@ const config: Config = {
       useESM: false,
     }],
   },
-  
+
   // Transform ignore patterns - allow ESM modules to be transformed
   transformIgnorePatterns: [
     'node_modules/(?!(uuid)/)',
   ],
-  
+
   // Module file extensions
   moduleFileExtensions: ['ts', 'js', 'json'],
-  
+
   // Root directory
   rootDir: path.resolve(__dirname),
-  
+
   // Test results processor for additional reporting
   testResultsProcessor: 'jest-sonar-reporter',
-  
+
   // Collect coverage from specific files only
   collectCoverageFrom: [
     'src/**/*.ts',
@@ -130,11 +130,13 @@ const config: Config = {
     '!src/**/__test__/**/*',
     '!src/server.ts', // Entry point, usually not unit tested
     '!src/database.ts', // Database connection, tested in integration
+    '!src/routes/seeder.routes.ts', // Seeder routes excluded from coverage
+    '!src/utils/logger.ts', // Logger utility excluded from coverage
   ],
-  
+
   // Error handling
   errorOnDeprecated: true,
-  
+
   // Performance optimizations
   maxWorkers: '50%',
   cache: true,

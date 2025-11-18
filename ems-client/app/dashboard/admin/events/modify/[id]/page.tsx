@@ -77,7 +77,7 @@ function AdminModifyEventPage() {
   const [eventInvitations, setEventInvitations] = useState<SpeakerInvitation[]>([]);
   const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [acceptedSpeakerFromInvitation, setAcceptedSpeakerFromInvitation] = useState<SpeakerProfile | null>(null);
-  
+
   // Sessions and accepted speakers state
   const [sessions, setSessions] = useState<SessionResponse[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -241,7 +241,7 @@ function AdminModifyEventPage() {
       // Create invitation lookup map by sessionId and speakerId
       const invitationMap = new Map<string, SpeakerInvitation>();
       eventInvitations.forEach(invitation => {
-        const key = invitation.sessionId 
+        const key = invitation.sessionId
           ? `${invitation.sessionId}:${invitation.speakerId}`
           : `event-level:${invitation.speakerId}`;
         invitationMap.set(key, invitation);
@@ -250,12 +250,12 @@ function AdminModifyEventPage() {
       // Create a map to track all session-speaker combinations
       // Key: `${sessionId}:${speakerId}` or `event-level:${speakerId}`
       const sessionSpeakerMap = new Map<string, { speakerId: string; session?: SessionResponse; invitation?: SpeakerInvitation }>();
-      
+
       // Process all session speakers
       allSessionSpeakers.forEach(({ speakerId, session }) => {
         const key = session ? `${session.id}:${speakerId}` : `event-level:${speakerId}`;
         const invitation = invitationMap.get(key);
-        
+
         // Store each session-speaker combination separately
         sessionSpeakerMap.set(key, { speakerId, session, invitation });
       });
@@ -265,7 +265,7 @@ function AdminModifyEventPage() {
         Array.from(sessionSpeakerMap.values()).map(async ({ speakerId, session, invitation }) => {
           try {
             const speaker = await adminApiClient.getSpeakerProfile(speakerId);
-            
+
             return {
               invitation: invitation || null,
               speaker,
@@ -283,7 +283,7 @@ function AdminModifyEventPage() {
 
       // Filter out any null results
       const validSpeakers = speakersWithInfo.filter((item): item is NonNullable<typeof item> => item !== null);
-      
+
       setAcceptedSpeakers(validSpeakers);
 
       logger.info(LOGGER_COMPONENT_NAME, 'Speakers loaded for sessions', {
@@ -767,16 +767,27 @@ function AdminModifyEventPage() {
               {/* Speaker Assignment */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
-                    <Users className="h-5 w-5 mr-2" />
-                    Speaker Assignment
-                  </h3>
-                  {acceptedSpeakers.length > 0 && (
-                        <Badge variant="outline" className="ml-2">
-                      {acceptedSpeakers.length} accepted speaker{acceptedSpeakers.length !== 1 ? 's' : ''}
-                        </Badge>
-                                          )}
-                                        </div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
+                      <Users className="h-5 w-5 mr-2" />
+                      Speaker Assignment
+                    </h3>
+                    {acceptedSpeakers.length > 0 && (
+                      <Badge variant="outline" className="ml-2">
+                        {acceptedSpeakers.length} accepted speaker{acceptedSpeakers.length !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setShowSpeakerSearchModal(true)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite Speaker
+                  </Button>
+                </div>
 
                 {/* Accepted Speakers List */}
                 {loadingAcceptedSpeakers ? (
@@ -846,8 +857,8 @@ function AdminModifyEventPage() {
                         }
                       };
 
-                      const textColorClass = invitation && invitation.status === 'ACCEPTED' 
-                        ? "text-green-800 dark:text-green-200" 
+                      const textColorClass = invitation && invitation.status === 'ACCEPTED'
+                        ? "text-green-800 dark:text-green-200"
                         : invitation && invitation.status === 'PENDING'
                         ? "text-yellow-800 dark:text-yellow-200"
                         : invitation && invitation.status === 'DECLINED'
@@ -1181,6 +1192,7 @@ function AdminModifyEventPage() {
         eventId={eventId}
         eventName={originalEvent?.name || 'Event'}
         currentSpeakerId={originalEvent?.speakerId}
+        invitedSpeakerIds={eventInvitations.map(inv => inv.speakerId)}
       />
     </div>
   );

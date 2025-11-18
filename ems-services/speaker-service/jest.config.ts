@@ -96,6 +96,8 @@ const config: Config = {
     '!src/**/__test__/**/*',
     '!src/server.ts',
     '!src/database.ts',
+    '!src/routes/seeder.routes.ts', // Seeder routes excluded from coverage
+    '!src/utils/logger.ts', // Logger utility excluded from coverage
   ],
 
   errorOnDeprecated: true,

@@ -1,26 +1,22 @@
 'use client';
 
 import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  ArrowLeft,
-  Save,
-  Eye,
-  Calendar,
-  MapPin,
-  Clock,
-  AlertCircle,
-  CheckCircle
-} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLogger } from "@/lib/logger/LoggerProvider";
 import { eventAPI } from "@/lib/api/event.api";
 import { CreateEventRequest, VenueResponse } from "@/lib/api/types/event.types";
 import { withAdminAuth } from "@/components/hoc/withAuth";
+import { PageHeader } from "@/components/admin/events/PageHeader";
+import { InfoBanner } from "@/components/admin/events/InfoBanner";
+import { ErrorAlert } from "@/components/admin/events/ErrorAlert";
+import { BasicInfoSection } from "@/components/admin/events/BasicInfoSection";
+import { VenueSection } from "@/components/admin/events/VenueSection";
+import { DateTimeSection } from "@/components/admin/events/DateTimeSection";
+import { ActionButtons } from "@/components/admin/events/ActionButtons";
+import { SuccessState } from "@/components/admin/events/SuccessState";
+import { LoadingState } from "@/components/admin/events/LoadingState";
 
 const LOGGER_COMPONENT_NAME = 'AdminCreateEventPage';
 
@@ -42,11 +38,33 @@ function AdminCreateEventPage() {
     bookingEndDate: ''
   });
 
+  // Date state for DateTimeSelector (uses Date objects)
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date(Date.now() + 24 * 60 * 60 * 1000)); // Tomorrow
+
   const [venues, setVenues] = useState<VenueResponse[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Sync date state with form data
+  useEffect(() => {
+    const formatDateForAPI = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      bookingStartDate: formatDateForAPI(startDate),
+      bookingEndDate: formatDateForAPI(endDate)
+    }));
+  }, [startDate, endDate]);
 
   useEffect(() => {
     logger.debug(LOGGER_COMPONENT_NAME, 'Auth state changed', { isAuthenticated, isLoading, user });
@@ -108,17 +126,13 @@ function AdminCreateEventPage() {
       newErrors.bookingEndDate = 'End date is required';
     }
 
-    if (formData.bookingStartDate && formData.bookingEndDate) {
-      const startDate = new Date(formData.bookingStartDate);
-      const endDate = new Date(formData.bookingEndDate);
+    // Validate date range using Date objects
+    if (startDate >= endDate) {
+      newErrors.bookingEndDate = 'End date must be after start date';
+    }
 
-      if (startDate >= endDate) {
-        newErrors.bookingEndDate = 'End date must be after start date';
-      }
-
-      if (startDate < new Date()) {
-        newErrors.bookingStartDate = 'Start date cannot be in the past';
-      }
+    if (startDate < new Date()) {
+      newErrors.bookingStartDate = 'Start date cannot be in the past';
     }
 
     setErrors(newErrors);
@@ -147,14 +161,14 @@ function AdminCreateEventPage() {
     try {
       // Create event - backend auto-publishes for admin users
       const createResponse = await eventAPI.createEventAsAdmin(formData);
-      
+
       if (!createResponse.success) {
         throw new Error('Failed to create event');
       }
 
-      logger.info(LOGGER_COMPONENT_NAME, 'Event created and auto-published successfully', { 
+      logger.info(LOGGER_COMPONENT_NAME, 'Event created and auto-published successfully', {
         eventId: createResponse.data.id,
-        status: createResponse.data.status 
+        status: createResponse.data.status
       });
 
       // Show success message
@@ -166,8 +180,8 @@ function AdminCreateEventPage() {
       }, 2000);
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to create event', error as Error);
-      setErrors({ 
-        general: error instanceof Error ? error.message : 'Failed to create event. Please try again.' 
+      setErrors({
+        general: error instanceof Error ? error.message : 'Failed to create event. Please try again.'
       });
     } finally {
       setIsSubmitting(false);
@@ -180,14 +194,7 @@ function AdminCreateEventPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-slate-700 dark:text-slate-300 font-medium">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingState />;
   }
 
   if (!isAuthenticated || user?.role !== 'ADMIN') {
@@ -196,69 +203,15 @@ function AdminCreateEventPage() {
 
   // Success state
   if (showSuccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-        <Card className="max-w-md w-full mx-4">
-          <CardContent className="text-center py-12">
-            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h3 className="text-2xl font-semibold text-slate-900 dark:text-white mb-2">
-              Event Created & Published!
-            </h3>
-            <p className="text-slate-600 dark:text-slate-400 mb-4">
-              The event has been successfully created and published. It's now visible to all users.
-            </p>
-            <p className="text-sm text-slate-500 dark:text-slate-500">
-              Redirecting to events list...
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <SuccessState />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      {/* Header */}
-      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push('/dashboard/admin/events')}
-                className="text-slate-600 hover:text-slate-900"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Events
-              </Button>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Create New Event (Admin)
-              </h1>
-            </div>
-          </div>
-        </div>
-      </header>
+      <PageHeader />
 
-      {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Info Banner */}
-        <Card className="mb-6 border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800">
-          <CardContent className="p-4">
-            <div className="flex items-start">
-              <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-3 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                  Admin Event Creation
-                </h3>
-                <p className="text-sm text-blue-800 dark:text-blue-200">
-                  Events created by admins are <strong>automatically published</strong> and will be immediately visible to all users. 
-                  They bypass the approval workflow that speaker-created events go through.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <InfoBanner />
 
         <Card className="border-slate-200 dark:border-slate-700">
           <CardHeader>
@@ -270,215 +223,38 @@ function AdminCreateEventPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {errors.general && (
-              <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                <div className="flex items-center">
-                  <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mr-2" />
-                  <p className="text-red-800 dark:text-red-200">{errors.general}</p>
-                </div>
-              </div>
-            )}
+            {errors.general && <ErrorAlert message={errors.general} />}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Basic Information */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
-                  <Calendar className="h-5 w-5 mr-2" />
-                  Basic Information
-                </h3>
+              <BasicInfoSection
+                name={formData.name}
+                category={formData.category}
+                description={formData.description}
+                bannerImageUrl={formData.bannerImageUrl}
+                errors={errors}
+                onNameChange={(value) => handleInputChange('name', value)}
+                onCategoryChange={(value) => handleInputChange('category', value)}
+                onDescriptionChange={(value) => handleInputChange('description', value)}
+                onBannerImageUrlChange={(value) => handleInputChange('bannerImageUrl', value)}
+              />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Event Name *
-                    </Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      placeholder="Enter event name"
-                      className={errors.name ? 'border-red-500' : ''}
-                    />
-                    {errors.name && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.name}</p>
-                    )}
-                  </div>
+              <VenueSection
+                venueId={formData.venueId}
+                venues={venues}
+                isLoadingVenues={isLoadingVenues}
+                error={errors.venueId}
+                onVenueChange={(value) => handleInputChange('venueId', value)}
+              />
 
-                  <div className="space-y-2">
-                    <Label htmlFor="category" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Category *
-                    </Label>
-                    <Input
-                      id="category"
-                      type="text"
-                      value={formData.category}
-                      onChange={(e) => handleInputChange('category', e.target.value)}
-                      placeholder="e.g., Technology, Business, Education"
-                      className={errors.category ? 'border-red-500' : ''}
-                    />
-                    {errors.category && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.category}</p>
-                    )}
-                  </div>
-                </div>
+              <DateTimeSection
+                startDate={startDate}
+                endDate={endDate}
+                errors={errors}
+                onStartDateChange={setStartDate}
+                onEndDateChange={setEndDate}
+              />
 
-                <div className="space-y-2">
-                  <Label htmlFor="description" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Description *
-                  </Label>
-                  <textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    placeholder="Describe your event in detail..."
-                    rows={4}
-                    className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.description ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
-                    }`}
-                  />
-                  {errors.description && (
-                    <p className="text-sm text-red-600 dark:text-red-400">{errors.description}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bannerImageUrl" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Banner Image URL
-                  </Label>
-                  <Input
-                    id="bannerImageUrl"
-                    type="url"
-                    value={formData.bannerImageUrl}
-                    onChange={(e) => handleInputChange('bannerImageUrl', e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div>
-              </div>
-
-              {/* Venue Selection */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
-                  <MapPin className="h-5 w-5 mr-2" />
-                  Venue Selection
-                </h3>
-
-                <div className="space-y-2">
-                  <Label htmlFor="venueId" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Select Venue *
-                  </Label>
-                  {isLoadingVenues ? (
-                    <div className="flex items-center justify-center py-4">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                      <span className="ml-2 text-slate-600 dark:text-slate-400">Loading venues...</span>
-                    </div>
-                  ) : (
-                    <select
-                      id="venueId"
-                      value={formData.venueId}
-                      onChange={(e) => handleInputChange('venueId', parseInt(e.target.value))}
-                      className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                        errors.venueId ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
-                      }`}
-                    >
-                      <option value={0}>Select a venue</option>
-                      {venues.map((venue) => (
-                        <option key={venue.id} value={venue.id}>
-                          {venue.name} - {venue.address} (Capacity: {venue.capacity})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {errors.venueId && (
-                    <p className="text-sm text-red-600 dark:text-red-400">{errors.venueId}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Date and Time */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
-                  <Clock className="h-5 w-5 mr-2" />
-                  Date and Time
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bookingStartDate" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Start Date & Time *
-                    </Label>
-                    <Input
-                      id="bookingStartDate"
-                      type="datetime-local"
-                      value={formData.bookingStartDate}
-                      onChange={(e) => handleInputChange('bookingStartDate', e.target.value)}
-                      className={errors.bookingStartDate ? 'border-red-500' : ''}
-                    />
-                    {errors.bookingStartDate && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.bookingStartDate}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="bookingEndDate" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      End Date & Time *
-                    </Label>
-                    <Input
-                      id="bookingEndDate"
-                      type="datetime-local"
-                      value={formData.bookingEndDate}
-                      onChange={(e) => handleInputChange('bookingEndDate', e.target.value)}
-                      className={errors.bookingEndDate ? 'border-red-500' : ''}
-                    />
-                    {errors.bookingEndDate && (
-                      <p className="text-sm text-red-600 dark:text-red-400">{errors.bookingEndDate}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-slate-200 dark:border-slate-700">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.push('/dashboard/admin/events')}
-                  className="flex-1 sm:flex-none"
-                  disabled={isSubmitting}
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePreview}
-                  className="flex-1 sm:flex-none"
-                  disabled={isSubmitting}
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Preview
-                </Button>
-
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 sm:flex-none bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Creating & Publishing...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Create & Publish Event
-                    </>
-                  )}
-                </Button>
-              </div>
+              <ActionButtons isSubmitting={isSubmitting} onPreview={handlePreview} />
             </form>
           </CardContent>
         </Card>

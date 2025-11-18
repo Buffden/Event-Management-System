@@ -70,7 +70,7 @@ describe('EmailService', () => {
       await emailService.sendEmail(payload);
 
       expect(mockTransporter.sendMail).toHaveBeenCalledWith({
-        from: `YourApp <${process.env.GMAIL_USER}>`,
+        from: `Event Manager <${process.env.GMAIL_USER}>`,
         to: payload.to,
         subject: payload.subject,
         html: payload.body,
@@ -87,7 +87,7 @@ describe('EmailService', () => {
 
       expect(mockTransporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
-          from: `YourApp <${process.env.GMAIL_USER}>`,
+          from: `Event Manager <${process.env.GMAIL_USER}>`,
         })
       );
     });

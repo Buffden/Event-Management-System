@@ -30,6 +30,7 @@ interface AuthContextType {
   checkAuth: () => Promise<void>;
   retryAuth: () => Promise<void>;
   verifyEmail: (token: string) => Promise<{ success: boolean; error?: string, response?: AuthResponse }>;
+  shouldRedirectToLogin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -228,6 +229,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /**
+   * Helper function to determine if we should redirect to login
+   * Only returns true if auth check is complete (!isLoading) and user is not authenticated
+   * This prevents premature redirects during page refresh when auth is still being checked
+   */
+  const shouldRedirectToLogin = (): boolean => {
+    return !isLoading && !isAuthenticated;
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
@@ -238,6 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth,
     retryAuth,
     verifyEmail,
+    shouldRedirectToLogin,
   };
 
   return (

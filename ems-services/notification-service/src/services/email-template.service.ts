@@ -317,7 +317,7 @@ class EmailTemplateService {
                             </div>
 
                             <div style="text-align: center;">
-                                <a href="${this.baseUrl}/events/${message.eventId}" class="button">View Event Details</a>
+                                <a href="${this.baseUrl}/dashboard/attendee/events" class="button">View All Events</a>
                             </div>
 
                             <p>Don't miss out on this exciting event! Register now to secure your spot.</p>
