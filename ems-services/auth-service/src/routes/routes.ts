@@ -354,6 +354,7 @@ export function registerRoutes(app: Express, authService: AuthService) {
         }
     });
 
+
     /**
      * @route   GET /api/auth/admin/stats
      * @desc    Get user statistics for admin dashboard.
@@ -395,26 +396,42 @@ export function registerRoutes(app: Express, authService: AuthService) {
     /**
      * @route   GET /api/auth/admin/users
      * @desc    Get all users list for admin dashboard with search, filters, and pagination.
-     * @access  Protected - Admin only
+     * @access  Protected - Admin only OR Internal service (notification-service)
      * @query   search: string (optional) - Search by name or email
      * @query   role: string (optional) - Filter by role (ADMIN, USER, SPEAKER)
      * @query   status: string (optional) - Filter by status (ACTIVE, INACTIVE)
      * @query   page: number (optional) - Page number (default: 1)
-     * @query   limit: number (optional) - Items per page (default: 10, max: 100)
+     * @query   limit: number (optional) - Items per page (default: 10, max: 100). For internal services, can be higher
      */
-    app.get('/admin/users', authMiddleware, async (req: Request, res: Response) => {
+    app.get('/admin/users', async (req: Request, res: Response) => {
         try {
-            const userId = contextService.getCurrentUserId();
-            let user = contextService.getCurrentUser();
+            // Check for internal service header (bypasses auth)
+            const serviceHeader = req.headers['x-internal-service'];
+            const isInternalService = serviceHeader === 'notification-service';
 
-            // If user not in context, fetch it
-            if (!user) {
+            let userId: string | undefined;
+            let user: any = null;
+
+            if (!isInternalService) {
+                // For regular admin access, require authentication
+                const authHeader = req.headers.authorization;
+                if (!authHeader?.startsWith('Bearer ')) {
+                    return res.status(401).json({error: 'No token provided'});
+                }
+
+                const token = authHeader.slice(7);
+                const jwt = require('jsonwebtoken');
+                const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+                userId = decoded.userId;
+                if (!userId) {
+                    return res.status(401).json({error: 'Invalid token'});
+                }
                 user = await authService.getProfile(userId);
-            }
 
-            // Check if user is admin
-            if (!user || user.role !== 'ADMIN') {
-                return res.status(403).json({error: 'Access denied: Admin only'});
+                // Check if user is admin
+                if (!user || user.role !== 'ADMIN') {
+                    return res.status(403).json({error: 'Access denied: Admin only'});
+                }
             }
 
             // Extract query parameters
@@ -422,11 +439,14 @@ export function registerRoutes(app: Express, authService: AuthService) {
             const role = req.query.role as string | undefined;
             const status = req.query.status as string | undefined;
             const page = Math.max(1, parseInt(req.query.page as string) || 1);
-            const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
+            // For internal services, allow higher limit (up to 10000), otherwise max 100
+            const maxLimit = isInternalService ? 10000 : 100;
+            const limit = Math.min(maxLimit, Math.max(1, parseInt(req.query.limit as string) || (isInternalService ? 10000 : 10)));
             const skip = (page - 1) * limit;
 
             logger.info("/admin/users - Fetching users", {
-                adminId: userId,
+                adminId: userId || 'internal-service',
+                service: isInternalService ? serviceHeader : undefined,
                 search,
                 role,
                 status,
@@ -455,6 +475,12 @@ export function registerRoutes(app: Express, authService: AuthService) {
             // Status filter
             if (status && status !== 'ALL') {
                 where.isActive = status === 'ACTIVE';
+            }
+
+            // For internal services (notification-service), only get active users with verified emails
+            if (isInternalService) {
+                where.isActive = true;
+                where.emailVerified = { not: null };
             }
 
             // Get total count for pagination

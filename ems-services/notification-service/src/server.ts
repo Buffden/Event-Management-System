@@ -6,6 +6,7 @@ import { BookingEventConsumer } from './consumers/booking-event.consumer';
 import { TicketEventConsumer } from './consumers/ticket-event.consumer';
 import { EventStatusConsumer } from './consumers/event-status.consumer';
 import { EventUpdatedConsumer } from './consumers/event-updated.consumer';
+import { EventPublishedConsumer } from './consumers/event-published.consumer';
 
 async function startServer() {
     const rabbitmqUrl = process.env.RABBITMQ_URL;
@@ -20,12 +21,14 @@ async function startServer() {
     const ticketEventConsumer = new TicketEventConsumer(rabbitmqUrl);
     const eventStatusConsumer = new EventStatusConsumer(rabbitmqUrl);
     const eventUpdatedConsumer = new EventUpdatedConsumer(rabbitmqUrl);
+    const eventPublishedConsumer = new EventPublishedConsumer(rabbitmqUrl);
 
     await notificationConsumer.start();
     await bookingEventConsumer.start();
     await ticketEventConsumer.start();
     await eventStatusConsumer.start();
     await eventUpdatedConsumer.start();
+    await eventPublishedConsumer.start();
 
     // Handle graceful shutdown
     const gracefulShutdown = async () => {
@@ -35,6 +38,7 @@ async function startServer() {
         await ticketEventConsumer.stop();
         await eventStatusConsumer.stop();
         await eventUpdatedConsumer.stop();
+        await eventPublishedConsumer.stop();
         process.exit(0);
     };
 
