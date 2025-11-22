@@ -6,7 +6,6 @@ yarn-error.log*
 
 # Build outputs
 dist
-coverage
 *.tsbuildinfo
 
 # Environment files
@@ -60,8 +59,9 @@ pids
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage directory used by tools like jest
 coverage
+.jest-coverage
 
 # nyc test coverage
 .nyc_output

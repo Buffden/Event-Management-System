@@ -7,6 +7,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY prisma ./prisma
+COPY prisma.config.ts ./
 ARG DATABASE_URL
 ENV DATABASE_URL=$DATABASE_URL
 RUN npx prisma generate
@@ -31,6 +32,8 @@ RUN npm ci --omit=dev --omit=optional --ignore-scripts && npm cache clean --forc
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/generated ./generated
+RUN rm /app/generated/**/*.ts
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 
 EXPOSE 3000

@@ -1,7 +1,12 @@
-import {PrismaClient, Role} from '../generated/prisma';
+import {PrismaClient} from '../generated/prisma/client.js';
+import {Role} from '../generated/prisma/enums.js';
+import { PrismaPg } from '@prisma/adapter-pg'
 import * as bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+const connectionString = `${process.env.DATABASE_URL}`;
+
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
 
 const adminUsers = [
     {

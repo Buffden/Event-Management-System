@@ -1,6 +1,6 @@
 // 1. IMPORT the 'Role' enum directly from the generated Prisma client.
 //    (Adjust the import path if your file structure is different)
-import type {Role} from '../../generated/prisma/index';
+import type {Role} from '../../generated/prisma/enums';
 
 // 2. RE-EXPORT the Role enum so other files can import it from this file.
 export {Role};
