@@ -1,7 +1,7 @@
 import { prisma } from '../database';
 import { logger } from '../utils/logger';
 import axios from 'axios';
-import { EventDetails } from '../types/ticket.types';
+import { EventDetails } from '../types';
 import { getUserInfo } from '../utils/auth-helpers';
 
 export interface JoinEventRequest {

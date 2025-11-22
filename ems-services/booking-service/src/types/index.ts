@@ -2,3 +2,4 @@
 export * from './booking.types';
 export * from './auth.types';
 export * from './ticket.types';
+export * from './booking.enums';

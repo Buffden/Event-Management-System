@@ -1,8 +1,7 @@
 import { prisma } from '../database';
 import { logger } from '../utils/logger';
-import { TicketStatus } from '../../generated/prisma';
 import { eventPublisherService } from './event-publisher.service';
-import { TicketGenerationRequest, TicketResponse, EventDetails } from '../types/ticket.types';
+import { TicketGenerationRequest, TicketResponse, EventDetails, TicketStatus } from '../types';
 import axios from 'axios';
 
 class TicketService {
