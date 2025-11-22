@@ -20,7 +20,7 @@ import {
   resetAllMocks,
 } from './mocks-simple';
 import { SpeakerAttendanceService } from '../services/speaker-attendance.service';
-import { InvitationStatus } from '../../generated/prisma';
+import { InvitationStatus } from '../../generated/prisma/enums';
 
 describe('SpeakerAttendanceService', () => {
   let attendanceService: SpeakerAttendanceService;

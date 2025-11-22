@@ -18,7 +18,7 @@ import {
   resetAllMocks,
 } from './mocks-simple';
 import { InvitationService } from '../services/invitation.service';
-import { InvitationStatus } from '../../generated/prisma';
+import { InvitationStatus } from '../../generated/prisma/enums';
 
 describe('InvitationService', () => {
   let invitationService: InvitationService;
