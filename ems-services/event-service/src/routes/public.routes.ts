@@ -5,7 +5,7 @@ import { sessionService } from '../services/session.service';
 import { logger } from '../utils/logger';
 import { asyncHandler } from '../middleware/error.middleware';
 import { validateQuery, validatePagination, validateDateRange } from '../middleware/validation.middleware';
-import { EventStatus } from '../../generated/prisma';
+import { EventStatus } from '../types';
 
 const router = Router();
 

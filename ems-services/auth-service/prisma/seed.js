@@ -33,19 +33,19 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-const client_js_1 = require("../generated/prisma/client.js");
-const enums_js_1 = require("../generated/prisma/enums.js");
+const client_1 = require("../generated/prisma/client");
+const enums_1 = require("../generated/prisma/enums");
 const adapter_pg_1 = require("@prisma/adapter-pg");
 const bcrypt = __importStar(require("bcryptjs"));
 const connectionString = `${process.env.DATABASE_URL}`;
 const adapter = new adapter_pg_1.PrismaPg({ connectionString });
-const prisma = new client_js_1.PrismaClient({ adapter });
+const prisma = new client_1.PrismaClient({ adapter });
 const adminUsers = [
     {
         name: 'System Administrator',
         email: 'admin@ems.com',
         password: 'Admin123!',
-        role: enums_js_1.Role.ADMIN,
+        role: enums_1.Role.ADMIN,
         emailVerified: new Date(),
         isActive: true
     },
@@ -53,7 +53,7 @@ const adminUsers = [
         name: 'Ashwin Athappan',
         email: 'ashwinathappank@yahoo.com',
         password: 'Speaker123!',
-        role: enums_js_1.Role.SPEAKER,
+        role: enums_1.Role.SPEAKER,
         emailVerified: new Date(),
         isActive: true
     }
@@ -63,7 +63,7 @@ async function main() {
     try {
         // Check if admin users already exist
         const existingAdmins = await prisma.user.count({
-            where: { role: enums_js_1.Role.ADMIN }
+            where: { role: enums_1.Role.ADMIN }
         });
         if (existingAdmins > 0) {
             console.log(`📊 Found ${existingAdmins} existing admin users. Skipping seeding to avoid duplicates.`);
