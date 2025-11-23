@@ -118,7 +118,7 @@ class AuthService {
     async createSpeakerProfile(user: User): Promise<void> {
         try {
             logger.debug("START - createSpeakerProfile(): ", {userId: user.id, role: user.role});
-            
+
             if (user.role !== 'SPEAKER') {
                 logger.debug("createSpeakerProfile(): User is not a SPEAKER, skipping profile creation", {userId: user.id, role: user.role});
                 return;
@@ -138,12 +138,12 @@ class AuthService {
 
             const queueName = 'speaker.profile.create';
             await rabbitMQService.sendMessage(queueName, speakerProfileMessage);
-            
+
             logger.info("createSpeakerProfile(): Speaker profile creation message sent", {
                 userId: user.id,
                 queue: queueName
             });
-            
+
             logger.debug("END - createSpeakerProfile(): ", {userId: user.id});
         } catch (error) {
             logger.error("createSpeakerProfile(): Failed to send speaker profile creation message", error as Error, {userId: user.id});
@@ -256,11 +256,11 @@ class AuthService {
             logger.debug("register(): Exited transaction", {userId: user.id});
             await this.sendVerificationEmail(user);
             logger.debug("register(): Sent verification email to ", {email: user.email});
-            
+
             // Create speaker profile if user registered as SPEAKER
             await this.createSpeakerProfile(user);
             logger.debug("register(): Speaker profile creation initiated", {userId: user.id, role: user.role});
-            
+
             const token = this._generateToken(user);
             logger.debug("END - register(): ", {userId: user.id});
             return {token, email: user.email, id: user.id, user: user as User};
@@ -533,9 +533,10 @@ class AuthService {
      * Finds or creates a user from Google OAuth profile.
      * Always creates an Account record linking the user to their Google account.
      * @param profile The Google OAuth profile.
+     * @param role Optional role to assign to new users (USER or SPEAKER). Ignored for existing users.
      * @returns The User object.
      */
-    async findOrCreateGoogleUser(profile: Profile): Promise<User> {
+    async findOrCreateGoogleUser(profile: Profile, role?: Role): Promise<User> {
         const email = profile.emails?.[0].value;
         if (!email) {
             throw new Error('Google profile is missing an email address.');
@@ -575,13 +576,16 @@ class AuthService {
             return existingUser;
         }
 
+        // Validate and use provided role, or default to USER
+        const userRole = role && this.isValidRegistrationRole(role) ? role : DEFAULT_ROLE;
+
         // Create new user with Google Account
         const oAuthUser = await prisma.user.create({
             data: {
                 email: email,
                 name: profile.displayName,
                 image: profile.photos?.[0].value,
-                role: DEFAULT_ROLE,
+                role: userRole,
                 isActive: true,
                 emailVerified: new Date(),
                 accounts: {

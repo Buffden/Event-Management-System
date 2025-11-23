@@ -1,6 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy, Profile } from 'passport-google-oauth20';
 import { AuthService } from '../services/auth.service';
+import { Role } from '../types/types';
 
 export function configurePassport(authService: AuthService) {
     passport.use(
@@ -9,11 +10,17 @@ export function configurePassport(authService: AuthService) {
                 clientID: process.env.GOOGLE_CLIENT_ID!,
                 clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
                 callbackURL: process.env.GOOGLE_CALLBACK_URL!,
+                passReqToCallback: true, // Enable access to request object
             },
-            async (accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any, info?: any) => void) => {
+            async (req: any, accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any, info?: any) => void) => {
                 try {
+                    // Extract role from state parameter (passed through OAuth flow)
+                    // The state is returned by Google in req.query.state
+                    const state = req.query?.state as string | undefined;
+                    const role: Role | undefined = (state === 'USER' || state === 'SPEAKER') ? state as Role : undefined;
+
                     // This logic should live in your AuthService to keep concerns separated
-                    const user = await authService.findOrCreateGoogleUser(profile);
+                    const user = await authService.findOrCreateGoogleUser(profile, role);
                     if (user) {
                         return done(null, user); // Success
                     }

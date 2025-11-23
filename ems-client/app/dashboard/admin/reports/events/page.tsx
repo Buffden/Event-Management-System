@@ -120,6 +120,7 @@ export default function EventReportPage() {
     name: event.name || `Event ${event.eventId.substring(0, 8)}`,
     registrations: event.registrations,
     attendance: event.attendance,
+    attendanceCount: Math.round((event.registrations * event.attendance) / 100),
   }));
 
   return (
@@ -257,8 +258,8 @@ export default function EventReportPage() {
                     textAnchor="end"
                     height={120}
                   />
-                  <YAxis yAxisId="left" className="text-xs fill-slate-600 dark:fill-slate-400" />
-                  <YAxis yAxisId="right" orientation="right" className="text-xs fill-slate-600 dark:fill-slate-400" />
+                <YAxis yAxisId="left" className="text-xs fill-slate-600 dark:fill-slate-400" />
+                <YAxis yAxisId="right" orientation="right" className="text-xs fill-slate-600 dark:fill-slate-400" />
                   <Tooltip content={<ChartTooltip />} />
                   <Legend />
                   <Bar
@@ -270,9 +271,9 @@ export default function EventReportPage() {
                   />
                   <Bar
                     yAxisId="right"
-                    dataKey="attendance"
+                  dataKey="attendanceCount"
                     fill="#10b981"
-                    name="Attendance %"
+                  name="Attended"
                     radius={[8, 8, 0, 0]}
                   />
                 </BarChart>
@@ -296,8 +297,8 @@ export default function EventReportPage() {
                         {event.name || `Event ${event.eventId.substring(0, 8)}`}
                       </h4>
                       <div className="flex items-center space-x-4 text-sm text-slate-600 dark:text-slate-400">
-                        <span>{event.registrations} registrations</span>
-                        <span>{event.attendance}% attendance</span>
+                        <span>{event.registrations} registered</span>
+                        <span>{Math.round((event.registrations * event.attendance) / 100)} attended</span>
                       </div>
                     </div>
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">

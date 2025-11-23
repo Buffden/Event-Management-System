@@ -6,15 +6,23 @@ import { logger } from '../utils/logger';
 
 export function registerOAuthRoutes(app: Express, authService: AuthService) {
     /**
-     * @route   GET http://localhost/api/auth/google
+     * @route   GET http://localhost/api/auth/google?role=USER|SPEAKER
      * @desc    Initiates the Google OAuth2 authentication flow.
+     * @query   role - Optional role selection (USER or SPEAKER) for new sign-ups
      */
     app.get(
         '/google',
-        passport.authenticate('google', {
-            scope: ['profile', 'email'],
-            session: false,
-        })
+        (req: Request, res: Response, next: any) => {
+            // Extract role from query parameter and pass it as state to OAuth flow
+            const role = req.query.role as string;
+            const state = role && (role === 'USER' || role === 'SPEAKER') ? role : undefined;
+
+            passport.authenticate('google', {
+                scope: ['profile', 'email'],
+                session: false,
+                state: state, // Pass role through OAuth state parameter
+            })(req, res, next);
+        }
     );
 
     /**
@@ -26,6 +34,7 @@ export function registerOAuthRoutes(app: Express, authService: AuthService) {
         passport.authenticate('google', {
             failureRedirect: '/login', // Adjust as needed for your frontend
             session: false,
+            passReqToCallback: true, // Enable access to request in strategy
         }),
         async (req: Request, res: Response) => {
             try {
@@ -39,21 +48,24 @@ export function registerOAuthRoutes(app: Express, authService: AuthService) {
                 // This now works because we added the public method to AuthService
                 const token = authService.generateJwtForUser(user);
 
-                // For a web client, redirecting is a common pattern.
-                // The frontend can parse the token from the URL and save it.
-                // const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-                // res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+                // Redirect to role-specific dashboard with token
+                const frontendUrl = process.env.FRONTEND_URL || 'http://localhost';
+                let dashboardPath = '/dashboard/attendee'; // Default for USER
 
-                // Or, for a mobile/REST client, return the token directly.
-                res.status(200).json({
-                    message: 'Google authentication successful!',
-                    token: token,
-                    user: {
-                        id: user.id,
-                        email: user.email,
-                        name: user.name,
-                    },
-                });
+                switch (user.role) {
+                    case 'ADMIN':
+                        dashboardPath = '/dashboard/admin';
+                        break;
+                    case 'SPEAKER':
+                        dashboardPath = '/dashboard/speaker';
+                        break;
+                    case 'USER':
+                    default:
+                        dashboardPath = '/dashboard/attendee';
+                        break;
+                }
+
+                res.redirect(`${frontendUrl}${dashboardPath}?token=${token}&oauth=true`);
             } catch (error: any) {
                 logger.error('Error in Google callback', error, { userId: (req.user as User)?.id });
                 res.status(500).json({ error: 'An internal error occurred during authentication.' });

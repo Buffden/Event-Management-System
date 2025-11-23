@@ -1,9 +1,10 @@
 'use client';
 
-import React, { ComponentType, useEffect } from 'react';
+import React, { ComponentType, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useLogger } from '@/lib/logger/LoggerProvider';
+import { tokenManager } from '@/lib/api/auth.api';
 
 interface WithAuthOptions {
   requiredRole?: string;
@@ -17,12 +18,39 @@ export function withAuth<T extends object>(
 ) {
   const { requiredRole, fallback, redirectTo = '/login' } = options;
 
-  return function AuthenticatedComponent(props: T) {
-    const { user, isAuthenticated, isLoading } = useAuth();
+  function AuthenticatedComponentInner(props: T) {
+    const { user, isAuthenticated, isLoading, checkAuth } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const logger = useLogger();
 
+    // Check for OAuth token in URL first (before auth check)
     useEffect(() => {
+      const token = searchParams.get('token');
+      const isOAuth = searchParams.get('oauth') === 'true';
+
+      if (token && isOAuth) {
+        logger.info('withAuth', 'OAuth token detected in URL, storing and authenticating');
+        tokenManager.setToken(token);
+        checkAuth().then(() => {
+          // Remove token from URL - get current path without query params
+          const currentPath = window.location.pathname;
+          router.replace(currentPath);
+        });
+        return; // Don't proceed with auth check until token is processed
+      }
+    }, [searchParams, router, logger, checkAuth]);
+
+    useEffect(() => {
+      // Wait a bit to allow OAuth token processing
+      const token = searchParams.get('token');
+      const isOAuth = searchParams.get('oauth') === 'true';
+
+      if (token && isOAuth) {
+        // Still processing OAuth token, don't redirect yet
+        return;
+      }
+
       if (!isLoading && !isAuthenticated) {
         logger.info('withAuth', 'User not authenticated, redirecting to login');
         router.push(redirectTo);
@@ -37,7 +65,7 @@ export function withAuth<T extends object>(
         router.push('/dashboard');
         return;
       }
-    }, [isAuthenticated, isLoading, user, requiredRole, router, redirectTo, logger]);
+    }, [isAuthenticated, isLoading, user, requiredRole, router, redirectTo, logger, searchParams]);
 
     // Show loading state
     if (isLoading) {
@@ -58,6 +86,21 @@ export function withAuth<T extends object>(
 
     // Render component if authenticated and authorized
     return <Component {...props} />;
+  }
+
+  return function AuthenticatedComponent(props: T) {
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-slate-700 dark:text-slate-300 font-medium">Loading...</p>
+          </div>
+        </div>
+      }>
+        <AuthenticatedComponentInner {...props} />
+      </Suspense>
+    );
   };
 }
 

@@ -22,16 +22,48 @@ function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const accessToken = searchParams.get('accessToken');
-  const { verifyEmail } = useAuth();
+  const token = searchParams.get('token'); // OAuth token
+  const isOAuth = searchParams.get('oauth') === 'true';
+  const { verifyEmail, checkAuth } = useAuth();
 
   useEffect(() => {
-    const verifyEmailHelper = async () => {
-      logger.info(LOGGER_COMPONENT_NAME, 'Email verification callback - accessToken:', accessToken);
-      if (!accessToken) {
-        setStatus('invalid');
-        setError('Invalid verification link');
-        return;
+    const handleCallback = async () => {
+      // Handle OAuth callback
+      if (isOAuth && token) {
+        logger.info(LOGGER_COMPONENT_NAME, 'OAuth callback - token received');
+        try {
+          setStatus('verifying');
+
+          // Store token and verify authentication
+          authApiClient.setToken(token);
+
+          // Check auth to get user profile
+          await checkAuth();
+
+          setStatus('success');
+          setUserEmail('OAuth authentication successful');
+
+          // Redirect to dashboard
+          setTimeout(() => {
+            router.push('/dashboard');
+          }, 2000);
+          return;
+        } catch (error) {
+          logger.error(LOGGER_COMPONENT_NAME, 'OAuth callback failed', error as Error);
+          setStatus('error');
+          setError(error instanceof Error ? error.message : 'OAuth authentication failed');
+          return;
+        }
       }
+
+      // Handle email verification callback
+      const verifyEmailHelper = async () => {
+        logger.info(LOGGER_COMPONENT_NAME, 'Email verification callback - accessToken:', accessToken);
+        if (!accessToken) {
+          setStatus('invalid');
+          setError('Invalid verification link');
+          return;
+        }
 
       // Check if already verified by checking localStorage
       const existingToken = authApiClient.getToken();
@@ -85,10 +117,15 @@ function VerifyEmailContent() {
         setStatus('error');
         setError(error instanceof Error ? error.message : 'Verification failed');
       }
+      };
+
+      if (!isOAuth) {
+        verifyEmailHelper();
+      }
     };
 
-      verifyEmailHelper();
-  }, [accessToken, router]);
+    handleCallback();
+  }, [accessToken, token, isOAuth, router, checkAuth, verifyEmail]);
 
   const getStatusIcon = () => {
     switch (status) {
