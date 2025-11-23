@@ -598,6 +598,13 @@ class AuthService {
             },
             select: userSelect,
         });
+
+        // Create speaker profile if user signed up as SPEAKER
+        if (userRole === 'SPEAKER') {
+            await this.createSpeakerProfile(oAuthUser);
+            logger.debug("findOrCreateGoogleUser(): Speaker profile creation initiated", {userId: oAuthUser.id, role: oAuthUser.role});
+        }
+
         return oAuthUser;
     }
 
