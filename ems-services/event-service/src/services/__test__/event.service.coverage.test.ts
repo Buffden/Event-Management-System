@@ -16,7 +16,7 @@ import {
   createMockVenue,
   resetAllMocks,
 } from '../../test/mocks-simple';
-import { EventStatus } from '../../../generated/prisma';
+import { EventStatus } from '../../types';
 
 describe('EventService Coverage Tests', () => {
   let eventService: EventService;
