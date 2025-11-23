@@ -30,7 +30,7 @@ const mockAxios = mocks.mockAxios;
 const mockLogger = mocks.mockLogger;
 
 import { BookingService } from '../services/booking.service';
-import { BookingStatus } from '../../generated/prisma';
+import { BookingStatus } from '../types';
 import { ticketService } from '../services/ticket.service';
 
 describe('BookingService', () => {

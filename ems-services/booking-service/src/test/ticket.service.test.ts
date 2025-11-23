@@ -21,7 +21,7 @@ const mockAxios = mocks.mockAxios;
 const mockLogger = mocks.mockLogger;
 
 import { TicketService } from '../services/ticket.service';
-import { TicketStatus } from '../../generated/prisma';
+import { TicketStatus } from '../types';
 
 describe('TicketService', () => {
   let ticketService: TicketService;
