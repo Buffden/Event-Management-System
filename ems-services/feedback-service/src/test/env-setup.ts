@@ -1,6 +1,6 @@
 // src/test/env-setup.ts
 import { config } from 'dotenv';
-import path from 'path';
+import * as path from 'path';
 
 // Load test environment variables as early as possible for all tests
 // Try to load .env.test, but don't fail if it doesn't exist

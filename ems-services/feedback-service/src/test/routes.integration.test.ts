@@ -11,8 +11,9 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect, jest } from '@jest/globals';
-import request from 'supertest';
-import express, { Express } from 'express';
+import request = require('supertest');
+import express = require('express');
+import { Express } from 'express';
 import {
   mockPrisma,
   mockAxios,
@@ -50,7 +51,7 @@ jest.mock('jsonwebtoken', () => {
   };
 });
 
-import jwt from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken';
 import feedbackRoutes from '../routes/feedback.routes';
 
 // Get actual JWT for use in tests

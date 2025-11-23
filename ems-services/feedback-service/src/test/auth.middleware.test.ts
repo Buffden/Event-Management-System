@@ -10,6 +10,7 @@
 
 import { describe, it, beforeEach, afterEach, expect, jest } from '@jest/globals';
 import type { Request, Response, NextFunction } from 'express';
+// @ts-ignore
 import jwt, { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
 import {
   authenticateToken,
