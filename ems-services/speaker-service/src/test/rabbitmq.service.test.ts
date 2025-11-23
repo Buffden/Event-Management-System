@@ -35,7 +35,7 @@ jest.mock('amqplib', () => {
 });
 
 // Mock SpeakerService
-const mockSpeakerService = {
+const mockSpeakerService: any = {
   createSpeakerProfile: jest.fn(),
 };
 
@@ -55,7 +55,7 @@ describe('RabbitMQService', () => {
     rabbitmqService = new RabbitMQService(testRabbitmqUrl, mockSpeakerService as any);
 
     // Get the mocked connect function and set up mocks
-    const amqplib = jest.requireMock('amqplib');
+    const amqplib = jest.requireMock('amqplib') as any;
     const mockConnect = amqplib.connect;
     const mockConn: any = {
       createChannel: jest.fn(),
@@ -90,7 +90,7 @@ describe('RabbitMQService', () => {
 
   describe('connect()', () => {
     it('should connect to RabbitMQ and set up consumer', async () => {
-      const amqplib = jest.requireMock('amqplib');
+      const amqplib = jest.requireMock('amqplib') as any;
       const mockConnect = amqplib.connect;
       const mockChannel = (global as any).__mockChannel;
 
@@ -102,7 +102,7 @@ describe('RabbitMQService', () => {
     });
 
     it('should handle connection errors', async () => {
-      const amqplib = jest.requireMock('amqplib');
+      const amqplib = jest.requireMock('amqplib') as any;
       const mockConnect = amqplib.connect;
       const connectionError = new Error('Connection failed');
       mockConnect.mockRejectedValueOnce(connectionError);
@@ -115,7 +115,7 @@ describe('RabbitMQService', () => {
     });
 
     it('should handle channel creation errors', async () => {
-      const amqplib = jest.requireMock('amqplib');
+      const amqplib = jest.requireMock('amqplib') as any;
       const mockConnect = amqplib.connect;
       const mockConn: any = {
         createChannel: jest.fn(),
@@ -238,7 +238,7 @@ describe('RabbitMQService', () => {
       const mockChannel = (global as any).__mockChannel;
       await rabbitmqService.connect();
       mockChannel.close.mockResolvedValue(undefined);
-      const amqplib = jest.requireMock('amqplib');
+      const amqplib = jest.requireMock('amqplib') as any;
       const mockConnect = amqplib.connect;
       const mockConn = await mockConnect('test');
       mockConn.close.mockResolvedValue(undefined);
@@ -267,4 +267,3 @@ describe('RabbitMQService', () => {
     });
   });
 });
-

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, beforeEach, expect, jest } from '@jest/globals';
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { authMiddleware, adminOnly, speakerOnly, AuthRequest } from '../middleware/auth.middleware';
 
 // Mock jsonwebtoken
@@ -41,7 +41,7 @@ jest.mock('../utils/logger', () => {
 
 describe('Auth Middleware', () => {
   let mockRequest: Partial<AuthRequest>;
-  let mockResponse: Partial<Response>;
+  let mockResponse: any;
   let mockNext: NextFunction;
 
   beforeEach(() => {
@@ -52,7 +52,7 @@ describe('Auth Middleware', () => {
     mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
-    };
+    } as any;
     mockNext = jest.fn();
     process.env.JWT_SECRET = 'test-secret';
   });
@@ -195,4 +195,3 @@ describe('Auth Middleware', () => {
     });
   });
 });
-

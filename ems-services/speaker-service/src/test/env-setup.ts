@@ -3,7 +3,7 @@
  */
 
 import { config } from 'dotenv';
-import path from 'path';
+import path = require('path');
 
 // Try to load test environment variables, but don't fail if file doesn't exist
 try {
