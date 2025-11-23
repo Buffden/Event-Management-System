@@ -6,7 +6,8 @@
  */
 
 import '@jest/globals';
-import express, { Express } from 'express';
+import express = require('express');
+import { Express } from 'express';
 import { AuthService } from '../services/auth.service';
 import { resetAllMocks } from './mocks-simple';
 

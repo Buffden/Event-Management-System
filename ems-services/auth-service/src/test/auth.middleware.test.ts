@@ -11,7 +11,7 @@
 
 import { describe, it, beforeEach, afterEach, expect, jest } from '@jest/globals';
 import type { Request, Response, NextFunction } from 'express';
-import jwt, { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
+import jwt = require('jsonwebtoken');
 import { authMiddleware } from '../middleware/auth.middleware';
 import {
   mockPrisma,
