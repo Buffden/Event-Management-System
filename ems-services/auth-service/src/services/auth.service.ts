@@ -491,9 +491,12 @@ class AuthService {
             }
             logger.debug("login(): Verifying user with token", userWithPassword);
             // Check if the user's account is active
-            if (!userWithPassword.isActive) {
+            if (!userWithPassword.isActive && !userWithPassword.emailVerified) {
                 logger.error(`verifyEmail(): Your account is not active. Please verify your email first - ${{userId: data.email}}`);
                 throw new Error('Your account is not active. Please verify your email first.');
+            } else if (!userWithPassword.isActive) {
+                logger.error(`verifyEmail(): Your account has been suspended. Please contact the administrators - ${{userId: data.email}}`);
+                throw new Error('Your account has been suspended. Please contact the administrators.');
             }
 
             const isPasswordValid = await bcrypt.compare(data.password, userWithPassword.password);

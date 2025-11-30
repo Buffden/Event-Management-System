@@ -6,16 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { 
-  LogOut, 
-  Users, 
+import {
+  LogOut,
+  Users,
   Search,
   Shield,
   UserCheck,
   TrendingUp,
   ArrowLeft,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Ban,
+  UserCheck2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -63,7 +65,7 @@ export default function UserManagementPage() {
     admins: 0,
     attendancePercentage: 0
   });
-  
+
   // Ref to maintain focus on search input
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isSearchingRef = useRef(false);
@@ -94,14 +96,14 @@ export default function UserManagementPage() {
     try {
       setLoading(true);
       setError(null);
-      logger.info(COMPONENT_NAME, 'Loading users', { 
-        search: debouncedSearch, 
-        role: selectedRole, 
-        status: selectedStatus, 
-        page, 
-        limit 
+      logger.info(COMPONENT_NAME, 'Loading users', {
+        search: debouncedSearch,
+        role: selectedRole,
+        status: selectedStatus,
+        page,
+        limit
       });
-      
+
       const [usersResponse, eventCounts] = await Promise.all([
         adminApiClient.getAllUsers({
           search: debouncedSearch || undefined,
@@ -121,17 +123,17 @@ export default function UserManagementPage() {
 
       setUsers(usersWithEvents);
       setPagination(usersResponse.pagination);
-      
-      logger.info(COMPONENT_NAME, 'Users loaded successfully', { 
+
+      logger.info(COMPONENT_NAME, 'Users loaded successfully', {
         count: usersWithEvents.length,
         pagination: usersResponse.pagination
       });
-      
+
       // Mark initial load as complete
       if (initialLoad) {
         setInitialLoad(false);
       }
-      
+
       // Restore focus to search input after loading if user was searching
       if (isSearchingRef.current && searchInputRef.current) {
         // Use requestAnimationFrame to ensure DOM is updated
@@ -173,11 +175,11 @@ export default function UserManagementPage() {
         adminApiClient.getDashboardStats(),
         adminApiClient.getAttendanceStats()
       ]);
-      
+
       // Get all users to calculate active and admin counts
       const allUsersResponse = await adminApiClient.getAllUsers({ limit: 1000 });
       const allUsers = allUsersResponse.data;
-      
+
       setTotalStats({
         total: dashboardStats.totalUsers,
         active: allUsers.filter(u => u.isActive).length,
@@ -231,8 +233,8 @@ export default function UserManagementPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => router.push('/dashboard/admin')}
                 className="text-slate-600 hover:text-slate-900"
@@ -244,13 +246,13 @@ export default function UserManagementPage() {
                 User Management
               </h1>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage 
-                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`} 
-                    alt={user?.name || user?.email} 
+                  <AvatarImage
+                    src={user?.image || `https://api.dicebear.com/7.x/initials/svg?seed=${user?.name || user?.email}`}
+                    alt={user?.name || user?.email}
                   />
                   <AvatarFallback className="text-xs">
                     {user?.name ? user.name.split(' ').map(n => n[0]).join('') : user?.email?.[0]?.toUpperCase()}
@@ -260,9 +262,9 @@ export default function UserManagementPage() {
                   {user?.name}
                 </span>
               </div>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={logout}
                 className="text-slate-600 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400"
@@ -372,7 +374,7 @@ export default function UserManagementPage() {
                   }}
                 />
               </div>
-              
+
               <select
                 value={selectedRole}
                 onChange={(e) => handleRoleChange(e.target.value)}
@@ -383,7 +385,7 @@ export default function UserManagementPage() {
                 <option value="SPEAKER">Speaker</option>
                 <option value="USER">User</option>
               </select>
-              
+
               <select
                 value={selectedStatus}
                 onChange={(e) => handleStatusChange(e.target.value)}
@@ -393,7 +395,7 @@ export default function UserManagementPage() {
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
               </select>
-              
+
             </div>
           </CardContent>
         </Card>
@@ -432,6 +434,7 @@ export default function UserManagementPage() {
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Status</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Email Verified</th>
                     <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Events</th>
+                    <th className="text-left py-3 px-4 font-medium text-slate-600 dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -440,9 +443,9 @@ export default function UserManagementPage() {
                       <td className="py-4 px-4">
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage 
-                              src={user.name ? `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}` : `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`} 
-                              alt={user.name || user.email} 
+                            <AvatarImage
+                              src={user.name ? `https://api.dicebear.com/7.x/initials/svg?seed=${user.name}` : `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`}
+                              alt={user.name || user.email}
                             />
                             <AvatarFallback className="text-xs">
                               {user.name ? user.name.split(' ').map((n: string) => n[0]).join('') : user.email[0].toUpperCase()}
@@ -455,7 +458,7 @@ export default function UserManagementPage() {
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <Badge 
+                        <Badge
                           variant={user.role === 'ADMIN' ? 'default' : 'secondary'}
                           className={
                             user.role === 'ADMIN' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
@@ -467,7 +470,7 @@ export default function UserManagementPage() {
                         </Badge>
                       </td>
                       <td className="py-4 px-4">
-                        <Badge 
+                        <Badge
                           variant={user.isActive ? 'default' : 'secondary'}
                           className={user.isActive ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}
                         >
@@ -475,7 +478,7 @@ export default function UserManagementPage() {
                         </Badge>
                       </td>
                       <td className="py-4 px-4">
-                        <Badge 
+                        <Badge
                           variant={user.emailVerified ? 'default' : 'secondary'}
                           className={user.emailVerified ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}
                         >
@@ -485,11 +488,64 @@ export default function UserManagementPage() {
                       <td className="py-4 px-4">
                         <span className="text-slate-900 dark:text-white">{user.eventsRegistered ?? 0}</span>
                       </td>
+                      <td className="py-4 px-4">
+                        {user.isActive ? (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              if (confirm(`Are you sure you want to suspend ${user.name || user.email}?`)) {
+                                try {
+                                  setLoading(true);
+                                  await adminApiClient.suspendUsers([user.email]);
+                                  logger.info(COMPONENT_NAME, 'User suspended successfully', { email: user.email });
+                                  await loadUsers(); // Reload users to reflect changes
+                                } catch (err) {
+                                  logger.error(COMPONENT_NAME, 'Failed to suspend user', err as Error);
+                                  setError('Failed to suspend user. Please try again.');
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }
+                            }}
+                            disabled={loading}
+                            className="h-8"
+                          >
+                            <Ban className="h-3 w-3 mr-1" />
+                            Suspend
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={async () => {
+                              if (confirm(`Are you sure you want to unsuspend ${user.name || user.email}?`)) {
+                                try {
+                                  setLoading(true);
+                                  await adminApiClient.unsuspendUsers([user.email]);
+                                  logger.info(COMPONENT_NAME, 'User unsuspended successfully', { email: user.email });
+                                  await loadUsers(); // Reload users to reflect changes
+                                } catch (err) {
+                                  logger.error(COMPONENT_NAME, 'Failed to unsuspend user', err as Error);
+                                  setError('Failed to unsuspend user. Please try again.');
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }
+                            }}
+                            disabled={loading}
+                            className="h-8 bg-green-600 hover:bg-green-700"
+                          >
+                            <UserCheck2 className="h-3 w-3 mr-1" />
+                            Unsuspend
+                          </Button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              
+
               {users.length === 0 && !loading && (
                 <div className="text-center py-8">
                   <Users className="h-12 w-12 text-slate-400 mx-auto mb-4" />
@@ -520,7 +576,7 @@ export default function UserManagementPage() {
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Previous
                   </Button>
-                  
+
                   <div className="flex items-center space-x-1">
                     {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                       let pageNum;
@@ -533,7 +589,7 @@ export default function UserManagementPage() {
                       } else {
                         pageNum = pagination.page - 2 + i;
                       }
-                      
+
                       return (
                         <Button
                           key={pageNum}
