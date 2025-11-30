@@ -639,6 +639,34 @@ export function registerRoutes(app: Express, authService: AuthService) {
                 }
 
                 try {
+                    // First, fetch the user to get their details for email notification
+                    const userToSuspend = await prisma.user.findFirst({
+                        where: {
+                            email: email.trim().toLowerCase(),
+                            role: { not: 'ADMIN' } // Prevent suspending admin users
+                        },
+                        select: {
+                            id: true,
+                            email: true,
+                            name: true,
+                            role: true,
+                            isActive: true,
+                            emailVerified: true,
+                        }
+                    });
+
+                    if (!userToSuspend) {
+                        notFound++;
+                        logger.debug("/admin/suspend-users - User not found or is admin", { email });
+                        continue;
+                    }
+
+                    // Only suspend if user is currently active
+                    if (!userToSuspend.isActive) {
+                        logger.debug("/admin/suspend-users - User already suspended", { email });
+                        continue;
+                    }
+
                     const updateResult = await prisma.user.updateMany({
                         where: {
                             email: email.trim().toLowerCase(),
@@ -652,6 +680,14 @@ export function registerRoutes(app: Express, authService: AuthService) {
                     if (updateResult.count > 0) {
                         suspended++;
                         logger.debug("/admin/suspend-users - User suspended", { email });
+
+                        // Send suspension email notification
+                        try {
+                            await authService.sendAccountSuspendedEmail(userToSuspend);
+                        } catch (emailError: any) {
+                            logger.error("/admin/suspend-users - Failed to send suspension email", emailError, { email });
+                            // Don't fail the suspension if email fails
+                        }
                     } else {
                         notFound++;
                         logger.debug("/admin/suspend-users - User not found or is admin", { email });
@@ -727,6 +763,34 @@ export function registerRoutes(app: Express, authService: AuthService) {
                 }
 
                 try {
+                    // First, fetch the user to get their details for email notification
+                    const userToUnsuspend = await prisma.user.findFirst({
+                        where: {
+                            email: email.trim().toLowerCase(),
+                            role: { not: 'ADMIN' } // Prevent unsuspending admin users (though they shouldn't be suspended)
+                        },
+                        select: {
+                            id: true,
+                            email: true,
+                            name: true,
+                            role: true,
+                            isActive: true,
+                            emailVerified: true,
+                        }
+                    });
+
+                    if (!userToUnsuspend) {
+                        notFound++;
+                        logger.debug("/admin/unsuspend-users - User not found or is admin", { email });
+                        continue;
+                    }
+
+                    // Only unsuspend if user is currently suspended
+                    if (userToUnsuspend.isActive) {
+                        logger.debug("/admin/unsuspend-users - User already active", { email });
+                        continue;
+                    }
+
                     const updateResult = await prisma.user.updateMany({
                         where: {
                             email: email.trim().toLowerCase(),
@@ -741,6 +805,14 @@ export function registerRoutes(app: Express, authService: AuthService) {
                     if (updateResult.count > 0) {
                         unsuspended++;
                         logger.debug("/admin/unsuspend-users - User unsuspended", { email });
+
+                        // Send unsuspension email notification
+                        try {
+                            await authService.sendAccountUnsuspendedEmail(userToUnsuspend);
+                        } catch (emailError: any) {
+                            logger.error("/admin/unsuspend-users - Failed to send unsuspension email", emailError, { email });
+                            // Don't fail the unsuspension if email fails
+                        }
                     } else {
                         notFound++;
                         logger.debug("/admin/unsuspend-users - User not found or is admin", { email });
