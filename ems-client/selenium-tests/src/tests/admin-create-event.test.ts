@@ -135,97 +135,219 @@ describe('Admin Create Event Flow', () => {
     }
     await driver.sleep(300);
 
-    // Recompute times right before setting datetime-local values
+    // Set date/time values - ensure dates are in the future (at least 1 day from now)
     const nowAtSet = new Date();
-    const start = new Date(nowAtSet.getTime() + 5 * 60 * 1000);
-    const end = new Date(start.getTime() + 10 * 60 * 1000);
+    // Set start to 2 days from now to ensure it's definitely in the future
+    const start = new Date(nowAtSet);
+    start.setDate(start.getDate() + 2); // 2 days from now
+    start.setHours(14, 0, 0, 0); // 2:00 PM
 
-    const startStr = formatForDatetimeLocal(start);
-    const endStr = formatForDatetimeLocal(end);
+    // Set end to same day as start, 2 hours after start
+    const end = new Date(start);
+    end.setHours(end.getHours() + 2); // 2 hours later
 
-    // Set start date - use JavaScript to set the value directly
-    const startEl = await waitForVisibleByCss(driver, '#bookingStartDate');
-    await startEl.click();
-    await driver.sleep(200);
+    // Format time for time input (HH:MM)
+    const formatTimeForInput = (d: Date): string => {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
 
-    // Use JavaScript to set the value and trigger events
-    await driver.executeScript(`
-      const el = document.getElementById('bookingStartDate');
-      if (el) {
-        const val = arguments[0];
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-          window.HTMLInputElement.prototype,
-          'value'
-        )?.set;
-        if (nativeInputValueSetter) {
-          nativeInputValueSetter.call(el, val);
-        } else {
-          el.value = val;
-        }
-        el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
-      }
-    `, startStr);
-    await driver.sleep(500);
+    // Format date for calendar (YYYY-MM-DD)
+    const formatDateForCalendar = (d: Date): string => {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    };
 
-    // Verify start date was set - wait for it to be set
-    await driver.wait(async () => {
-      const value = await startEl.getAttribute('value');
-      return value === startStr;
-    }, 5000).catch(async () => {
-      if (!driver) throw new Error("Driver not available in catch block");
-      // If still not set, try sendKeys as fallback
-      await startEl.clear();
-      await startEl.click();
-      await driver.sleep(100);
-      for (const char of startStr) {
-        await startEl.sendKeys(char);
-        await driver.sleep(10);
-      }
+    const startDateStr = formatDateForCalendar(start);
+    const startTimeStr = formatTimeForInput(start);
+    const endDateStr = formatDateForCalendar(end);
+    const endTimeStr = formatTimeForInput(end);
+
+    console.log(`Setting start date to: ${startDateStr} ${startTimeStr}`);
+    console.log(`Setting end date to: ${endDateStr} ${endTimeStr}`);
+
+    // Set start date - click date picker and select a future date
+    try {
+      const startDateButton = await waitForVisibleByCss(driver, '#start-date-picker', 10000);
+      await driver.executeScript('arguments[0].scrollIntoView({ behavior: "smooth", block: "center" });', startDateButton);
       await driver.sleep(300);
-    });
+      await startDateButton.click();
+      await driver.sleep(1000); // Wait for calendar popover to open
 
-    // Set end date - use JavaScript to set value directly
-    const endEl = await waitForVisibleByCss(driver, '#bookingEndDate');
-    await endEl.click();
-    await driver.sleep(200);
+      // Navigate to the correct month if needed
+      const targetMonth = start.getMonth();
+      const targetYear = start.getFullYear();
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
 
-    // Use JavaScript to set the value and trigger events
-    await driver.executeScript(`
-      const el = document.getElementById('bookingEndDate');
-      if (el) {
-        const val = arguments[0];
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-          window.HTMLInputElement.prototype,
-          'value'
-        )?.set;
-        if (nativeInputValueSetter) {
-          nativeInputValueSetter.call(el, val);
-        } else {
-          el.value = val;
+      // If target is in a different month, navigate forward
+      if (targetYear > currentYear || (targetYear === currentYear && targetMonth > currentMonth)) {
+        const monthsToNavigate = (targetYear - currentYear) * 12 + (targetMonth - currentMonth);
+        for (let i = 0; i < monthsToNavigate; i++) {
+          const nextButton = await driver.findElement(By.css('button[aria-label*="next"], button[aria-label*="Next"]'));
+          await nextButton.click();
+          await driver.sleep(300);
         }
-        el.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
       }
-    `, endStr);
-    await driver.sleep(500);
 
-    // Verify end date was set - wait for it to be set
-    await driver.wait(async () => {
-      const value = await endEl.getAttribute('value');
-      return value === endStr;
-    }, 5000).catch(async () => {
-      if (!driver) throw new Error("Driver not available in catch block");
-      // If still not set, try sendKeys as fallback
-      await endEl.clear();
-      await endEl.click();
-      await driver.sleep(100);
-      for (const char of endStr) {
-        await endEl.sendKeys(char);
-        await driver.sleep(10);
+      // Find and click the date in the calendar using data-day attribute (more reliable)
+      const dayOfMonth = start.getDate();
+      const targetDateStr = start.toLocaleDateString(); // Format matches data-day attribute
+
+      // Try to find by data-day attribute first
+      let calendarDateButton;
+      try {
+        calendarDateButton = await driver.wait(
+          until.elementLocated(By.xpath(`//button[@data-day='${targetDateStr}' and not(contains(@class, 'rdp-day_outside')) and not(contains(@class, 'rdp-day_disabled'))]`)),
+          5000
+        );
+      } catch {
+        // Fallback: find by day number (but only in current month, not outside days)
+        calendarDateButton = await driver.wait(
+          until.elementLocated(By.xpath(`//button[contains(@class, 'rdp-day') and not(contains(@class, 'rdp-day_outside')) and not(contains(@class, 'rdp-day_disabled')) and normalize-space(text())='${dayOfMonth}']`)),
+          10000
+        );
       }
+
+      await driver.wait(until.elementIsVisible(calendarDateButton), 5000);
+      await calendarDateButton.click();
+      await driver.sleep(500); // Wait for calendar to close
+      console.log(`✓ Selected start date: ${startDateStr}`);
+    } catch (error) {
+      console.warn('Could not set start date via calendar:', error);
+      throw new Error(`Failed to set start date: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Set start time - use JavaScript to set value directly (more reliable for React)
+    try {
+      await driver.sleep(500);
+      const timeInputs = await driver.findElements(By.css('input[type="time"]'));
+      if (timeInputs.length >= 1 && timeInputs[0]) {
+        const startTimeInput = timeInputs[0];
+        // Use JavaScript to set the value directly
+        await driver.executeScript(`
+          (function() {
+            const input = arguments[0];
+            const value = arguments[1];
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+              window.HTMLInputElement.prototype,
+              'value'
+            )?.set;
+            if (nativeInputValueSetter) {
+              nativeInputValueSetter.call(input, value);
+            } else {
+              input.value = value;
+            }
+            input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+            return input.value;
+          })();
+        `, startTimeInput, startTimeStr);
+        await driver.sleep(500);
+
+        // Verify time was set
+        const timeValue = await startTimeInput.getAttribute('value');
+        if (timeValue !== startTimeStr) {
+          console.warn(`Start time verification: Expected: ${startTimeStr}, Got: ${timeValue}`);
+        }
+      } else {
+        throw new Error('Start time input not found');
+      }
+    } catch (error) {
+      console.warn('Could not set start time:', error);
+      // Don't throw - continue and see if form still works
+    }
+
+    // Set end date - click date picker and select the same future date as start
+    try {
+      const endDateButton = await waitForVisibleByCss(driver, '#end-date-picker', 10000);
+      await driver.executeScript('arguments[0].scrollIntoView({ behavior: "smooth", block: "center" });', endDateButton);
       await driver.sleep(300);
-    });
+      await endDateButton.click();
+      await driver.sleep(1000); // Wait for calendar popover to open
+
+      // Navigate to the correct month if needed (same as start date)
+      const targetMonth = end.getMonth();
+      const targetYear = end.getFullYear();
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+
+      // If target is in a different month, navigate forward
+      if (targetYear > currentYear || (targetYear === currentYear && targetMonth > currentMonth)) {
+        const monthsToNavigate = (targetYear - currentYear) * 12 + (targetMonth - currentMonth);
+        for (let i = 0; i < monthsToNavigate; i++) {
+          const nextButton = await driver.findElement(By.css('button[aria-label*="next"], button[aria-label*="Next"]'));
+          await nextButton.click();
+          await driver.sleep(300);
+        }
+      }
+
+      // Find and click the date in the calendar using data-day attribute (more reliable)
+      const dayOfMonth = end.getDate();
+      const targetDateStr = end.toLocaleDateString(); // Format matches data-day attribute
+
+      // Try to find by data-day attribute first
+      let calendarDateButton;
+      try {
+        calendarDateButton = await driver.wait(
+          until.elementLocated(By.xpath(`//button[@data-day='${targetDateStr}' and not(contains(@class, 'rdp-day_outside')) and not(contains(@class, 'rdp-day_disabled'))]`)),
+          5000
+        );
+      } catch {
+        // Fallback: find by day number (but only in current month, not outside days)
+        calendarDateButton = await driver.wait(
+          until.elementLocated(By.xpath(`//button[contains(@class, 'rdp-day') and not(contains(@class, 'rdp-day_outside')) and not(contains(@class, 'rdp-day_disabled')) and normalize-space(text())='${dayOfMonth}']`)),
+          10000
+        );
+      }
+
+      await driver.wait(until.elementIsVisible(calendarDateButton), 5000);
+      await calendarDateButton.click();
+      await driver.sleep(500); // Wait for calendar to close
+      console.log(`✓ Selected end date: ${endDateStr}`);
+    } catch (error) {
+      console.warn('Could not set end date via calendar:', error);
+      throw new Error(`Failed to set end date: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Set end time - use JavaScript to set value directly
+    try {
+      const timeInputs = await driver.findElements(By.css('input[type="time"]'));
+      if (timeInputs.length >= 2 && timeInputs[1]) {
+        const endTimeInput = timeInputs[1];
+        // Use JavaScript to set the value directly
+        await driver.executeScript(`
+          (function() {
+            const input = arguments[0];
+            const value = arguments[1];
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+              window.HTMLInputElement.prototype,
+              'value'
+            )?.set;
+            if (nativeInputValueSetter) {
+              nativeInputValueSetter.call(input, value);
+            } else {
+              input.value = value;
+            }
+            input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+            return input.value;
+          })();
+        `, endTimeInput, endTimeStr);
+        await driver.sleep(500);
+
+        // Verify time was set
+        const timeValue = await endTimeInput.getAttribute('value');
+        if (timeValue !== endTimeStr) {
+          console.warn(`End time verification: Expected: ${endTimeStr}, Got: ${timeValue}`);
+        }
+      } else {
+        throw new Error('End time input not found');
+      }
+    } catch (error) {
+      console.warn('Could not set end time:', error);
+      // Don't throw - continue and see if form still works
+    }
 
     await driver.sleep(1000); // Additional wait for React to process
 
@@ -266,25 +388,52 @@ describe('Admin Create Event Flow', () => {
       await takeScreenshot(driver, 'admin-create-event-03-success-redirect');
       const currentUrl = await driver.getCurrentUrl();
       expect(currentUrl).toContain('/dashboard/admin/events');
-      
+
       createdEventName = eventName;
 
       // Aggressively find the event after creation
       await driver.navigate().refresh();
-      await driver.sleep(2000); // Wait for page to reload
+      await driver.sleep(3000); // Wait for page to reload and events to load
 
+      // Try multiple strategies to find the event
       try {
         console.log(`✓ Polling for event card with name: ${eventName}`);
-        const eventCard = await pollForElement(
-          driver,
-          By.xpath(`//*[contains(text(), '${eventName}')]/ancestor::div[@data-testid and starts-with(@data-testid, 'event-card-')]`)
-        );
-        
+
+        // Strategy 1: Find by any text containing event name within a card
+        let eventCard;
+        try {
+          eventCard = await pollForElement(
+            driver,
+            By.xpath(`//*[contains(text(), '${eventName}')]/ancestor::div[@data-testid and starts-with(@data-testid, 'event-card-')]`),
+            15000
+          );
+        } catch {
+          // Strategy 2: Find all event cards and check their text content
+          const allCards = await driver.findElements(By.css('[data-testid^="event-card-"]'));
+          for (const card of allCards) {
+            try {
+              const cardText = await card.getText();
+              if (cardText.includes(eventName)) {
+                eventCard = card;
+                break;
+              }
+            } catch {
+              // Skip cards that can't be read
+              continue;
+            }
+          }
+          if (!eventCard) {
+            throw new Error('Event card not found using any strategy');
+          }
+        }
+
         const cardTestId = await eventCard.getAttribute('data-testid');
         const match = cardTestId.match(/event-card-(.+)/);
         if (match && match[1]) {
           createdEventId = match[1];
           console.log(`✓ Extracted event ID from card: ${createdEventId}`);
+        } else {
+          throw new Error('Could not extract event ID from data-testid');
         }
       } catch (error) {
         console.warn('Could not extract event ID after polling, will use event name as fallback');
@@ -312,26 +461,35 @@ describe('Admin Create Event Flow', () => {
     // Step 1: Navigate to admin events page (ensure we're back at the events list)
     await navigateTo(driver, '/dashboard/admin/events');
     await driver.sleep(2000); // Wait for initial page load
-    
+
     // Force refresh to ensure we get the latest data
     await driver.navigate().refresh();
     await driver.sleep(3000); // Wait for page and events to load after refresh
 
     await takeScreenshot(driver, 'admin-invite-speaker-00-events-page');
 
-    // Step 2: Find the event card by test ID and click the Edit button within it
+    // Step 2: Find the event card and click the Edit button
     try {
       let editButton;
-      
+
       if (createdEventId) {
-        console.log(`✓ Polling for event card with test ID: event-card-${createdEventId}`);
-        const eventCard = await pollForElement(driver, By.css(`[data-testid^="event-card-${createdEventId}"]`));
-        console.log(`✓ Found event card`);
-        editButton = await eventCard.findElement(By.xpath('.//button[contains(., "Edit")]'));
-        console.log(`✓ Found Edit button within the card`);
+        console.log(`✓ Looking for Edit button with test ID: edit-event-${createdEventId}`);
+        // Try using the data-testid first (more reliable)
+        try {
+          editButton = await pollForElement(driver, By.css(`[data-testid="edit-event-${createdEventId}"]`), 10000);
+          console.log(`✓ Found Edit button by test ID`);
+        } catch {
+          // Fallback: find by event card and then Edit button
+          console.log(`✓ Fallback: Polling for event card with test ID: event-card-${createdEventId}`);
+          const eventCard = await pollForElement(driver, By.css(`[data-testid="event-card-${createdEventId}"]`), 10000);
+          console.log(`✓ Found event card`);
+          editButton = await eventCard.findElement(By.xpath('.//button[contains(., "Edit")]'));
+          console.log(`✓ Found Edit button within the card`);
+        }
       } else {
         console.log(`✓ Fallback: Polling for event by name: ${createdEventName}`);
-        const eventCard = await pollForElement(driver, By.xpath(`//*[contains(text(), '${createdEventName}')]/ancestor::div[@data-testid and starts-with(@data-testid, 'event-card-')]`));
+        // Try to find the event card by name
+        const eventCard = await pollForElement(driver, By.xpath(`//*[contains(text(), '${createdEventName}')]/ancestor::div[@data-testid and starts-with(@data-testid, 'event-card-')]`), 15000);
         console.log(`✓ Found event card by name`);
         editButton = await eventCard.findElement(By.xpath('.//button[contains(., "Edit")]'));
         console.log(`✓ Found Edit button within the card using fallback`);
@@ -343,19 +501,19 @@ describe('Admin Create Event Flow', () => {
 
       await driver.wait(until.elementIsVisible(editButton), 5000);
       await driver.sleep(500);
-      
+
       // Scroll the button into view
       await driver.executeScript('arguments[0].scrollIntoView({ behavior: "smooth", block: "center" });', editButton);
       await driver.sleep(500);
-      
+
       await editButton.click();
       await driver.sleep(1000);
       await takeScreenshot(driver, 'admin-invite-speaker-01-click-edit');
-      
+
       console.log('✓ Clicked Edit button');
     } catch (error) {
       await takeScreenshot(driver, 'admin-invite-speaker-01-error-finding-edit');
-      
+
       // Debug: Try to get page source or visible text
       try {
         const bodyText = await driver.findElement(By.css('body')).getText();
@@ -363,7 +521,7 @@ describe('Admin Create Event Flow', () => {
       } catch (debugError) {
         console.log('Could not get debug info');
       }
-      
+
       throw new Error(`Could not find Edit button for event: ${error instanceof Error ? error.message : String(error)}`);
     }
 
@@ -384,7 +542,7 @@ describe('Admin Create Event Flow', () => {
       await inviteSpeakerButton.click();
       await driver.sleep(2000); // Wait for modal to appear
       await takeScreenshot(driver, 'admin-invite-speaker-03-click-invite-button');
-      
+
       console.log('✓ Clicked Invite Speaker button');
     } catch (error) {
       await takeScreenshot(driver, 'admin-invite-speaker-03-error-finding-invite-button');
@@ -398,9 +556,9 @@ describe('Admin Create Event Flow', () => {
         until.elementLocated(By.xpath("//div[@role='dialog']//h2[contains(., 'Invite Speaker')]")),
         10000
       );
-      
+
       console.log('✓ Modal opened');
-      
+
       // Find the search input within the modal
       const searchInput = await driver.wait(
         until.elementLocated(By.css('input[placeholder*="Search"]')),
@@ -416,9 +574,9 @@ describe('Admin Create Event Flow', () => {
         await searchInput.sendKeys(char);
         await driver.sleep(100);
       }
-      
+
       console.log(`✓ Searching for: ${searchTerm}`);
-      
+
       // Wait for search results to load (debounce delay + search time)
       await driver.sleep(2000);
       await takeScreenshot(driver, 'admin-invite-speaker-04-search-speaker');
@@ -435,9 +593,9 @@ describe('Admin Create Event Flow', () => {
         10000
       );
       await driver.wait(until.elementIsVisible(speakerCard), 5000);
-      
+
       console.log('✓ Found speaker in results');
-      
+
       // Click the speaker card or the Select button within it
       try {
         // Try to find and click the "Select" button in the speaker card
@@ -449,10 +607,10 @@ describe('Admin Create Event Flow', () => {
         // If Select button not found, click the card itself
         await speakerCard.click();
       }
-      
+
       await driver.sleep(1000);
       await takeScreenshot(driver, 'admin-invite-speaker-05-select-speaker');
-      
+
       console.log('✓ Selected speaker');
     } catch (error) {
       await takeScreenshot(driver, 'admin-invite-speaker-05-error-selecting-speaker');
@@ -466,11 +624,11 @@ describe('Admin Create Event Flow', () => {
         until.elementLocated(By.css('textarea')),
         10000
       );
-      
+
       await driver.sleep(500);
-      
+
       console.log('✓ Invitation message section loaded');
-      
+
       // Find and click the "Send Invitation" button
       const sendInvitationButton = await driver.wait(
         until.elementLocated(By.xpath("//button[contains(., 'Send Invitation')]")),
@@ -478,14 +636,14 @@ describe('Admin Create Event Flow', () => {
       );
       await driver.wait(until.elementIsVisible(sendInvitationButton), 5000);
       await driver.wait(until.elementIsEnabled(sendInvitationButton), 5000);
-      
+
       // Scroll into view and click
       await driver.executeScript('arguments[0].scrollIntoView({ behavior: "smooth", block: "center" });', sendInvitationButton);
       await driver.sleep(500);
       await sendInvitationButton.click();
-      
+
       console.log('✓ Clicked Send Invitation');
-      
+
       await driver.sleep(2000); // Wait for invitation to be sent and modal to close
       await takeScreenshot(driver, 'admin-invite-speaker-06-send-invitation');
     } catch (error) {
@@ -500,7 +658,7 @@ describe('Admin Create Event Flow', () => {
     // Verify we're still on the modify page or success message appeared
     const currentUrl = await driver.getCurrentUrl();
     expect(currentUrl).toContain('/dashboard/admin/events/modify/');
-    
+
     console.log('✅ Successfully invited speaker to event');
   }, 120000);
 });

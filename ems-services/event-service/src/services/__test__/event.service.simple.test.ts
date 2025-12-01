@@ -1,6 +1,6 @@
 /**
  * Simple Event Service Tests
- * 
+ *
  * This file contains basic tests for the EventService class
  * that focus on testing the methods that actually exist.
  */
@@ -36,8 +36,8 @@ describe('EventService (simple)', () => {
         venue: createMockVenue(),
         createdBy: 'user-123',
         updatedBy: 'user-123',
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
       });
 
       const result = await eventService.getEventById('event-123');
@@ -76,14 +76,14 @@ describe('EventService (simple)', () => {
         category: 'CONFERENCE',
         bannerImageUrl: undefined,
         venueId: 123, // Should be number, not string
-        bookingStartDate: '2025-12-01T00:00:00Z', // Future date (December 2025)
-        bookingEndDate: '2025-12-31T23:59:59Z', // Future date
+        bookingStartDate: '2026-12-01T00:00:00Z', // Future date (December 2026)
+        bookingEndDate: '2026-12-31T23:59:59Z', // Future date
         userId: 'user-123',
       };
 
       const mockEvent = createMockEvent();
       const mockVenue = createMockVenue();
-      
+
       // Mock the venue lookup
       mockPrisma.venue.findUnique.mockResolvedValue({
         ...mockVenue,
@@ -150,8 +150,8 @@ describe('EventService (simple)', () => {
         category: 'CONFERENCE',
         bannerImageUrl: undefined,
         venueId: 999, // Non-existent venue ID
-        bookingStartDate: '2025-12-01T00:00:00Z', // Future date (December 2025)
-        bookingEndDate: '2025-12-31T23:59:59Z', // Future date
+        bookingStartDate: '2026-12-01T00:00:00Z', // Future date (December 2026)
+        bookingEndDate: '2026-12-31T23:59:59Z', // Future date
         userId: 'user-123',
       };
 
