@@ -35,6 +35,10 @@ jobs:
         working-directory: ${{ matrix.service == 'ems-client' && 'ems-client' || format('ems-services/{0}', matrix.service) }}
         run: npm ci
 
+      - name: Generate Prisma
+        working-directory: ${{ matrix.service == 'ems-client' && 'ems-client' || format('ems-services/{0}', matrix.service) }}
+        run: npx prisma generate
+
       - name: Run tests
         working-directory: ${{ matrix.service == 'ems-client' && 'ems-client' || format('ems-services/{0}', matrix.service) }}
         run: npm test -- --coverageThreshold='{}'
