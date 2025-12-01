@@ -5,8 +5,7 @@ import { logger } from '../utils/logger';
 import { requireAdmin } from '../middleware/auth.middleware';
 import { asyncHandler } from '../middleware/error.middleware';
 import { validateQuery, validatePagination, validateBookingStatus, validateUUID } from '../middleware/validation.middleware';
-import { BookingFilters, AuthRequest } from '../types';
-import { BookingStatus, TicketStatus } from '../../generated/prisma';
+import { BookingFilters, AuthRequest, BookingStatus, TicketStatus } from '../types';
 import { prisma } from '../database';
 
 const router = Router();

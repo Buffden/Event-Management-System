@@ -406,6 +406,70 @@ export class AdminApiClient extends BaseApiClient {
     }
   }
 
+  async suspendUsers(emails: string[]): Promise<{ success: boolean; suspended: number; notFound: number; message: string }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Suspending users', { emailCount: emails.length });
+
+      const response = await fetch('/api/auth/admin/suspend-users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ emails }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to suspend users' }));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Users suspended successfully', {
+        suspended: result.suspended,
+        notFound: result.notFound
+      });
+
+      return result;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to suspend users', error as Error);
+      throw error;
+    }
+  }
+
+  async unsuspendUsers(emails: string[]): Promise<{ success: boolean; unsuspended: number; notFound: number; message: string }> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Unsuspending users', { emailCount: emails.length });
+
+      const response = await fetch('/api/auth/admin/unsuspend-users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ emails }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to unsuspend users' }));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      logger.info(LOGGER_COMPONENT_NAME, 'Users unsuspended successfully', {
+        unsuspended: result.unsuspended,
+        notFound: result.notFound
+      });
+
+      return result;
+    } catch (error) {
+      logger.error(LOGGER_COMPONENT_NAME, 'Failed to unsuspend users', error as Error);
+      throw error;
+    }
+  }
+
   async getAttendanceStats(): Promise<{
     totalRegistrations: number;
     totalAttended: number;
@@ -437,6 +501,65 @@ export class AdminApiClient extends BaseApiClient {
       };
     } catch (error) {
       logger.error(LOGGER_COMPONENT_NAME, 'Failed to fetch attendance statistics', error as Error);
+      throw error;
+    }
+  }
+
+  // User Growth Report
+  async getUserGrowthData(): Promise<Array<{
+    month: string;
+    users: number;
+    newUsers: number;
+  }>> {
+    try {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Fetching user growth data', {
+        tokenExists: !!this.getToken(),
+        tokenLength: this.getToken()?.length || 0
+      });
+
+      const response = await fetch('/api/auth/admin/reports/user-growth', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(LOGGER_COMPONENT_NAME, 'User growth API error', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText
+        });
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      const result = await response.json();
+
+      logger.info(LOGGER_COMPONENT_NAME, 'User growth data retrieved', {
+        success: result.success,
+        dataLength: result.data?.length || 0,
+        hasData: !!result.data,
+        sampleData: result.data?.slice(0, 2) // Log first 2 items for debugging
+      });
+
+      if (!result.success) {
+        logger.warn(LOGGER_COMPONENT_NAME, 'User growth API returned success: false', result);
+        return [];
+      }
+
+      return result.data || [];
+    } catch (error) {
+      logger.errorWithContext(
+        LOGGER_COMPONENT_NAME,
+        'Failed to fetch user growth data',
+        error as Error,
+        {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
+      );
       throw error;
     }
   }

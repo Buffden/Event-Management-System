@@ -1,16 +1,17 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
 generator client {
-  provider      = "prisma-client-js"
+  provider      = "prisma-client"
   output        = "../generated/prisma"
-  // Debian (glibc) compatible engines
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum InvitationStatus {
@@ -30,9 +31,9 @@ enum MessageStatus {
 model SpeakerProfile {
   id          String   @id @default(cuid())
   userId      String   @unique
-  name        String   // Required for search by name
-  email       String   // Required for contact
-  bio         String?  // Optional, can be updated later
+  name        String // Required for search by name
+  email       String // Required for contact
+  bio         String? // Optional, can be updated later
   expertise   String[] // Optional, can be updated later
   isAvailable Boolean  @default(true)
   createdAt   DateTime @default(now())
@@ -49,22 +50,22 @@ model SpeakerInvitation {
   id          String           @id @default(cuid())
   speakerId   String
   eventId     String
-  sessionId   String?          // Optional: session ID for session-specific invitations
+  sessionId   String? // Optional: session ID for session-specific invitations
   message     String?
   status      InvitationStatus @default(PENDING)
   sentAt      DateTime         @default(now())
   respondedAt DateTime?
 
   // Speaker joining and material selection
-  joinedAt           DateTime?  // When speaker joined the event (null if not joined)
-  leftAt             DateTime?  // When speaker left the event (null if not left)
-  materialsSelected  String[]   @default([]) // Array of material IDs selected for this event
-  isAttended         Boolean    @default(false) // Whether speaker has attended the event
+  joinedAt          DateTime? // When speaker joined the event (null if not joined)
+  leftAt            DateTime? // When speaker left the event (null if not left)
+  materialsSelected String[]  @default([]) // Array of material IDs selected for this event
+  isAttended        Boolean   @default(false) // Whether speaker has attended the event
 
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  speaker     SpeakerProfile @relation(fields: [speakerId], references: [id])
+  speaker SpeakerProfile @relation(fields: [speakerId], references: [id])
 
   @@unique([sessionId, speakerId]) // Unique constraint: one invitation per session per speaker
   @@index([sessionId])
@@ -74,22 +75,22 @@ model SpeakerInvitation {
 
 // Message model
 model Message {
-  id          String        @id @default(cuid())
-  fromUserId  String
-  toUserId    String
-  subject     String
-  content     String        @db.Text
-  threadId    String?
-  eventId     String?       // Optional: associate message with an event
-  status      MessageStatus @default(SENT)
-  sentAt      DateTime      @default(now())
-  deliveredAt DateTime?     // When message was delivered
-  readAt      DateTime?     // When message was read
-  attachmentUrl String?     // Optional: URL to attached file
-  attachmentName String?    // Optional: name of attached file
-  attachmentType String?    // Optional: MIME type of attachment
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  fromUserId     String
+  toUserId       String
+  subject        String
+  content        String        @db.Text
+  threadId       String?
+  eventId        String? // Optional: associate message with an event
+  status         MessageStatus @default(SENT)
+  sentAt         DateTime      @default(now())
+  deliveredAt    DateTime? // When message was delivered
+  readAt         DateTime? // When message was read
+  attachmentUrl  String? // Optional: URL to attached file
+  attachmentName String? // Optional: name of attached file
+  attachmentType String? // Optional: MIME type of attachment
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([fromUserId])
   @@index([toUserId])
@@ -101,16 +102,16 @@ model Message {
 
 // Presentation material model
 model PresentationMaterial {
-  id          String   @id @default(cuid())
-  speakerId   String
-  eventId     String?
-  fileName    String
-  filePath    String
-  fileSize    Int
-  mimeType    String
-  uploadDate  DateTime @default(now())
+  id         String   @id @default(cuid())
+  speakerId  String
+  eventId    String?
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
+  uploadDate DateTime @default(now())
 
-  speaker     SpeakerProfile @relation(fields: [speakerId], references: [id])
+  speaker SpeakerProfile @relation(fields: [speakerId], references: [id])
 
   @@map("presentation_materials")
 }

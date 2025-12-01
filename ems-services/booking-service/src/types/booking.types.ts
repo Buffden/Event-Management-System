@@ -1,4 +1,4 @@
-import { BookingStatus } from '../../generated/prisma';
+import { BookingStatus } from '../../generated/prisma/enums';
 
 // Booking-related types
 export interface CreateBookingRequest {

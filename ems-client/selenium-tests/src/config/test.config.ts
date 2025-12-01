@@ -66,7 +66,7 @@ const config: TestConfig = {
   // Test credentials (should be set via environment variables in production)
   credentials: {
     validUser: {
-      email: process.env.TEST_USER_EMAIL || 'admin@eventmanagement.com',
+      email: process.env.TEST_USER_EMAIL || 'admin@ems.com',
       password: process.env.TEST_USER_PASSWORD || 'Admin123!'
     },
     invalidUser: {

@@ -9,7 +9,7 @@ import {
   mockAxios,
   mockLogger,
 } from '../../test/mocks-simple';
-import { SessionSpeakerMaterialsStatus } from '../../../generated/prisma';
+import { SessionSpeakerMaterialsStatus } from '../../types';
 
 describe('SessionService', () => {
   beforeEach(() => {

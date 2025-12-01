@@ -708,17 +708,21 @@ export const LiveEventAuditorium = ({ userRole }: LiveEventAuditoriumProps) => {
 
     // Only load speakers if the hash has changed (sessions or invitations changed)
     if (sessionsHash !== loadedSessionsHashRef.current) {
-      if (sessions.length > 0) {
-        // Use ref to get latest speakerAttendance without triggering re-runs
-        loadAllSpeakers(speakerAttendanceRef.current);
-        loadedSessionsHashRef.current = sessionsHash;
-      } else {
-        // Clear speakers if no sessions
-        setAllSpeakers([]);
-        loadedSessionsHashRef.current = '';
-      }
+      // Use ref to get latest speakerAttendance without triggering re-runs
+      loadAllSpeakers(speakerAttendanceRef.current);
+      loadedSessionsHashRef.current = sessionsHash;
     }
   }, [sessions, eventInvitations, loadAllSpeakers]);
+
+  // Fallback: if there are no sessions (event-level speakers), use speaker attendance
+  useEffect(() => {
+    if (sessions.length === 0 && speakerAttendance && speakerAttendance.speakers.length > 0) {
+      logger.debug(LOGGER_COMPONENT_NAME, 'Loading speakers from attendance fallback', {
+        speakerCount: speakerAttendance.speakers.length
+      });
+      loadAllSpeakers(speakerAttendance);
+    }
+  }, [sessions.length, speakerAttendance, loadAllSpeakers, logger]);
 
   // Update speaker join status when attendance changes (without re-fetching profiles)
   // This ensures join status is updated even if speakerAttendance loads after speakers are loaded

@@ -178,14 +178,18 @@ export const createMockHttpServer = () => ({
   close: jest.fn(),
 });
 
-export const createMockSocketIOServer = () => ({
-  use: jest.fn(),
-  on: jest.fn(),
-  to: jest.fn(() => ({
-    emit: jest.fn(),
-  })),
-  close: jest.fn(),
-});
+export const createMockSocketIOServer = () => {
+  const mockEmit = jest.fn();
+  const mockTo = jest.fn((_room: string) => ({
+    emit: mockEmit,
+  }));
+  return {
+    use: jest.fn(),
+    on: jest.fn(),
+    to: mockTo as jest.MockedFunction<(room: string) => { emit: jest.MockedFunction<any> }>,
+    close: jest.fn(),
+  };
+};
 
 // ============================================================================
 // MOCK SETUP AND RESET FUNCTIONS

@@ -5,7 +5,7 @@
  */
 
 import { jest } from '@jest/globals';
-import { SessionSpeakerMaterialsStatus } from '../../generated/prisma';
+import { SessionSpeakerMaterialsStatus } from '../types';
 
 // ============================================================================
 // MOCK DATA FACTORIES

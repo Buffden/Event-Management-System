@@ -11,7 +11,7 @@
 
 import { describe, it, beforeEach, afterEach, expect, jest } from '@jest/globals';
 import type { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt = require('jsonwebtoken');
 import { contextMiddleware, requireAuth } from '../middleware/context.middleware';
 import {
   mockJWT,

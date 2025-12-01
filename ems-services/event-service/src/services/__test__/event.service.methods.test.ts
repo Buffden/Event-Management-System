@@ -23,7 +23,7 @@ import {
   mockLogger,
   resetAllMocks,
 } from '../../test/mocks-simple';
-import { EventStatus } from '../../../generated/prisma';
+import { EventStatus } from '../../types';
 
 describe('EventService Methods Coverage', () => {
   let eventService: EventService;
@@ -42,8 +42,8 @@ describe('EventService Methods Coverage', () => {
         id: eventId,
         speakerId,
         status: EventStatus.DRAFT,
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -92,8 +92,8 @@ describe('EventService Methods Coverage', () => {
         speakerId,
         status: EventStatus.REJECTED,
         rejectionReason: 'Previous rejection',
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -171,8 +171,8 @@ describe('EventService Methods Coverage', () => {
         status: EventStatus.PENDING_APPROVAL,
         name: 'Test Event',
         description: 'Test Description',
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -244,8 +244,8 @@ describe('EventService Methods Coverage', () => {
         id: eventId,
         speakerId: 'speaker-123',
         status: EventStatus.PENDING_APPROVAL,
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -285,8 +285,8 @@ describe('EventService Methods Coverage', () => {
       const existingEvent = createMockEvent({
         id: eventId,
         status: EventStatus.PENDING_APPROVAL,
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -359,8 +359,8 @@ describe('EventService Methods Coverage', () => {
       const existingEvent = createMockEvent({
         id: eventId,
         status: EventStatus.PUBLISHED,
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -652,8 +652,8 @@ describe('EventService Methods Coverage', () => {
         id: eventId,
         speakerId,
         status: EventStatus.DRAFT,
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -688,8 +688,8 @@ describe('EventService Methods Coverage', () => {
         id: eventId,
         speakerId,
         status: EventStatus.REJECTED,
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -764,8 +764,8 @@ describe('EventService Methods Coverage', () => {
         id: eventId,
         speakerId,
         status: EventStatus.DRAFT,
-        bookingStartDate: new Date('2025-12-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-12-31T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-12-31T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -785,16 +785,16 @@ describe('EventService Methods Coverage', () => {
       const eventId = 'event-123';
       const speakerId = 'speaker-123';
       const updateData = {
-        bookingStartDate: '2025-12-31T23:59:59Z',
-        bookingEndDate: '2025-12-01T00:00:00Z', // End before start
+        bookingStartDate: '2026-12-31T23:59:59Z',
+        bookingEndDate: '2026-12-01T00:00:00Z', // End before start
       };
 
       const existingEvent = createMockEvent({
         id: eventId,
         speakerId,
         status: EventStatus.DRAFT,
-        bookingStartDate: new Date('2025-11-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-11-30T23:59:59Z'),
+        bookingStartDate: new Date('2026-11-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-11-30T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -813,8 +813,8 @@ describe('EventService Methods Coverage', () => {
       const eventId = 'event-123';
       const speakerId = 'speaker-123';
       const updateData = {
-        bookingStartDate: '2025-12-01T00:00:00Z',
-        bookingEndDate: '2025-12-31T23:59:59Z',
+        bookingStartDate: '2026-12-01T00:00:00Z',
+        bookingEndDate: '2026-12-31T23:59:59Z',
       };
 
       const existingEvent = createMockEvent({
@@ -822,8 +822,8 @@ describe('EventService Methods Coverage', () => {
         speakerId,
         status: EventStatus.DRAFT,
         venueId: 1,
-        bookingStartDate: new Date('2025-11-01T00:00:00Z'),
-        bookingEndDate: new Date('2025-11-30T23:59:59Z'),
+        bookingStartDate: new Date('2026-11-01T00:00:00Z'),
+        bookingEndDate: new Date('2026-11-30T23:59:59Z'),
         createdAt: new Date('2024-01-01T00:00:00Z'),
         updatedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -832,8 +832,8 @@ describe('EventService Methods Coverage', () => {
         id: 'event-456',
         status: EventStatus.PUBLISHED,
         venueId: 1,
-        bookingStartDate: new Date('2025-12-15T00:00:00Z'),
-        bookingEndDate: new Date('2026-01-15T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-15T00:00:00Z'),
+        bookingEndDate: new Date('2027-01-15T23:59:59Z'),
       });
 
       mockPrisma.event.findUnique.mockResolvedValue({
@@ -855,8 +855,8 @@ describe('EventService Methods Coverage', () => {
         description: 'Event created by admin',
         category: 'CONFERENCE',
         venueId: 1,
-        bookingStartDate: '2025-12-01T00:00:00Z',
-        bookingEndDate: '2025-12-31T23:59:59Z',
+        bookingStartDate: '2026-12-01T00:00:00Z',
+        bookingEndDate: '2026-12-31T23:59:59Z',
         userId: 'admin-123',
       };
 
@@ -907,8 +907,8 @@ describe('EventService Methods Coverage', () => {
         description: 'Test Description',
         category: 'CONFERENCE',
         venueId: 1,
-        bookingStartDate: '2025-12-01T00:00:00Z',
-        bookingEndDate: '2025-12-31T23:59:59Z',
+        bookingStartDate: '2026-12-01T00:00:00Z',
+        bookingEndDate: '2026-12-31T23:59:59Z',
         userId: 'speaker-123',
       };
 
@@ -953,8 +953,8 @@ describe('EventService Methods Coverage', () => {
         description: 'Test Description',
         category: 'CONFERENCE',
         venueId: 1,
-        bookingStartDate: '2025-12-01T00:00:00Z',
-        bookingEndDate: '2025-12-31T23:59:59Z',
+        bookingStartDate: '2026-12-01T00:00:00Z',
+        bookingEndDate: '2026-12-31T23:59:59Z',
         userId: 'speaker-123',
       };
 
@@ -995,8 +995,8 @@ describe('EventService Methods Coverage', () => {
         description: 'Test Description',
         category: 'CONFERENCE',
         venueId: 1,
-        bookingStartDate: '2025-12-01T00:00:00Z',
-        bookingEndDate: '2025-12-31T23:59:59Z',
+        bookingStartDate: '2026-12-01T00:00:00Z',
+        bookingEndDate: '2026-12-31T23:59:59Z',
         userId: 'speaker-123',
       };
 
@@ -1033,8 +1033,8 @@ describe('EventService Methods Coverage', () => {
         description: 'Test Description',
         category: 'CONFERENCE',
         venueId: 1,
-        bookingStartDate: '2025-12-01T00:00:00Z',
-        bookingEndDate: '2025-12-31T23:59:59Z',
+        bookingStartDate: '2026-12-01T00:00:00Z',
+        bookingEndDate: '2026-12-31T23:59:59Z',
         userId: 'speaker-123',
       };
 
@@ -1074,8 +1074,8 @@ describe('EventService Methods Coverage', () => {
         description: 'Test Description',
         category: 'CONFERENCE',
         venueId: 999,
-        bookingStartDate: '2025-12-01T00:00:00Z',
-        bookingEndDate: '2025-12-31T23:59:59Z',
+        bookingStartDate: '2026-12-01T00:00:00Z',
+        bookingEndDate: '2026-12-31T23:59:59Z',
         userId: 'speaker-123',
       };
 
@@ -1103,8 +1103,8 @@ describe('EventService Methods Coverage', () => {
         description: 'Test Description',
         category: 'CONFERENCE',
         venueId: 1,
-        bookingStartDate: '2025-12-31T23:59:59Z',
-        bookingEndDate: '2025-12-01T00:00:00Z', // End before start
+        bookingStartDate: '2026-12-31T23:59:59Z',
+        bookingEndDate: '2026-12-01T00:00:00Z', // End before start
         userId: 'speaker-123',
       };
 
@@ -1129,7 +1129,7 @@ describe('EventService Methods Coverage', () => {
 
     it('should throw error if booking start date is in the past', async () => {
       const pastDate = new Date('2020-01-01T00:00:00Z');
-      const futureDate = new Date('2025-12-31T23:59:59Z');
+      const futureDate = new Date('2026-12-31T23:59:59Z');
       const eventData = {
         name: 'Test Event',
         description: 'Test Description',
@@ -1165,8 +1165,8 @@ describe('EventService Methods Coverage', () => {
         description: 'Test Description',
         category: 'CONFERENCE',
         venueId: 1,
-        bookingStartDate: '2025-12-01T00:00:00Z',
-        bookingEndDate: '2025-12-31T23:59:59Z',
+        bookingStartDate: '2026-12-01T00:00:00Z',
+        bookingEndDate: '2026-12-31T23:59:59Z',
         userId: 'speaker-123',
       };
 
@@ -1175,8 +1175,8 @@ describe('EventService Methods Coverage', () => {
         id: 'event-456',
         venueId: 1,
         status: EventStatus.PUBLISHED,
-        bookingStartDate: new Date('2025-12-15T00:00:00Z'),
-        bookingEndDate: new Date('2026-01-15T23:59:59Z'),
+        bookingStartDate: new Date('2026-12-15T00:00:00Z'),
+        bookingEndDate: new Date('2027-01-15T23:59:59Z'),
       });
 
       mockPrisma.venue.findUnique.mockResolvedValue(mockVenue);

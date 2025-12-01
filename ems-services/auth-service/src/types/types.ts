@@ -1,6 +1,6 @@
 // 1. IMPORT the 'Role' enum directly from the generated Prisma client.
 //    (Adjust the import path if your file structure is different)
-import type {Role} from '../../generated/prisma/index';
+import type {Role} from '../../generated/prisma/enums';
 
 // 2. RE-EXPORT the Role enum so other files can import it from this file.
 export {Role};
@@ -74,6 +74,8 @@ export enum MESSAGE_TYPE {
     ACCOUNT_VERIFICATION_EMAIL = 'ACCOUNT_VERIFICATION_EMAIL',
     PASSWORD_RESET_EMAIL = 'PASSWORD_RESET_EMAIL',
     SPEAKER_PROFILE_CREATION = 'SPEAKER_PROFILE_CREATION',
+    ACCOUNT_SUSPENDED = 'ACCOUNT_SUSPENDED',
+    ACCOUNT_UNSUSPENDED = 'ACCOUNT_UNSUSPENDED',
 }
 
 // Unified Email Notification Interface

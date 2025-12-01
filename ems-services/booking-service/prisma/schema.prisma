@@ -1,12 +1,17 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
 generator client {
-  provider      = "prisma-client-js"
+  provider      = "prisma-client"
   output        = "../generated/prisma"
   binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // Enum to represent the state of a booking.
@@ -45,22 +50,22 @@ model Event {
 
 // Represents a user's registration for a specific event.
 model Booking {
-  id     String        @id @default(cuid())
-  userId String        // Foreign key for the user from the Auth Service
-  eventId String       // Foreign key for the local Event model
+  id      String @id @default(cuid())
+  userId  String // Foreign key for the user from the Auth Service
+  eventId String // Foreign key for the local Event model
 
-  status    BookingStatus @default(CONFIRMED)
-  event     Event         @relation(fields: [eventId], references: [id])
-  
+  status BookingStatus @default(CONFIRMED)
+  event  Event         @relation(fields: [eventId], references: [id])
+
   // Ticket relationship
-  ticket    Ticket?
+  ticket Ticket?
 
   // Attendance tracking fields
-  joinedAt  DateTime?     // When user joined the event (null if not joined)
-  isAttended Boolean      @default(false) // Whether user has attended the event
+  joinedAt   DateTime? // When user joined the event (null if not joined)
+  isAttended Boolean   @default(false) // Whether user has attended the event
 
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, eventId]) // A user can only book an event once
   @@map("bookings")
@@ -68,37 +73,37 @@ model Booking {
 
 // Represents a digital ticket generated for a booking.
 model Ticket {
-  id             String       @id @default(cuid())
-  bookingId      String       @unique // One ticket per booking
-  status         TicketStatus @default(ISSUED)
-  issuedAt       DateTime     @default(now())
-  scannedAt      DateTime?
-  expiresAt      DateTime     // Tickets expire 2 hours after event ends
-  
+  id        String       @id @default(cuid())
+  bookingId String       @unique // One ticket per booking
+  status    TicketStatus @default(ISSUED)
+  issuedAt  DateTime     @default(now())
+  scannedAt DateTime?
+  expiresAt DateTime // Tickets expire 2 hours after event ends
+
   // Relationships
-  booking        Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  qrCode         QRCode?
+  booking           Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  qrCode            QRCode?
   attendanceRecords AttendanceRecord[]
-  
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("tickets")
 }
 
 // Represents QR code data and metadata.
 model QRCode {
-  id          String   @id @default(cuid())
-  ticketId    String   @unique
-  data        String   @unique // The actual QR code data
-  format      String   @default("PNG") // Image format
-  scanCount   Int      @default(0) // Track how many times it's been scanned
-  
+  id        String @id @default(cuid())
+  ticketId  String @unique
+  data      String @unique // The actual QR code data
+  format    String @default("PNG") // Image format
+  scanCount Int    @default(0) // Track how many times it's been scanned
+
   // Relationships
-  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([data]) // Index for fast QR code data lookups
   @@map("qr_codes")
@@ -109,14 +114,14 @@ model AttendanceRecord {
   id           String     @id @default(cuid())
   ticketId     String
   scanTime     DateTime   @default(now())
-  scanLocation String?    // Where the ticket was scanned
-  scannedBy    String?    // Staff member who scanned the ticket
+  scanLocation String? // Where the ticket was scanned
+  scannedBy    String? // Staff member who scanned the ticket
   scanMethod   ScanMethod @default(QR_CODE)
-  
+
   // Relationships
-  ticket       Ticket     @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  
-  createdAt    DateTime   @default(now())
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
 
   @@index([ticketId]) // Index for ticket attendance queries
   @@index([scanTime]) // Index for time-based queries

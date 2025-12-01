@@ -60,7 +60,7 @@ router.post('/admin/seed/create-event',
       }
 
       const isAdmin = creatorInfo?.role === 'ADMIN';
-      const { EventStatus } = await import('../../generated/prisma');
+      const { EventStatus } = await import('../types');
       const initialStatus = isAdmin ? EventStatus.PUBLISHED : EventStatus.DRAFT;
 
       // Validate venue exists

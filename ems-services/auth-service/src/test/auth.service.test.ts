@@ -33,7 +33,7 @@ import {
 } from './mocks-simple';
 
 import { AuthService } from '../services/auth.service';
-import { Role } from '../../generated/prisma/index';
+import { Role } from '../../generated/prisma/enums';
 
 describe('AuthService', () => {
   let authService: AuthService;

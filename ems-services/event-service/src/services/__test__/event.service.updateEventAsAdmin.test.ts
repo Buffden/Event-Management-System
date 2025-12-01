@@ -18,7 +18,7 @@ import {
   setupAllMocks,
   resetAllMocks,
 } from '../../test/mocks-simple';
-import { EventStatus } from '../../../generated/prisma';
+import { EventStatus } from '../../types';
 
 describe('EventService.updateEventAsAdmin', () => {
   let eventService: EventService;

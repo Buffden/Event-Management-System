@@ -1,4 +1,4 @@
-import { EventStatus, SessionSpeakerMaterialsStatus } from '../../generated/prisma';
+import { EventStatus, SessionSpeakerMaterialsStatus } from './event.enums';
 
 // Event-related types
 export interface CreateEventRequest {

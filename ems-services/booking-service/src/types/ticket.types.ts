@@ -1,4 +1,4 @@
-import { TicketStatus, ScanMethod } from '../../generated/prisma';
+import { TicketStatus, ScanMethod } from '../../generated/prisma/enums';
 
 // Event details interface for type safety
 export interface EventDetails {

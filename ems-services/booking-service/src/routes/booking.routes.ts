@@ -4,8 +4,7 @@ import { logger } from '../utils/logger';
 import { requireUser } from '../middleware/auth.middleware';
 import { asyncHandler, errorHandler } from '../middleware/error.middleware';
 import { validateRequest, validateQuery, validatePagination, validateBookingStatus, validateUUID } from '../middleware/validation.middleware';
-import { CreateBookingRequest, BookingFilters, AuthRequest } from '../types';
-import { BookingStatus } from '../../generated/prisma';
+import { CreateBookingRequest, BookingFilters, AuthRequest, BookingStatus } from '../types';
 
 const router = Router();
 

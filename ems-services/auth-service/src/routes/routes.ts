@@ -467,9 +467,17 @@ export function registerRoutes(app: Express, authService: AuthService) {
                 ];
             }
 
-            // Role filter
+            // Exclude ADMIN users from the results (admins should not be displayed in user management)
+            // Role filter - but always exclude ADMIN
             if (role && role !== 'ALL') {
-                where.role = role;
+                // If filtering by specific role, exclude ADMIN and match the requested role
+                where.AND = [
+                    { role: { not: 'ADMIN' } },
+                    { role: role }
+                ];
+            } else {
+                // If no role filter, just exclude ADMIN
+                where.role = { not: 'ADMIN' };
             }
 
             // Status filter
@@ -583,6 +591,257 @@ export function registerRoutes(app: Express, authService: AuthService) {
         } catch (error: any) {
             logger.error("/admins - Failed to fetch admin users", error);
             res.status(500).json({error: 'Failed to fetch admin users'});
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/admin/suspend-users
+     * @desc    Suspend multiple users by setting isActive=false
+     * @access  Protected - Admin only
+     * @body    { emails: string[] } - Array of user email addresses to suspend
+     */
+    app.post('/admin/suspend-users', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+
+            // If user not in context, fetch it
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+
+            // Check if user is admin
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            const { emails } = req.body;
+
+            // Validate request body
+            if (!emails || !Array.isArray(emails) || emails.length === 0) {
+                return res.status(400).json({error: 'emails array is required and must not be empty'});
+            }
+
+            logger.info("/admin/suspend-users - Suspending users", {
+                adminId: userId,
+                emailCount: emails.length
+            });
+
+            const { prisma } = await import('../database');
+
+            let suspended = 0;
+            let notFound = 0;
+
+            // Process each email
+            for (const email of emails) {
+                if (!email || typeof email !== 'string') {
+                    continue; // Skip invalid emails
+                }
+
+                try {
+                    // First, fetch the user to get their details for email notification
+                    const userToSuspend = await prisma.user.findFirst({
+                        where: {
+                            email: email.trim().toLowerCase(),
+                            role: { not: 'ADMIN' } // Prevent suspending admin users
+                        },
+                        select: {
+                            id: true,
+                            email: true,
+                            name: true,
+                            image: true,
+                            role: true,
+                            isActive: true,
+                            emailVerified: true,
+                        }
+                    });
+
+                    if (!userToSuspend) {
+                        notFound++;
+                        logger.debug("/admin/suspend-users - User not found or is admin", { email });
+                        continue;
+                    }
+
+                    // Only suspend if user is currently active
+                    if (!userToSuspend.isActive) {
+                        logger.debug("/admin/suspend-users - User already suspended", { email });
+                        continue;
+                    }
+
+                    const updateResult = await prisma.user.updateMany({
+                        where: {
+                            email: email.trim().toLowerCase(),
+                            role: { not: 'ADMIN' } // Prevent suspending admin users
+                        },
+                        data: {
+                            isActive: false
+                        }
+                    });
+
+                    if (updateResult.count > 0) {
+                        suspended++;
+                        logger.debug("/admin/suspend-users - User suspended", { email });
+
+                        // Send suspension email notification
+                        try {
+                            await authService.sendAccountSuspendedEmail(userToSuspend);
+                        } catch (emailError: any) {
+                            logger.error("/admin/suspend-users - Failed to send suspension email", emailError, { email });
+                            // Don't fail the suspension if email fails
+                        }
+                    } else {
+                        notFound++;
+                        logger.debug("/admin/suspend-users - User not found or is admin", { email });
+                    }
+                } catch (error: any) {
+                    logger.error("/admin/suspend-users - Error suspending user", error, { email });
+                    notFound++; // Count as not found on error
+                }
+            }
+
+            logger.info("/admin/suspend-users - Suspension complete", {
+                adminId: userId,
+                suspended,
+                notFound,
+                total: emails.length
+            });
+
+            res.json({
+                success: true,
+                suspended,
+                notFound,
+                total: emails.length,
+                message: `Suspended ${suspended} user(s), ${notFound} user(s) not found or are admins`
+            });
+        } catch (error: any) {
+            logger.error("/admin/suspend-users - Failed to suspend users", error);
+            res.status(500).json({error: 'Failed to suspend users'});
+        }
+    });
+
+    /**
+     * @route   POST /api/auth/admin/unsuspend-users
+     * @desc    Unsuspend multiple users by setting isActive=true (without modifying emailVerified)
+     * @access  Protected - Admin only
+     * @body    { emails: string[] } - Array of user email addresses to unsuspend
+     */
+    app.post('/admin/unsuspend-users', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const userId = contextService.getCurrentUserId();
+            let user = contextService.getCurrentUser();
+
+            // If user not in context, fetch it
+            if (!user) {
+                user = await authService.getProfile(userId);
+            }
+
+            // Check if user is admin
+            if (!user || user.role !== 'ADMIN') {
+                return res.status(403).json({error: 'Access denied: Admin only'});
+            }
+
+            const { emails } = req.body;
+
+            // Validate request body
+            if (!emails || !Array.isArray(emails) || emails.length === 0) {
+                return res.status(400).json({error: 'emails array is required and must not be empty'});
+            }
+
+            logger.info("/admin/unsuspend-users - Unsuspending users", {
+                adminId: userId,
+                emailCount: emails.length
+            });
+
+            const { prisma } = await import('../database');
+
+            let unsuspended = 0;
+            let notFound = 0;
+
+            // Process each email
+            for (const email of emails) {
+                if (!email || typeof email !== 'string') {
+                    continue; // Skip invalid emails
+                }
+
+                try {
+                    // First, fetch the user to get their details for email notification
+                    const userToUnsuspend = await prisma.user.findFirst({
+                        where: {
+                            email: email.trim().toLowerCase(),
+                            role: { not: 'ADMIN' } // Prevent unsuspending admin users (though they shouldn't be suspended)
+                        },
+                        select: {
+                            id: true,
+                            email: true,
+                            name: true,
+                            image: true,
+                            role: true,
+                            isActive: true,
+                            emailVerified: true,
+                        }
+                    });
+
+                    if (!userToUnsuspend) {
+                        notFound++;
+                        logger.debug("/admin/unsuspend-users - User not found or is admin", { email });
+                        continue;
+                    }
+
+                    // Only unsuspend if user is currently suspended
+                    if (userToUnsuspend.isActive) {
+                        logger.debug("/admin/unsuspend-users - User already active", { email });
+                        continue;
+                    }
+
+                    const updateResult = await prisma.user.updateMany({
+                        where: {
+                            email: email.trim().toLowerCase(),
+                            role: { not: 'ADMIN' } // Prevent unsuspending admin users (though they shouldn't be suspended)
+                        },
+                        data: {
+                            isActive: true
+                            // Note: We don't modify emailVerified here, as the user was already verified before suspension
+                        }
+                    });
+
+                    if (updateResult.count > 0) {
+                        unsuspended++;
+                        logger.debug("/admin/unsuspend-users - User unsuspended", { email });
+
+                        // Send unsuspension email notification
+                        try {
+                            await authService.sendAccountUnsuspendedEmail(userToUnsuspend);
+                        } catch (emailError: any) {
+                            logger.error("/admin/unsuspend-users - Failed to send unsuspension email", emailError, { email });
+                            // Don't fail the unsuspension if email fails
+                        }
+                    } else {
+                        notFound++;
+                        logger.debug("/admin/unsuspend-users - User not found or is admin", { email });
+                    }
+                } catch (error: any) {
+                    logger.error("/admin/unsuspend-users - Error unsuspending user", error, { email });
+                    notFound++; // Count as not found on error
+                }
+            }
+
+            logger.info("/admin/unsuspend-users - Unsuspension complete", {
+                adminId: userId,
+                unsuspended,
+                notFound,
+                total: emails.length
+            });
+
+            res.json({
+                success: true,
+                unsuspended,
+                notFound,
+                total: emails.length,
+                message: `Unsuspended ${unsuspended} user(s), ${notFound} user(s) not found or are admins`
+            });
+        } catch (error: any) {
+            logger.error("/admin/unsuspend-users - Failed to unsuspend users", error);
+            res.status(500).json({error: 'Failed to unsuspend users'});
         }
     });
 

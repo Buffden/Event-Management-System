@@ -10,8 +10,9 @@
  */
 
 import '@jest/globals';
-import express, { Express } from 'express';
-import request from 'supertest';
+import request = require('supertest');
+import express = require('express');
+import { Express } from 'express';
 import attendanceRoutes from '../attendance.routes';
 
 // Mock dependencies - define mocks inside factory functions since jest.mock is hoisted

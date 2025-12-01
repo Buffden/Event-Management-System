@@ -13,7 +13,7 @@ import {
   setupAllMocks,
   resetAllMocks,
 } from '../../test/mocks-simple';
-import { MessageStatus } from '../../../generated/prisma';
+import { MessageStatus } from '../../../generated/prisma/enums';
 
 describe('MessageService', () => {
   let messageService: MessageService;

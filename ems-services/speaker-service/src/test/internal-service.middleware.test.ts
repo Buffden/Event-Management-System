@@ -23,7 +23,7 @@ jest.mock('../utils/logger', () => {
 
 describe('Internal Service Middleware', () => {
   let mockRequest: Partial<Request>;
-  let mockResponse: Partial<Response>;
+  let mockResponse: any;
   let mockNext: NextFunction;
 
   beforeEach(() => {
@@ -33,10 +33,9 @@ describe('Internal Service Middleware', () => {
       url: '/api/test',
       headers: {},
     };
-    mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
-    };
+    mockResponse = {} as any;
+    mockResponse.status = jest.fn().mockReturnThis();
+    mockResponse.json = jest.fn().mockReturnThis();
     mockNext = jest.fn();
   });
 
@@ -76,4 +75,3 @@ describe('Internal Service Middleware', () => {
     expect(mockResponse.status).toHaveBeenCalledWith(403);
   });
 });
-

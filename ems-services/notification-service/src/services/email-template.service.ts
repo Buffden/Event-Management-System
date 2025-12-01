@@ -9,6 +9,8 @@ import {
     TicketGeneratedNotification,
     EventReminderNotification,
     WelcomeEmail,
+    AccountSuspendedNotification,
+    AccountUnsuspendedNotification,
     MESSAGE_TYPE
 } from '../types/types';
 
@@ -47,6 +49,10 @@ class EmailTemplateService {
                 return this.generateEventReminderEmail(notification);
             case MESSAGE_TYPE.WELCOME_EMAIL:
                 return this.generateWelcomeEmail(notification);
+            case MESSAGE_TYPE.ACCOUNT_SUSPENDED:
+                return this.generateAccountSuspendedEmail(notification);
+            case MESSAGE_TYPE.ACCOUNT_UNSUSPENDED:
+                return this.generateAccountUnsuspendedEmail(notification);
             default:
                 throw new Error(`Unsupported notification type: ${notification.type}`);
         }
@@ -636,6 +642,118 @@ class EmailTemplateService {
                             </ul>
 
                             <p>If you have any questions, feel free to contact our support team.</p>
+                        </div>
+                        <div class="footer">
+                            <p>© 2024 ${this.appName}. All rights reserved.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `
+        };
+    }
+
+    private generateAccountSuspendedEmail(notification: AccountSuspendedNotification) {
+        const { message } = notification;
+        const supportEmail = message.supportEmail || 'support@' + this.baseUrl.replace(/^https?:\/\//, '').replace(/^www\./, '');
+
+        return {
+            subject: `Account Suspended - ${this.appName}`,
+            body: `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Account Suspended</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                        .header { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+                        .warning-box { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>⚠️ Account Suspended</h1>
+                        </div>
+                        <div class="content">
+                            <h2>Hello ${message.userName},</h2>
+                            <p>We are writing to inform you that your account on ${this.appName} has been suspended by the Administrators of the Platform.</p>
+
+                            <div class="warning-box">
+                                <p><strong>What this means:</strong></p>
+                                <ul>
+                                    <li>You will not be able to access your account</li>
+                                    <li>You will not be able to log in to the platform</li>
+                                    <li>All your account features are temporarily disabled</li>
+                                </ul>
+                            </div>
+
+                            <p>If you believe this suspension is in error, or if you have any questions about this action, please contact our support team:</p>
+                            <p><strong>Email:</strong> <a href="mailto:${supportEmail}">${supportEmail}</a></p>
+
+                            <p>We will review your case and respond as soon as possible.</p>
+                        </div>
+                        <div class="footer">
+                            <p>© 2024 ${this.appName}. All rights reserved.</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `
+        };
+    }
+
+    private generateAccountUnsuspendedEmail(notification: AccountUnsuspendedNotification) {
+        const { message } = notification;
+
+        return {
+            subject: `Account Reinstated - ${this.appName}`,
+            body: `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Account Reinstated</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                        .header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                        .button { display: inline-block; background: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+                        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+                        .success-box { background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 4px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>✅ Account Reinstated</h1>
+                        </div>
+                        <div class="content">
+                            <h2>Hello ${message.userName},</h2>
+                            <p>We are pleased to inform you that your account on ${this.appName} has been reinstated by the Administrators of the Platform.</p>
+
+                            <div class="success-box">
+                                <p><strong>Your account is now active again!</strong></p>
+                                <p>You can now:</p>
+                                <ul>
+                                    <li>Log in to your account</li>
+                                    <li>Access all platform features</li>
+                                    <li>Continue using our services</li>
+                                </ul>
+                            </div>
+
+                            <div style="text-align: center;">
+                                <a href="${message.dashboardLink}" class="button">Go to Dashboard</a>
+                            </div>
+
+                            <p>Thank you for your patience. If you have any questions or concerns, please don't hesitate to contact our support team.</p>
                         </div>
                         <div class="footer">
                             <p>© 2024 ${this.appName}. All rights reserved.</p>

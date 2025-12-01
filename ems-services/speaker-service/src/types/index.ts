@@ -36,7 +36,7 @@ export interface SpeakerSearchRequest {
 }
 
 // Import Prisma-generated enum
-import { InvitationStatus } from '../../generated/prisma';
+import { InvitationStatus } from '../../generated/prisma/enums';
 
 // Re-export for convenience
 export { InvitationStatus };

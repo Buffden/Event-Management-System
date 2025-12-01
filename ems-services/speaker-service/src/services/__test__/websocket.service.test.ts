@@ -4,10 +4,10 @@
  * Tests for WebSocket authentication, room assignment, and message event processing.
  */
 
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
+import jwt = require('jsonwebtoken');
 import { WebSocketService } from '../websocket.service';
 import { MessageService } from '../message.service';
 import {
@@ -148,12 +148,12 @@ describe('WebSocketService', () => {
         status: 'SENT',
       });
 
-      messageService.getMessageById = jest.fn().mockResolvedValue(mockMessage);
-      messageService.markMessageAsDelivered = jest.fn().mockResolvedValue({
+      (messageService.getMessageById as any) = jest.fn().mockImplementation(() => Promise.resolve(mockMessage));
+      (messageService.markMessageAsDelivered as any) = jest.fn().mockImplementation(() => Promise.resolve({
         ...mockMessage,
         status: 'DELIVERED',
         deliveredAt: new Date(),
-      });
+      }));
 
       // Simulate message:sent event
       const socket = createMockSocket({ userId: 'user-123' });
@@ -173,12 +173,12 @@ describe('WebSocketService', () => {
         status: 'SENT',
       });
 
-      messageService.getMessageById = jest.fn().mockResolvedValue(mockMessage);
-      messageService.markMessageAsDelivered = jest.fn().mockResolvedValue({
+      (messageService.getMessageById as any) = jest.fn().mockImplementation(() => Promise.resolve(mockMessage));
+      (messageService.markMessageAsDelivered as any) = jest.fn().mockImplementation(() => Promise.resolve({
         ...mockMessage,
         status: 'DELIVERED',
         deliveredAt: new Date(),
-      });
+      }));
 
       // Simulate recipient being online
       const recipientOnline = true;
@@ -249,7 +249,7 @@ describe('WebSocketService', () => {
         readAt: new Date(),
       });
 
-      messageService.markMessageAsRead = jest.fn().mockResolvedValue(mockMessage);
+      (messageService.markMessageAsRead as any) = jest.fn().mockImplementation(() => Promise.resolve(mockMessage));
 
       const result = await messageService.markMessageAsRead(messageId);
 

@@ -6,7 +6,8 @@
  */
 
 import '@jest/globals';
-import express, { Express } from 'express';
+import express = require('express');
+import { Express } from 'express';
 
 // Import mocks (resetAllMocks not needed, using jest.clearAllMocks directly)
 

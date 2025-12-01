@@ -16,12 +16,15 @@
     "test:ci": "jest --ci --coverage --watchAll=false"
   },
   "dependencies": {
-    "@prisma/client": "^6.17.1",
+    "@prisma/adapter-pg": "^7.0.0",
+    "@prisma/client": "^7.0.0",
     "amqplib": "^0.10.9",
     "axios": "^1.7.9",
-    "dotenv": "^17.2.2",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.3",
+    "prisma": "^7.0.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
@@ -32,11 +35,11 @@
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^24.3.3",
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.6",
     "@types/supertest": "^6.0.3",
     "jest": "^29.7.0",
     "nodemon": "^3.1.10",
-    "prisma": "^6.17.1",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.4",
     "ts-node": "^10.9.2",

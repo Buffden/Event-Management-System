@@ -12,7 +12,7 @@ permissions:
   pull-requests: write
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
 
 jobs:
   # Test all microservices and frontend
@@ -34,6 +34,10 @@ jobs:
       - name: Install dependencies
         working-directory: ${{ matrix.service == 'ems-client' && 'ems-client' || format('ems-services/{0}', matrix.service) }}
         run: npm ci
+
+      - name: Generate Prisma
+        working-directory: ${{ matrix.service == 'ems-client' && 'ems-client' || format('ems-services/{0}', matrix.service) }}
+        run: npx prisma generate
 
       - name: Run tests
         working-directory: ${{ matrix.service == 'ems-client' && 'ems-client' || format('ems-services/{0}', matrix.service) }}
@@ -89,7 +93,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Service | Status | Coverage |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|--------|----------|" >> $GITHUB_STEP_SUMMARY
-          
+
           # Check if coverage files exist and display summary
           for service in auth-service event-service booking-service notification-service ems-client; do
             if [ -d "coverage-reports/coverage-$service" ]; then
@@ -98,7 +102,7 @@ jobs:
               echo "| $service | ❌ Failed | N/A |" >> $GITHUB_STEP_SUMMARY
             fi
           done
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📁 Coverage reports are available as artifacts for download." >> $GITHUB_STEP_SUMMARY
 
@@ -116,24 +120,24 @@ jobs:
           script: |
             const testStatus = '${{ needs.test-all.result }}';
             const coverageStatus = '${{ needs.coverage-summary.result }}';
-            
+
             let statusEmoji = '✅';
             if (testStatus === 'failure' || coverageStatus === 'failure') {
               statusEmoji = '❌';
             } else if (testStatus === 'cancelled' || coverageStatus === 'cancelled') {
               statusEmoji = '⏸️';
             }
-            
+
             const commentBody = `## 🧪 Test Results ${statusEmoji}
-            
+
             | Check | Status |
             |-------|--------|
             | Tests | ${testStatus === 'success' ? '✅ Passed' : testStatus === 'failure' ? '❌ Failed' : '⏸️ Skipped'} |
             | Coverage | ${coverageStatus === 'success' ? '✅ Passed' : coverageStatus === 'failure' ? '❌ Failed' : '⏸️ Skipped'} |
-            
+
             **Summary:** All automated checks have been completed for this PR.
             `;
-            
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,

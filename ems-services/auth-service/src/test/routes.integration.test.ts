@@ -6,8 +6,9 @@
  */
 
 import '@jest/globals';
-import request from 'supertest';
-import express, { Express } from 'express';
+import request = require('supertest');
+import express = require('express');
+import { Express } from 'express';
 import { AuthService } from '../services/auth.service';
 import { registerRoutes } from '../routes/routes';
 import {
@@ -745,7 +746,10 @@ describe('Routes Integration Tests with Supertest', () => {
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            role: 'SPEAKER',
+            AND: expect.arrayContaining([
+              { role: { not: 'ADMIN' } },
+              { role: 'SPEAKER' },
+            ]),
           }),
         })
       );
@@ -780,6 +784,7 @@ describe('Routes Integration Tests with Supertest', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             OR: expect.any(Array),
+            role: { not: 'ADMIN' }, // ADMIN users should be excluded
           }),
         })
       );
@@ -891,6 +896,384 @@ describe('Routes Integration Tests with Supertest', () => {
         .set('Authorization', 'Bearer user.token');
 
       expect(response.status).toBe(403);
+    });
+
+    it('should handle errors when fetching user growth data', async () => {
+      const adminUser = createMockUser({ role: 'ADMIN' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findMany.mockRejectedValue(new Error('Database error'));
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .get('/admin/reports/user-growth')
+        .set('Authorization', 'Bearer admin.token');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('error', 'Failed to fetch user growth data');
+    });
+  });
+
+  describe('POST /admin/suspend-users', () => {
+    it('should suspend users successfully', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      const userToSuspend = createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        isActive: true,
+        role: 'USER'
+      });
+
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockResolvedValue(userToSuspend);
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/suspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('suspended', 1);
+      expect(mockRabbitMQService.sendMessage).toHaveBeenCalled();
+    });
+
+    it('should return 403 for non-admin', async () => {
+      const regularUser = createMockUser({ role: 'USER' });
+      mockPrisma.user.findUnique.mockResolvedValue(regularUser);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(regularUser);
+
+      const response = await request(app)
+        .post('/admin/suspend-users')
+        .set('Authorization', 'Bearer user.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should return 400 without emails array', async () => {
+      const adminUser = createMockUser({ role: 'ADMIN' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/suspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('emails array is required');
+    });
+
+    it('should skip already suspended users', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      const suspendedUser = createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        isActive: false,
+        role: 'USER'
+      });
+
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockResolvedValue(suspendedUser);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/suspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('suspended', 0);
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('should handle email sending failure gracefully', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      const userToSuspend = createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        isActive: true,
+        role: 'USER'
+      });
+
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockResolvedValue(userToSuspend);
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      mockRabbitMQService.sendMessage.mockRejectedValue(new Error('Email service error'));
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/suspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('suspended', 1);
+    });
+
+    it('should handle database errors', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockRejectedValue(new Error('Database error'));
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/suspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('notFound', 1);
+    });
+
+    it('should handle general errors', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      (mockContextService.getCurrentUserId as jest.Mock).mockReturnValue('admin-123');
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(null);
+      jest.spyOn(authService, 'getProfile').mockRejectedValue(new Error('General error'));
+
+      const response = await request(app)
+        .post('/admin/suspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('error', 'Failed to suspend users');
+    });
+
+    it('should fetch user profile when not in context', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      const userToSuspend = createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        isActive: true,
+        role: 'USER'
+      });
+
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      (mockContextService.getCurrentUserId as jest.Mock).mockReturnValue('admin-123');
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockResolvedValue(userToSuspend);
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(null);
+      jest.spyOn(authService, 'getProfile').mockResolvedValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/suspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(authService.getProfile).toHaveBeenCalledWith('admin-123');
+    });
+  });
+
+  describe('POST /admin/unsuspend-users', () => {
+    it('should unsuspend users successfully', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      const userToUnsuspend = createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        isActive: false,
+        role: 'USER'
+      });
+
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockResolvedValue(userToUnsuspend);
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/unsuspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('unsuspended', 1);
+      expect(mockRabbitMQService.sendMessage).toHaveBeenCalled();
+    });
+
+    it('should return 403 for non-admin', async () => {
+      const regularUser = createMockUser({ role: 'USER' });
+      mockPrisma.user.findUnique.mockResolvedValue(regularUser);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(regularUser);
+
+      const response = await request(app)
+        .post('/admin/unsuspend-users')
+        .set('Authorization', 'Bearer user.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should return 400 without emails array', async () => {
+      const adminUser = createMockUser({ role: 'ADMIN' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/unsuspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('emails array is required');
+    });
+
+    it('should skip already active users', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      const activeUser = createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        isActive: true,
+        role: 'USER'
+      });
+
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockResolvedValue(activeUser);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/unsuspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('unsuspended', 0);
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('should handle email sending failure gracefully', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      const userToUnsuspend = createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        isActive: false,
+        role: 'USER'
+      });
+
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockResolvedValue(userToUnsuspend);
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      mockRabbitMQService.sendMessage.mockRejectedValue(new Error('Email service error'));
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/unsuspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('unsuspended', 1);
+    });
+
+    it('should handle database errors', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockRejectedValue(new Error('Database error'));
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/unsuspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('notFound', 1);
+    });
+
+    it('should handle general errors', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      (mockContextService.getCurrentUserId as jest.Mock).mockReturnValue('admin-123');
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(null);
+      jest.spyOn(authService, 'getProfile').mockRejectedValue(new Error('General error'));
+
+      const response = await request(app)
+        .post('/admin/unsuspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('error', 'Failed to unsuspend users');
+    });
+
+    it('should fetch user profile when not in context', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      const userToUnsuspend = createMockUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        isActive: false,
+        role: 'USER'
+      });
+
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      (mockContextService.getCurrentUserId as jest.Mock).mockReturnValue('admin-123');
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.findFirst.mockResolvedValue(userToUnsuspend);
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      mockRabbitMQService.sendMessage.mockResolvedValue(undefined);
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(null);
+      jest.spyOn(authService, 'getProfile').mockResolvedValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/unsuspend-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(authService.getProfile).toHaveBeenCalledWith('admin-123');
+    });
+  });
+
+  describe('POST /admin/activate-users', () => {
+    it('should handle database errors during activation', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      mockPrisma.user.findUnique.mockResolvedValue(adminUser);
+      mockPrisma.user.updateMany.mockRejectedValue(new Error('Database error'));
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(adminUser);
+
+      const response = await request(app)
+        .post('/admin/activate-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('notFound', 1);
+    });
+
+    it('should handle general errors', async () => {
+      const adminUser = createMockUser({ id: 'admin-123', role: 'ADMIN' });
+      mockJWT.verify.mockReturnValue({ userId: 'admin-123' });
+      (mockContextService.getCurrentUserId as jest.Mock).mockReturnValue('admin-123');
+      (mockContextService.getCurrentUser as jest.Mock).mockReturnValue(null);
+      jest.spyOn(authService, 'getProfile').mockRejectedValue(new Error('General error'));
+
+      const response = await request(app)
+        .post('/admin/activate-users')
+        .set('Authorization', 'Bearer admin.token')
+        .send({ emails: ['test@example.com'] });
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('error', 'Failed to activate users');
     });
   });
 });

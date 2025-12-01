@@ -10,8 +10,7 @@ import {
     validatePagination,
     validateDateRange
 } from '../middleware/validation.middleware';
-import {UpdateEventRequest, EventFilters} from '../types';
-import {EventStatus} from '../../generated/prisma';
+import {UpdateEventRequest, EventFilters, EventStatus} from '../types';
 
 const router = Router();
 

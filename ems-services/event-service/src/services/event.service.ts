@@ -11,9 +11,9 @@ import {
     EventCancelledMessage,
     EventApprovedMessage,
     SessionResponse,
-    SessionSpeakerResponse
+    SessionSpeakerResponse,
+    EventStatus
 } from '../types';
-import {EventStatus} from '../../generated/prisma';
 import {eventPublisherService} from './event-publisher.service';
 import {rabbitMQService} from './rabbitmq.service';
 import axios from 'axios';

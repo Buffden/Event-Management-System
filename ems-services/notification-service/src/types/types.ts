@@ -10,6 +10,8 @@ export enum MESSAGE_TYPE {
     EVENT_REMINDER_NOTIFICATION = 'EVENT_REMINDER_NOTIFICATION',
     PASSWORD_RESET_EMAIL = 'PASSWORD_RESET_EMAIL',
     WELCOME_EMAIL = 'WELCOME_EMAIL',
+    ACCOUNT_SUSPENDED = 'ACCOUNT_SUSPENDED',
+    ACCOUNT_UNSUSPENDED = 'ACCOUNT_UNSUSPENDED',
 }
 
 // Base email payload interface
@@ -188,6 +190,30 @@ export interface WelcomeEmail extends Notification {
     };
 }
 
+// Account Suspended Notification
+export interface AccountSuspendedNotification extends Notification {
+    type: MESSAGE_TYPE.ACCOUNT_SUSPENDED;
+    message: {
+        to: string;
+        subject: string;
+        body: string;
+        userName: string;
+        supportEmail?: string;
+    };
+}
+
+// Account Unsuspended Notification
+export interface AccountUnsuspendedNotification extends Notification {
+    type: MESSAGE_TYPE.ACCOUNT_UNSUSPENDED;
+    message: {
+        to: string;
+        subject: string;
+        body: string;
+        userName: string;
+        dashboardLink: string;
+    };
+}
+
 // Union type for all notification types
 export type AnyNotification =
     | EmailNotification
@@ -199,4 +225,6 @@ export type AnyNotification =
     | BookingCancelledNotification
     | TicketGeneratedNotification
     | EventReminderNotification
-    | WelcomeEmail;
+    | WelcomeEmail
+    | AccountSuspendedNotification
+    | AccountUnsuspendedNotification;

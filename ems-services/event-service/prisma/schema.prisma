@@ -5,14 +5,13 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider      = "prisma-client-js"
+  provider      = "prisma-client"
   output        = "../generated/prisma"
-  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum EventStatus {
@@ -92,7 +91,7 @@ model Session {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  event    Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event    Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
   speakers SessionSpeaker[]
 
   @@index([eventId, startsAt])
@@ -100,13 +99,13 @@ model Session {
 }
 
 model SessionSpeaker {
-  id                     String                         @id @default(cuid())
-  sessionId              String                         @map("session_id")
-  speakerId              String                         @map("speaker_id")
-  materialsAssetId       String?                        @map("materials_asset_id")
-  materialsStatus        SessionSpeakerMaterialsStatus  @default(REQUESTED) @map("materials_status")
-  speakerCheckinConfirmed Boolean                        @default(false) @map("speaker_checkin_confirmed")
-  specialNotes           String?                        @map("special_notes") @db.Text
+  id                      String                        @id @default(cuid())
+  sessionId               String                        @map("session_id")
+  speakerId               String                        @map("speaker_id")
+  materialsAssetId        String?                       @map("materials_asset_id")
+  materialsStatus         SessionSpeakerMaterialsStatus @default(REQUESTED) @map("materials_status")
+  speakerCheckinConfirmed Boolean                       @default(false) @map("speaker_checkin_confirmed")
+  specialNotes            String?                       @map("special_notes") @db.Text
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

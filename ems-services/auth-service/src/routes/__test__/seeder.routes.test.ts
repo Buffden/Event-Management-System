@@ -7,8 +7,9 @@
  */
 
 import '@jest/globals';
-import request from 'supertest';
-import express, { Express } from 'express';
+import request = require('supertest');
+import express = require('express');
+import { Express } from 'express';
 import { AuthService } from '../../services/auth.service';
 import { registerSeederRoutes } from '../seeder.routes';
 import {

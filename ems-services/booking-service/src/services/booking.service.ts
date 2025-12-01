@@ -9,7 +9,7 @@ import {
   CapacityCheckResult,
   BookingError
 } from '../types';
-import { BookingStatus } from '../../generated/prisma';
+import { BookingStatus } from '../types/';
 import { eventPublisherService } from './event-publisher.service';
 import { ticketService } from './ticket.service';
 import axios from 'axios';
